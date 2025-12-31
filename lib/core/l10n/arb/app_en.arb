@@ -1,0 +1,18 @@
+{
+  "appName": "HisabET",
+  "dashboard": "Dashboard",
+  "gave": "Gave",
+  "took": "Took",
+  "payment": "Payment",
+  "balance": "Balance",
+  "transactions": "Transactions",
+  "contacts": "Contacts",
+  "settings": "Settings",
+  "language": "Language",
+  "darkMode": "Dark Mode",
+  "addContact": "Add Contact",
+  "name": "Name",
+  "phone": "Phone",
+  "save": "Save",
+  "cancel": "Cancel"
+}

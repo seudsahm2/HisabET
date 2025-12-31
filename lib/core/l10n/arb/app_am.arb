@@ -1,0 +1,18 @@
+{
+  "appName": "ሂሳብET",
+  "dashboard": "ዳሽቦርድ",
+  "gave": "ሰጠሁ",
+  "took": "ወሰድኩ",
+  "payment": "ክፍያ",
+  "balance": "ቀሪ ሂሳብ",
+  "transactions": "ግብይቶች",
+  "contacts": "ያለኝ እውቂያዎች",
+  "settings": "ቅንብሮች",
+  "language": "ቋንቋ",
+  "darkMode": "ዳርክ ሞድ",
+  "addContact": "አዲስ ሰው ጨምር",
+  "name": "ስም",
+  "phone": "ስልክ",
+  "save": "አስቀምጥ",
+  "cancel": "ይቅር"
+}
