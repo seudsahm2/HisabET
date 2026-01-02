@@ -20,6 +20,7 @@ abstract class TransactionsRepository {
   Future<void> updateTransaction(TransactionModel transaction);
   Future<void> deleteTransaction(String id);
   Future<Decimal> calculateNetBalance(String contactId);
+  Future<List<TransactionModel>> getRecentTransactions({int limit = 10});
 }
 
 class TransactionsRepositoryImpl implements TransactionsRepository {
@@ -149,6 +150,16 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
       balance += tx.balanceEffect;
     }
     return balance;
+  }
+
+  @override
+  Future<List<TransactionModel>> getRecentTransactions({int limit = 10}) async {
+    final rows =
+        await (_db.select(_db.transactions)
+              ..orderBy([(t) => OrderingTerm.desc(t.date)])
+              ..limit(limit))
+            .get();
+    return rows.map((e) => TransactionModel.fromDb(e)).toList();
   }
 
   /// Internal: Update the contact's cached netBalance field
