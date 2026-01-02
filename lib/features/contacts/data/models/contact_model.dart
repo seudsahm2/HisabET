@@ -10,6 +10,7 @@ class ContactModel {
   final String? shopNumber;
   final Decimal netBalance;
   final DateTime lastTransactionDate;
+  final String? linkedUserUid;
 
   ContactModel({
     required this.id,
@@ -18,6 +19,7 @@ class ContactModel {
     this.shopNumber,
     required this.netBalance,
     required this.lastTransactionDate,
+    this.linkedUserUid,
   });
 
   /// From database row (Drift generated class)
@@ -29,6 +31,7 @@ class ContactModel {
       shopNumber: dbContact.shopNumber,
       netBalance: Decimal.parse(dbContact.netBalance),
       lastTransactionDate: dbContact.lastTransactionDate,
+      linkedUserUid: dbContact.linkedUserUid,
     );
   }
 
@@ -41,6 +44,7 @@ class ContactModel {
       shopNumber: drift.Value(shopNumber),
       netBalance: drift.Value(netBalance.toString()),
       lastTransactionDate: lastTransactionDate,
+      linkedUserUid: drift.Value(linkedUserUid),
     );
   }
 }

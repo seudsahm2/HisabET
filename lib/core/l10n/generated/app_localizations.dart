@@ -193,6 +193,138 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Cancel'**
   String get cancel;
+
+  /// No description provided for @paymentMethod.
+  ///
+  /// In en, this message translates to:
+  /// **'Payment Method'**
+  String get paymentMethod;
+
+  /// No description provided for @cash.
+  ///
+  /// In en, this message translates to:
+  /// **'Cash'**
+  String get cash;
+
+  /// No description provided for @cbe.
+  ///
+  /// In en, this message translates to:
+  /// **'CBE'**
+  String get cbe;
+
+  /// No description provided for @boa.
+  ///
+  /// In en, this message translates to:
+  /// **'BOA'**
+  String get boa;
+
+  /// No description provided for @otherBank.
+  ///
+  /// In en, this message translates to:
+  /// **'Other Bank'**
+  String get otherBank;
+
+  /// No description provided for @paymentReceived.
+  ///
+  /// In en, this message translates to:
+  /// **'Payment Received'**
+  String get paymentReceived;
+
+  /// No description provided for @paymentGiven.
+  ///
+  /// In en, this message translates to:
+  /// **'Payment Made'**
+  String get paymentGiven;
+
+  /// No description provided for @goodsGiven.
+  ///
+  /// In en, this message translates to:
+  /// **'Gave Goods'**
+  String get goodsGiven;
+
+  /// No description provided for @goodsTaken.
+  ///
+  /// In en, this message translates to:
+  /// **'Took Goods'**
+  String get goodsTaken;
+
+  /// No description provided for @amount.
+  ///
+  /// In en, this message translates to:
+  /// **'Amount'**
+  String get amount;
+
+  /// No description provided for @totalAmount.
+  ///
+  /// In en, this message translates to:
+  /// **'Total Amount'**
+  String get totalAmount;
+
+  /// No description provided for @quantity.
+  ///
+  /// In en, this message translates to:
+  /// **'Quantity'**
+  String get quantity;
+
+  /// No description provided for @unitPrice.
+  ///
+  /// In en, this message translates to:
+  /// **'Unit Price'**
+  String get unitPrice;
+
+  /// No description provided for @description.
+  ///
+  /// In en, this message translates to:
+  /// **'Description'**
+  String get description;
+
+  /// No description provided for @date.
+  ///
+  /// In en, this message translates to:
+  /// **'Date'**
+  String get date;
+
+  /// No description provided for @saveTransaction.
+  ///
+  /// In en, this message translates to:
+  /// **'Save Transaction'**
+  String get saveTransaction;
+
+  /// No description provided for @useCalculator.
+  ///
+  /// In en, this message translates to:
+  /// **'Use Calculator'**
+  String get useCalculator;
+
+  /// No description provided for @calcSubtext.
+  ///
+  /// In en, this message translates to:
+  /// **'Calculate from quantity × price'**
+  String get calcSubtext;
+
+  /// No description provided for @theyOweYou.
+  ///
+  /// In en, this message translates to:
+  /// **'They Owe You'**
+  String get theyOweYou;
+
+  /// No description provided for @youOweThem.
+  ///
+  /// In en, this message translates to:
+  /// **'You Owe Them'**
+  String get youOweThem;
+
+  /// No description provided for @noTransactions.
+  ///
+  /// In en, this message translates to:
+  /// **'No transactions yet.'**
+  String get noTransactions;
+
+  /// No description provided for @history.
+  ///
+  /// In en, this message translates to:
+  /// **'Transaction History'**
+  String get history;
 }
 
 class _AppLocalizationsDelegate

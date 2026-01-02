@@ -71,6 +71,17 @@ class $ContactsTable extends Contacts with TableInfo<$ContactsTable, Contact> {
         type: DriftSqlType.dateTime,
         requiredDuringInsert: true,
       );
+  static const VerificationMeta _linkedUserUidMeta = const VerificationMeta(
+    'linkedUserUid',
+  );
+  @override
+  late final GeneratedColumn<String> linkedUserUid = GeneratedColumn<String>(
+    'linked_user_uid',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -79,6 +90,7 @@ class $ContactsTable extends Contacts with TableInfo<$ContactsTable, Contact> {
     shopNumber,
     netBalance,
     lastTransactionDate,
+    linkedUserUid,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -137,6 +149,15 @@ class $ContactsTable extends Contacts with TableInfo<$ContactsTable, Contact> {
     } else if (isInserting) {
       context.missing(_lastTransactionDateMeta);
     }
+    if (data.containsKey('linked_user_uid')) {
+      context.handle(
+        _linkedUserUidMeta,
+        linkedUserUid.isAcceptableOrUnknown(
+          data['linked_user_uid']!,
+          _linkedUserUidMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -170,6 +191,10 @@ class $ContactsTable extends Contacts with TableInfo<$ContactsTable, Contact> {
         DriftSqlType.dateTime,
         data['${effectivePrefix}last_transaction_date'],
       )!,
+      linkedUserUid: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}linked_user_uid'],
+      ),
     );
   }
 
@@ -186,6 +211,9 @@ class Contact extends DataClass implements Insertable<Contact> {
   final String? shopNumber;
   final String netBalance;
   final DateTime lastTransactionDate;
+
+  /// Stores the Firestore UID if this contact is a real verified user.
+  final String? linkedUserUid;
   const Contact({
     required this.id,
     required this.name,
@@ -193,6 +221,7 @@ class Contact extends DataClass implements Insertable<Contact> {
     this.shopNumber,
     required this.netBalance,
     required this.lastTransactionDate,
+    this.linkedUserUid,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -207,6 +236,9 @@ class Contact extends DataClass implements Insertable<Contact> {
     }
     map['net_balance'] = Variable<String>(netBalance);
     map['last_transaction_date'] = Variable<DateTime>(lastTransactionDate);
+    if (!nullToAbsent || linkedUserUid != null) {
+      map['linked_user_uid'] = Variable<String>(linkedUserUid);
+    }
     return map;
   }
 
@@ -222,6 +254,9 @@ class Contact extends DataClass implements Insertable<Contact> {
           : Value(shopNumber),
       netBalance: Value(netBalance),
       lastTransactionDate: Value(lastTransactionDate),
+      linkedUserUid: linkedUserUid == null && nullToAbsent
+          ? const Value.absent()
+          : Value(linkedUserUid),
     );
   }
 
@@ -239,6 +274,7 @@ class Contact extends DataClass implements Insertable<Contact> {
       lastTransactionDate: serializer.fromJson<DateTime>(
         json['lastTransactionDate'],
       ),
+      linkedUserUid: serializer.fromJson<String?>(json['linkedUserUid']),
     );
   }
   @override
@@ -251,6 +287,7 @@ class Contact extends DataClass implements Insertable<Contact> {
       'shopNumber': serializer.toJson<String?>(shopNumber),
       'netBalance': serializer.toJson<String>(netBalance),
       'lastTransactionDate': serializer.toJson<DateTime>(lastTransactionDate),
+      'linkedUserUid': serializer.toJson<String?>(linkedUserUid),
     };
   }
 
@@ -261,6 +298,7 @@ class Contact extends DataClass implements Insertable<Contact> {
     Value<String?> shopNumber = const Value.absent(),
     String? netBalance,
     DateTime? lastTransactionDate,
+    Value<String?> linkedUserUid = const Value.absent(),
   }) => Contact(
     id: id ?? this.id,
     name: name ?? this.name,
@@ -268,6 +306,9 @@ class Contact extends DataClass implements Insertable<Contact> {
     shopNumber: shopNumber.present ? shopNumber.value : this.shopNumber,
     netBalance: netBalance ?? this.netBalance,
     lastTransactionDate: lastTransactionDate ?? this.lastTransactionDate,
+    linkedUserUid: linkedUserUid.present
+        ? linkedUserUid.value
+        : this.linkedUserUid,
   );
   Contact copyWithCompanion(ContactsCompanion data) {
     return Contact(
@@ -285,6 +326,9 @@ class Contact extends DataClass implements Insertable<Contact> {
       lastTransactionDate: data.lastTransactionDate.present
           ? data.lastTransactionDate.value
           : this.lastTransactionDate,
+      linkedUserUid: data.linkedUserUid.present
+          ? data.linkedUserUid.value
+          : this.linkedUserUid,
     );
   }
 
@@ -296,7 +340,8 @@ class Contact extends DataClass implements Insertable<Contact> {
           ..write('phoneNumber: $phoneNumber, ')
           ..write('shopNumber: $shopNumber, ')
           ..write('netBalance: $netBalance, ')
-          ..write('lastTransactionDate: $lastTransactionDate')
+          ..write('lastTransactionDate: $lastTransactionDate, ')
+          ..write('linkedUserUid: $linkedUserUid')
           ..write(')'))
         .toString();
   }
@@ -309,6 +354,7 @@ class Contact extends DataClass implements Insertable<Contact> {
     shopNumber,
     netBalance,
     lastTransactionDate,
+    linkedUserUid,
   );
   @override
   bool operator ==(Object other) =>
@@ -319,7 +365,8 @@ class Contact extends DataClass implements Insertable<Contact> {
           other.phoneNumber == this.phoneNumber &&
           other.shopNumber == this.shopNumber &&
           other.netBalance == this.netBalance &&
-          other.lastTransactionDate == this.lastTransactionDate);
+          other.lastTransactionDate == this.lastTransactionDate &&
+          other.linkedUserUid == this.linkedUserUid);
 }
 
 class ContactsCompanion extends UpdateCompanion<Contact> {
@@ -329,6 +376,7 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
   final Value<String?> shopNumber;
   final Value<String> netBalance;
   final Value<DateTime> lastTransactionDate;
+  final Value<String?> linkedUserUid;
   final Value<int> rowid;
   const ContactsCompanion({
     this.id = const Value.absent(),
@@ -337,6 +385,7 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
     this.shopNumber = const Value.absent(),
     this.netBalance = const Value.absent(),
     this.lastTransactionDate = const Value.absent(),
+    this.linkedUserUid = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ContactsCompanion.insert({
@@ -346,6 +395,7 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
     this.shopNumber = const Value.absent(),
     this.netBalance = const Value.absent(),
     required DateTime lastTransactionDate,
+    this.linkedUserUid = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        name = Value(name),
@@ -357,6 +407,7 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
     Expression<String>? shopNumber,
     Expression<String>? netBalance,
     Expression<DateTime>? lastTransactionDate,
+    Expression<String>? linkedUserUid,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -367,6 +418,7 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
       if (netBalance != null) 'net_balance': netBalance,
       if (lastTransactionDate != null)
         'last_transaction_date': lastTransactionDate,
+      if (linkedUserUid != null) 'linked_user_uid': linkedUserUid,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -378,6 +430,7 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
     Value<String?>? shopNumber,
     Value<String>? netBalance,
     Value<DateTime>? lastTransactionDate,
+    Value<String?>? linkedUserUid,
     Value<int>? rowid,
   }) {
     return ContactsCompanion(
@@ -387,6 +440,7 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
       shopNumber: shopNumber ?? this.shopNumber,
       netBalance: netBalance ?? this.netBalance,
       lastTransactionDate: lastTransactionDate ?? this.lastTransactionDate,
+      linkedUserUid: linkedUserUid ?? this.linkedUserUid,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -414,6 +468,9 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
         lastTransactionDate.value,
       );
     }
+    if (linkedUserUid.present) {
+      map['linked_user_uid'] = Variable<String>(linkedUserUid.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -429,6 +486,7 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
           ..write('shopNumber: $shopNumber, ')
           ..write('netBalance: $netBalance, ')
           ..write('lastTransactionDate: $lastTransactionDate, ')
+          ..write('linkedUserUid: $linkedUserUid, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -513,6 +571,17 @@ class $TransactionsTable extends Transactions
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _referenceIdMeta = const VerificationMeta(
+    'referenceId',
+  );
+  @override
+  late final GeneratedColumn<String> referenceId = GeneratedColumn<String>(
+    'reference_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -522,6 +591,7 @@ class $TransactionsTable extends Transactions
     date,
     description,
     metadata,
+    referenceId,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -587,6 +657,15 @@ class $TransactionsTable extends Transactions
         metadata.isAcceptableOrUnknown(data['metadata']!, _metadataMeta),
       );
     }
+    if (data.containsKey('reference_id')) {
+      context.handle(
+        _referenceIdMeta,
+        referenceId.isAcceptableOrUnknown(
+          data['reference_id']!,
+          _referenceIdMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -624,6 +703,10 @@ class $TransactionsTable extends Transactions
         DriftSqlType.string,
         data['${effectivePrefix}metadata'],
       ),
+      referenceId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}reference_id'],
+      ),
     );
   }
 
@@ -641,6 +724,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
   final DateTime date;
   final String? description;
   final String? metadata;
+  final String? referenceId;
   const Transaction({
     required this.id,
     required this.contactId,
@@ -649,6 +733,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     required this.date,
     this.description,
     this.metadata,
+    this.referenceId,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -663,6 +748,9 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     }
     if (!nullToAbsent || metadata != null) {
       map['metadata'] = Variable<String>(metadata);
+    }
+    if (!nullToAbsent || referenceId != null) {
+      map['reference_id'] = Variable<String>(referenceId);
     }
     return map;
   }
@@ -680,6 +768,9 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       metadata: metadata == null && nullToAbsent
           ? const Value.absent()
           : Value(metadata),
+      referenceId: referenceId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(referenceId),
     );
   }
 
@@ -696,6 +787,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       date: serializer.fromJson<DateTime>(json['date']),
       description: serializer.fromJson<String?>(json['description']),
       metadata: serializer.fromJson<String?>(json['metadata']),
+      referenceId: serializer.fromJson<String?>(json['referenceId']),
     );
   }
   @override
@@ -709,6 +801,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       'date': serializer.toJson<DateTime>(date),
       'description': serializer.toJson<String?>(description),
       'metadata': serializer.toJson<String?>(metadata),
+      'referenceId': serializer.toJson<String?>(referenceId),
     };
   }
 
@@ -720,6 +813,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     DateTime? date,
     Value<String?> description = const Value.absent(),
     Value<String?> metadata = const Value.absent(),
+    Value<String?> referenceId = const Value.absent(),
   }) => Transaction(
     id: id ?? this.id,
     contactId: contactId ?? this.contactId,
@@ -728,6 +822,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     date: date ?? this.date,
     description: description.present ? description.value : this.description,
     metadata: metadata.present ? metadata.value : this.metadata,
+    referenceId: referenceId.present ? referenceId.value : this.referenceId,
   );
   Transaction copyWithCompanion(TransactionsCompanion data) {
     return Transaction(
@@ -740,6 +835,9 @@ class Transaction extends DataClass implements Insertable<Transaction> {
           ? data.description.value
           : this.description,
       metadata: data.metadata.present ? data.metadata.value : this.metadata,
+      referenceId: data.referenceId.present
+          ? data.referenceId.value
+          : this.referenceId,
     );
   }
 
@@ -752,14 +850,23 @@ class Transaction extends DataClass implements Insertable<Transaction> {
           ..write('amount: $amount, ')
           ..write('date: $date, ')
           ..write('description: $description, ')
-          ..write('metadata: $metadata')
+          ..write('metadata: $metadata, ')
+          ..write('referenceId: $referenceId')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode =>
-      Object.hash(id, contactId, type, amount, date, description, metadata);
+  int get hashCode => Object.hash(
+    id,
+    contactId,
+    type,
+    amount,
+    date,
+    description,
+    metadata,
+    referenceId,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -770,7 +877,8 @@ class Transaction extends DataClass implements Insertable<Transaction> {
           other.amount == this.amount &&
           other.date == this.date &&
           other.description == this.description &&
-          other.metadata == this.metadata);
+          other.metadata == this.metadata &&
+          other.referenceId == this.referenceId);
 }
 
 class TransactionsCompanion extends UpdateCompanion<Transaction> {
@@ -781,6 +889,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
   final Value<DateTime> date;
   final Value<String?> description;
   final Value<String?> metadata;
+  final Value<String?> referenceId;
   final Value<int> rowid;
   const TransactionsCompanion({
     this.id = const Value.absent(),
@@ -790,6 +899,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     this.date = const Value.absent(),
     this.description = const Value.absent(),
     this.metadata = const Value.absent(),
+    this.referenceId = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   TransactionsCompanion.insert({
@@ -800,6 +910,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     required DateTime date,
     this.description = const Value.absent(),
     this.metadata = const Value.absent(),
+    this.referenceId = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        contactId = Value(contactId),
@@ -814,6 +925,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     Expression<DateTime>? date,
     Expression<String>? description,
     Expression<String>? metadata,
+    Expression<String>? referenceId,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -824,6 +936,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
       if (date != null) 'date': date,
       if (description != null) 'description': description,
       if (metadata != null) 'metadata': metadata,
+      if (referenceId != null) 'reference_id': referenceId,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -836,6 +949,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     Value<DateTime>? date,
     Value<String?>? description,
     Value<String?>? metadata,
+    Value<String?>? referenceId,
     Value<int>? rowid,
   }) {
     return TransactionsCompanion(
@@ -846,6 +960,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
       date: date ?? this.date,
       description: description ?? this.description,
       metadata: metadata ?? this.metadata,
+      referenceId: referenceId ?? this.referenceId,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -874,6 +989,9 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     if (metadata.present) {
       map['metadata'] = Variable<String>(metadata.value);
     }
+    if (referenceId.present) {
+      map['reference_id'] = Variable<String>(referenceId.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -890,6 +1008,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
           ..write('date: $date, ')
           ..write('description: $description, ')
           ..write('metadata: $metadata, ')
+          ..write('referenceId: $referenceId, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -916,6 +1035,7 @@ typedef $$ContactsTableCreateCompanionBuilder =
       Value<String?> shopNumber,
       Value<String> netBalance,
       required DateTime lastTransactionDate,
+      Value<String?> linkedUserUid,
       Value<int> rowid,
     });
 typedef $$ContactsTableUpdateCompanionBuilder =
@@ -926,6 +1046,7 @@ typedef $$ContactsTableUpdateCompanionBuilder =
       Value<String?> shopNumber,
       Value<String> netBalance,
       Value<DateTime> lastTransactionDate,
+      Value<String?> linkedUserUid,
       Value<int> rowid,
     });
 
@@ -988,6 +1109,11 @@ class $$ContactsTableFilterComposer
 
   ColumnFilters<DateTime> get lastTransactionDate => $composableBuilder(
     column: $table.lastTransactionDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get linkedUserUid => $composableBuilder(
+    column: $table.linkedUserUid,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -1055,6 +1181,11 @@ class $$ContactsTableOrderingComposer
     column: $table.lastTransactionDate,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get linkedUserUid => $composableBuilder(
+    column: $table.linkedUserUid,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$ContactsTableAnnotationComposer
@@ -1089,6 +1220,11 @@ class $$ContactsTableAnnotationComposer
 
   GeneratedColumn<DateTime> get lastTransactionDate => $composableBuilder(
     column: $table.lastTransactionDate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get linkedUserUid => $composableBuilder(
+    column: $table.linkedUserUid,
     builder: (column) => column,
   );
 
@@ -1152,6 +1288,7 @@ class $$ContactsTableTableManager
                 Value<String?> shopNumber = const Value.absent(),
                 Value<String> netBalance = const Value.absent(),
                 Value<DateTime> lastTransactionDate = const Value.absent(),
+                Value<String?> linkedUserUid = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ContactsCompanion(
                 id: id,
@@ -1160,6 +1297,7 @@ class $$ContactsTableTableManager
                 shopNumber: shopNumber,
                 netBalance: netBalance,
                 lastTransactionDate: lastTransactionDate,
+                linkedUserUid: linkedUserUid,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -1170,6 +1308,7 @@ class $$ContactsTableTableManager
                 Value<String?> shopNumber = const Value.absent(),
                 Value<String> netBalance = const Value.absent(),
                 required DateTime lastTransactionDate,
+                Value<String?> linkedUserUid = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ContactsCompanion.insert(
                 id: id,
@@ -1178,6 +1317,7 @@ class $$ContactsTableTableManager
                 shopNumber: shopNumber,
                 netBalance: netBalance,
                 lastTransactionDate: lastTransactionDate,
+                linkedUserUid: linkedUserUid,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -1244,6 +1384,7 @@ typedef $$TransactionsTableCreateCompanionBuilder =
       required DateTime date,
       Value<String?> description,
       Value<String?> metadata,
+      Value<String?> referenceId,
       Value<int> rowid,
     });
 typedef $$TransactionsTableUpdateCompanionBuilder =
@@ -1255,6 +1396,7 @@ typedef $$TransactionsTableUpdateCompanionBuilder =
       Value<DateTime> date,
       Value<String?> description,
       Value<String?> metadata,
+      Value<String?> referenceId,
       Value<int> rowid,
     });
 
@@ -1321,6 +1463,11 @@ class $$TransactionsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get referenceId => $composableBuilder(
+    column: $table.referenceId,
+    builder: (column) => ColumnFilters(column),
+  );
+
   $$ContactsTableFilterComposer get contactId {
     final $$ContactsTableFilterComposer composer = $composerBuilder(
       composer: this,
@@ -1384,6 +1531,11 @@ class $$TransactionsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get referenceId => $composableBuilder(
+    column: $table.referenceId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$ContactsTableOrderingComposer get contactId {
     final $$ContactsTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -1436,6 +1588,11 @@ class $$TransactionsTableAnnotationComposer
 
   GeneratedColumn<String> get metadata =>
       $composableBuilder(column: $table.metadata, builder: (column) => column);
+
+  GeneratedColumn<String> get referenceId => $composableBuilder(
+    column: $table.referenceId,
+    builder: (column) => column,
+  );
 
   $$ContactsTableAnnotationComposer get contactId {
     final $$ContactsTableAnnotationComposer composer = $composerBuilder(
@@ -1496,6 +1653,7 @@ class $$TransactionsTableTableManager
                 Value<DateTime> date = const Value.absent(),
                 Value<String?> description = const Value.absent(),
                 Value<String?> metadata = const Value.absent(),
+                Value<String?> referenceId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => TransactionsCompanion(
                 id: id,
@@ -1505,6 +1663,7 @@ class $$TransactionsTableTableManager
                 date: date,
                 description: description,
                 metadata: metadata,
+                referenceId: referenceId,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -1516,6 +1675,7 @@ class $$TransactionsTableTableManager
                 required DateTime date,
                 Value<String?> description = const Value.absent(),
                 Value<String?> metadata = const Value.absent(),
+                Value<String?> referenceId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => TransactionsCompanion.insert(
                 id: id,
@@ -1525,6 +1685,7 @@ class $$TransactionsTableTableManager
                 date: date,
                 description: description,
                 metadata: metadata,
+                referenceId: referenceId,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

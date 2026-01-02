@@ -21,3 +21,17 @@ final allContactsProvider = FutureProvider<List<ContactModel>>((ref) async {
   final repo = ref.watch(contactsRepositoryProvider);
   return repo.getAllContacts();
 });
+
+/// Provider for a single contact (reactive to balance updates)
+final contactProvider = FutureProvider.family<ContactModel?, String>((
+  ref,
+  id,
+) async {
+  final repo = ref.watch(contactsRepositoryProvider);
+  final contacts = await repo.getAllContacts();
+  try {
+    return contacts.firstWhere((c) => c.id == id);
+  } catch (_) {
+    return null;
+  }
+});

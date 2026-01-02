@@ -4,8 +4,16 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:hisabet/core/theme/app_theme.dart';
 import 'package:hisabet/features/contacts/presentation/screens/contacts_list_screen.dart';
 import 'package:hisabet/core/l10n/generated/app_localizations.dart';
+import 'package:hisabet/core/auth/auth_gate.dart';
 
-void main() {
+import 'package:firebase_core/firebase_core.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize Firebase
+  await Firebase.initializeApp();
+
   runApp(const ProviderScope(child: MyApp()));
 }
 
@@ -32,8 +40,8 @@ class MyApp extends StatelessWidget {
       ],
       supportedLocales: const [Locale('en'), Locale('am')],
 
-      // Home: Contacts List Screen
-      home: const ContactsListScreen(),
+      // Home: Auth Gate (Checks Login)
+      home: const AuthGate(),
     );
   }
 }

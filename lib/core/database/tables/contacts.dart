@@ -11,6 +11,9 @@ class Contacts extends Table {
   TextColumn get netBalance => text().withDefault(const Constant('0.0'))();
   DateTimeColumn get lastTransactionDate => dateTime()();
 
+  /// Stores the Firestore UID if this contact is a real verified user.
+  TextColumn get linkedUserUid => text().nullable()();
+
   @override
   Set<Column> get primaryKey => {id};
 }

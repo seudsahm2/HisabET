@@ -17,6 +17,9 @@ class Transactions extends Table {
   // JSON string for metadata {quantity, unitPrice}
   TextColumn get metadata => text().nullable()();
 
+  // Shared Reference ID (e.g. Bill #, Ticket #) for smart matching
+  TextColumn get referenceId => text().nullable()();
+
   @override
   Set<Column> get primaryKey => {id};
 }
