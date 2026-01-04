@@ -52,20 +52,7 @@ ReconciliationResult _calculateDiff(
 ) {
   final diffs = <TransactionDiff>[];
 
-  // Matching Strategy:
-  // 1. Exact Match: Amount + Date (within 1 min) + Type
-  // But type is inverted. "I Gave" = "They Received".
-  // Local.Type == GoodsGiven (0) <-> Remote.Type == GoodsTaken (1) ?
-  // Remote sends "GoodsTaken" meaning "I (Remote User) took goods".
-  // So if I Gave Goods, they Took Goods.
-  // They store THEIR perspective.
-  // So:
-  // My 'GoodsGiven' should match Their 'GoodsTaken'.
-  // My 'GoodsTaken' should match Their 'GoodsGiven'.
-  // My 'PaymentGiven' should match Their 'PaymentReceived'.
-  // My 'PaymentReceived' should match Their 'PaymentGiven'.
-
-  // Helper to invert type
+  // --- Helper: Invert Type (for complementary transactions) ---
   TransactionType invertType(TransactionType t) {
     switch (t) {
       case TransactionType.goodsGiven:
@@ -79,179 +66,139 @@ ReconciliationResult _calculateDiff(
     }
   }
 
-  final remoteMatched = <String>{};
+  // --- Helper: Robust Amount Comparison ---
+  // Decimal.== can be finicky with different representations (e.g., "100" vs "100.00")
+  // Converting to double for comparison is safer for our use case
+  bool amountsMatch(Decimal a, Decimal b) {
+    // Use double comparison with a tiny epsilon for floating-point safety
+    final diff = (a.toDouble() - b.toDouble()).abs();
+    return diff < 0.01; // Within 1 cent = match
+  }
 
-  // Helper: Calculate Similarity Score (Higher is better)
+  // --- Helper: Date Proximity Check ---
+  bool datesAreClose(DateTime a, DateTime b, {int maxHours = 72}) {
+    final diff = a.difference(b).inHours.abs();
+    return diff <= maxHours;
+  }
+
+  // --- Helper: Calculate Similarity Score ---
   double calculateScore(TransactionModel l, TransactionModel r) {
     double score = 0;
 
-    // 1. Reference ID (Highest Priority - The "Golden Key")
-    if (l.referenceId != null &&
-        r.referenceId != null &&
-        l.referenceId!.isNotEmpty &&
-        r.referenceId!.isNotEmpty) {
-      if (l.referenceId!.trim().toLowerCase() ==
-          r.referenceId!.trim().toLowerCase()) {
-        return 1000.0; // Guaranteed Match
-      }
+    // 1. Reference ID (Golden Key) - Guarantees pairing
+    final lRef = (l.referenceId ?? '').trim().toLowerCase();
+    final rRef = (r.referenceId ?? '').trim().toLowerCase();
+    if (lRef.isNotEmpty && rRef.isNotEmpty && lRef == rRef) {
+      return 1000.0; // Guaranteed pair identification
     }
 
-    // 2. Date Proximity (Expanded Window: 7 Days)
-    // Many users log entries days later. We shouldn't punish them too hard.
+    // 2. Date Proximity (7-day window)
     final hoursDiff = l.date.difference(r.date).inHours.abs();
-    if (hoursDiff > 168) return -50.0; // > 1 week difference = Unlikely match
+    if (hoursDiff > 168) return -50.0; // > 1 week = unlikely match
 
-    // Decay: 0h diff = 50 pts, 24h = 40 pts, 7 days = 10 pts
     if (hoursDiff <= 24) {
       score += 50 - hoursDiff;
     } else {
-      score += 26 - (hoursDiff / 7); // Slow decay for older days
+      score += 26 - (hoursDiff / 7);
     }
 
-    // 3. Amount Match (Smart Price Logic)
-    if (l.amount == r.amount) {
-      score += 60; // Exact match is strong
+    // 3. Amount Match
+    if (amountsMatch(l.amount, r.amount)) {
+      score += 60;
     } else {
       final dL = l.amount.toDouble();
       final dR = r.amount.toDouble();
-
-      // A) Small Variance (< 5% difference)
-      // e.g. Tax diff or small mistake: 100 vs 105
       if (dL > 0 && dR > 0) {
         final ratio = dL > dR ? dL / dR : dR / dL;
-        if (ratio < 1.05) score += 40;
-      }
-
-      // B) "Fat Finger" / Missing Zero check (e.g. 500 vs 5000)
-      if (dL > 0 && dR > 0) {
-        final ratio = dL / dR;
-        if ((ratio - 10).abs() < 0.01 || (ratio - 0.1).abs() < 0.001) {
-          score += 20; // Likely same transaction, just typo
+        if (ratio < 1.05) score += 40; // Within 5%
+        if ((ratio - 10).abs() < 0.01 || (ratio - 0.1).abs() < 0.01) {
+          score += 20; // Fat finger (missing zero)
         }
       }
     }
 
-    // 4. Metadata Match (Quantity check)
+    // 4. Quantity Match (from metadata)
     if (l.metadata != null && r.metadata != null) {
       final qL = l.metadata!['quantity'];
       final qR = r.metadata!['quantity'];
-      if (qL != null && qR != null && qL == qR) {
-        score += 15; // Same quantity is a good hint
+      if (qL != null && qR != null) {
+        // Convert both to double to avoid int/double type mismatch
+        if ((qL as num).toDouble() == (qR as num).toDouble()) {
+          score += 15;
+        }
       }
     }
 
-    // 5. Type Match
-    // Correct Inversion > Same Type > Random Type
+    // 5. Type Match (both scenarios are valid)
     if (r.type == invertType(l.type)) {
-      score += 30;
+      score += 30; // Complementary types (expected in 2-party scenario)
     } else if (r.type == l.type) {
-      // Both users clicked "Given" (Conflict state), still implies correlation
-      score += 15;
+      score += 25; // Same types (both logged from their own view)
     }
 
-    // 6. Description Similarity (Weighted Token Overlap)
+    // 6. Description Similarity
     final lDesc = (l.description ?? '').toLowerCase();
     final rDesc = (r.description ?? '').toLowerCase();
     if (lDesc.isNotEmpty && rDesc.isNotEmpty) {
-      // Split by space/punctuation
-      final lTokens = lDesc
-          .split(RegExp(r'[\s,\.]+'))
-          .where((e) => e.length > 2)
-          .toSet();
-      final rTokens = rDesc
-          .split(RegExp(r'[\s,\.]+'))
-          .where((e) => e.length > 2)
-          .toSet();
+      final lTokens = lDesc.split(RegExp(r'[\s,\.]+'))
+          .where((e) => e.length > 2).toSet();
+      final rTokens = rDesc.split(RegExp(r'[\s,\.]+'))
+          .where((e) => e.length > 2).toSet();
 
-      double wordScore = 0;
       for (final token in lTokens) {
         if (rTokens.contains(token)) {
-          // Longer words are more unique ("Refrigerator" > "The")
-          wordScore += token.length * 2;
+          score += token.length * 2;
         }
       }
-      score += wordScore;
     }
 
     return score;
   }
 
+  // --- Main Matching Loop ---
+  final remoteMatched = <String>{};
+
   for (final l in local) {
-    // Score all available remote transactions
-    var bestMatch = -1.0;
+    double bestScore = -1.0;
     TransactionModel? bestCandidate;
 
     for (final r in remote) {
       if (remoteMatched.contains(r.id)) continue;
-
+      
       final score = calculateScore(l, r);
-      if (score > bestMatch) {
-        bestMatch = score;
+      if (score > bestScore) {
+        bestScore = score;
         bestCandidate = r;
       }
     }
 
-    // Thresholds
-    // 1000 = Reference ID Match -> Match/Conflict depending on data
-    // > 70 = Strong Match (Amount + Date + Type likely)
-    // > 40 = Weak Match (Maybe Amount differs but Date/Desc strong)
-
-    if (bestCandidate != null && bestMatch > 10.0) {
-      // Determine if it's a clean Match or a Conflict
-      // 
-      // IMPORTANT: When BOTH users are logging the SAME transaction from
-      // THEIR OWN perspective, they will BOTH select the SAME TYPE.
-      // e.g., User A gives goods -> selects "Goods Given"
-      //       User B (if also logging) selects "Goods Given" (from HIS view, he gave)
-      // So Type will NOT be inverted. We must accept BOTH scenarios.
-      //
-      // A "Perfect Match" is:
-      // 1. Reference ID matches (Golden Key) OR
-      // 2. Amount matches AND date is close AND type is EITHER inverted OR same
-      
-      final hasRefIdMatch = l.referenceId != null &&
-          bestCandidate.referenceId != null &&
-          l.referenceId!.trim().toLowerCase() ==
-              bestCandidate.referenceId!.trim().toLowerCase();
-
-      final amountMatches = bestCandidate.amount == l.amount;
-      final dateClose = l.date.difference(bestCandidate.date).inHours.abs() < 48; // Expanded to 48 hours
-      final typeInverted = bestCandidate.type == invertType(l.type);
-      final typeSame = bestCandidate.type == l.type;
-
-      // Perfect match ONLY if data actually matches.
-      // Reference ID helps us IDENTIFY pairs, but does NOT guarantee data is identical.
-      // 
-      // Match = Data is the same (or close enough)
-      // Conflict = We know they're the same transaction, but data differs
-      final isPerfect = amountMatches && dateClose && (typeInverted || typeSame);
-
-      if (isPerfect) {
-        diffs.add(
-          TransactionDiff(
-            local: l,
-            remote: bestCandidate,
-            type: DiffType.match,
-          ),
-        );
-      } else {
-        // Conflict (Price mismatch, Type mismatch, etc.)
-        // But we are CONFIDENT they are the same pair due to Score or RefID
-        diffs.add(
-          TransactionDiff(
-            local: l,
-            remote: bestCandidate,
-            type: DiffType.conflict,
-          ),
-        );
-      }
+    // Threshold for considering a pair
+    if (bestCandidate != null && bestScore > 10.0) {
       remoteMatched.add(bestCandidate.id);
+
+      // --- Determine Match vs Conflict ---
+      // A "Match" means the data is essentially identical
+      // A "Conflict" means we identified the same transaction but data differs
+      
+      final amountOk = amountsMatch(l.amount, bestCandidate.amount);
+      final dateOk = datesAreClose(l.date, bestCandidate.date, maxHours: 72);
+      final typeOk = (bestCandidate.type == invertType(l.type)) ||
+                     (bestCandidate.type == l.type);
+
+      // Perfect match: All core fields agree
+      final isPerfect = amountOk && dateOk && typeOk;
+
+      diffs.add(TransactionDiff(
+        local: l,
+        remote: bestCandidate,
+        type: isPerfect ? DiffType.match : DiffType.conflict,
+      ));
     } else {
       diffs.add(TransactionDiff(local: l, type: DiffType.missingRemote));
     }
   }
 
-  // Add remaining remote items as MissingLocal
+  // Add unmatched remote transactions as "missing local"
   for (final r in remote) {
     if (!remoteMatched.contains(r.id)) {
       diffs.add(TransactionDiff(remote: r, type: DiffType.missingLocal));
@@ -263,3 +210,4 @@ ReconciliationResult _calculateDiff(
 
   return ReconciliationResult(diffs);
 }
+
