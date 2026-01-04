@@ -85,7 +85,7 @@ class ReconciliationScreen extends ConsumerWidget {
             itemCount: sortedDiffs.length,
             itemBuilder: (context, index) {
               final diff = sortedDiffs[index];
-              return _TimelineItem(diff: diff, contactId: contactId);
+              return _TimelineItem(diff: diff, contactId: contactId, contactPhone: contactPhone);
             },
           );
         },
@@ -145,8 +145,9 @@ class ReconciliationScreen extends ConsumerWidget {
 class _TimelineItem extends ConsumerWidget {
   final TransactionDiff diff;
   final String contactId;
+  final String contactPhone;
 
-  const _TimelineItem({required this.diff, required this.contactId});
+  const _TimelineItem({required this.diff, required this.contactId, required this.contactPhone});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -670,8 +671,6 @@ class _TimelineItem extends ConsumerWidget {
   ) async {
     try {
       final repo = ref.read(transactionsRepositoryProvider);
-      
-      // INVERT the type: their "give" becomes my "take"
       final invertedType = _invertType(remoteTx.type);
       
       await repo.addTransaction(
@@ -680,27 +679,32 @@ class _TimelineItem extends ConsumerWidget {
         amount: remoteTx.amount,
         date: remoteTx.date,
         description: remoteTx.description,
-        referenceId: remoteTx.referenceId,
+        referenceId: remoteTx.id,
         metadata: remoteTx.metadata,
       );
 
-      // Invalidate BOTH providers to update balance card AND transaction list
-      ref.invalidate(contactTransactionsProvider(contactId));
-      ref.invalidate(contactProvider(contactId));
+      // CRITICAL: Check if mounted before using ref or context
+      if (!context.mounted) return;
+
+      // Invalidate ALL providers to refresh everything
+      // Providers are now StreamProviders, so they auto-update!
+      // No manual invalidation needed.
       
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text("Transaction added to your ledger"),
-            backgroundColor: Colors.green,
-            action: SnackBarAction(
-              label: "VIEW",
-              textColor: Colors.white,
-              onPressed: () => Navigator.pop(context),
-            ),
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text("Transaction added to your ledger"),
+          backgroundColor: Colors.green,
+          action: SnackBarAction(
+            label: "VIEW",
+            textColor: Colors.white,
+            onPressed: () {
+              if (context.mounted) {
+                Navigator.of(context).pop();
+              }
+            },
           ),
-        );
-      }
+        ),
+      );
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

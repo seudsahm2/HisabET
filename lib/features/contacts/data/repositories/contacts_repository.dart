@@ -18,6 +18,7 @@ abstract class ContactsRepository {
   Future<void> deleteContact(String id);
   Future<void> updateNetBalance(String id, Decimal newBalance);
   Future<Map<String, dynamic>?> searchUserByPhone(String phone);
+  Stream<ContactModel?> watchContact(String id);
 }
 
 class ContactsRepositoryImpl implements ContactsRepository {
@@ -103,5 +104,12 @@ class ContactsRepositoryImpl implements ContactsRepository {
       print('Error searching user: $e');
       return null;
     }
+  }
+
+  @override
+  Stream<ContactModel?> watchContact(String id) {
+    return (_db.select(_db.contacts)..where((tbl) => tbl.id.equals(id)))
+        .watchSingleOrNull()
+        .map((row) => row != null ? ContactModel.fromDb(row) : null);
   }
 }

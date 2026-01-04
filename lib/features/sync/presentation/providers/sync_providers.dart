@@ -37,13 +37,21 @@ final reconciliationProvider =
       );
 
       final transactionsRepo = ref.watch(transactionsRepositoryProvider);
+      
+      // Watch local transactions so the reconciliation reacts to local changes!
+      final localAsync = ref.watch(contactTransactionsProvider(contactId));
+      final localList = localAsync.value ?? [];
 
       // Yield values from the stream
-      await for (final remoteList in remoteStream) {
-        final localList = await transactionsRepo.getTransactionsForContact(
-          contactId,
-        );
-        yield _calculateDiff(localList, remoteList);
+      try {
+        await for (final remoteList in remoteStream) {
+          yield _calculateDiff(localList, remoteList);
+        }
+      } catch (e) {
+        // If sync fails (e.g. missing index or permission), assume no remote data
+        // and show local transactions as "Missing from their ledger"
+        print('Sync Stream Error: $e');
+        yield _calculateDiff(localList, []);
       }
     });
 
@@ -89,7 +97,16 @@ ReconciliationResult _calculateDiff(
     // 1. Reference ID (Golden Key) - Guarantees pairing
     final lRef = (l.referenceId ?? '').trim().toLowerCase();
     final rRef = (r.referenceId ?? '').trim().toLowerCase();
-    if (lRef.isNotEmpty && rRef.isNotEmpty && lRef == rRef) {
+    final lId = l.id.toLowerCase();
+    final rId = r.id.toLowerCase();
+
+    // Three ways to match by ID:
+    // A. Both have same user-entered referenceId
+    // B. My referenceId points to their original record ID
+    // C. Their referenceId points to my original record ID
+    if ((lRef.isNotEmpty && rRef.isNotEmpty && lRef == rRef) ||
+        (lRef.isNotEmpty && lRef == rId) ||
+        (rRef.isNotEmpty && rRef == lId)) {
       return 1000.0; // Guaranteed pair identification
     }
 

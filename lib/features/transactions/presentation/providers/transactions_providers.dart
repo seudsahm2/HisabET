@@ -20,10 +20,10 @@ final transactionsRepositoryProvider = Provider<TransactionsRepository>((ref) {
 
 /// Provider for transactions of a specific contact (family of providers)
 final contactTransactionsProvider =
-    FutureProvider.family<List<TransactionModel>, String>((
+    StreamProvider.family<List<TransactionModel>, String>((
       ref,
       contactId,
-    ) async {
+    ) {
       final repo = ref.watch(transactionsRepositoryProvider);
-      return repo.getTransactionsForContact(contactId);
+      return repo.watchTransactionsForContact(contactId);
     });

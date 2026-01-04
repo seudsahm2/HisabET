@@ -21,6 +21,7 @@ abstract class TransactionsRepository {
   Future<void> deleteTransaction(String id);
   Future<Decimal> calculateNetBalance(String contactId);
   Future<List<TransactionModel>> getRecentTransactions({int limit = 10});
+  Stream<List<TransactionModel>> watchTransactionsForContact(String contactId);
 }
 
 class TransactionsRepositoryImpl implements TransactionsRepository {
@@ -160,6 +161,17 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
               ..limit(limit))
             .get();
     return rows.map((e) => TransactionModel.fromDb(e)).toList();
+  }
+
+  @override
+  Stream<List<TransactionModel>> watchTransactionsForContact(
+    String contactId,
+  ) {
+    return (_db.select(_db.transactions)
+          ..where((tbl) => tbl.contactId.equals(contactId))
+          ..orderBy([(t) => OrderingTerm.desc(t.date)]))
+        .watch()
+        .map((rows) => rows.map((e) => TransactionModel.fromDb(e)).toList());
   }
 
   /// Internal: Update the contact's cached netBalance field
