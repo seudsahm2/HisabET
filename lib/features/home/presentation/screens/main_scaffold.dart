@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hisabet/core/theme/app_colors.dart';
 import 'package:hisabet/features/contacts/presentation/screens/contacts_list_screen.dart';
 import 'package:hisabet/features/contacts/presentation/screens/add_contact_screen.dart';
+import 'package:hisabet/features/contacts/presentation/providers/contacts_providers.dart';
 import 'package:hisabet/features/home/presentation/providers/dashboard_providers.dart';
 import 'package:hisabet/core/l10n/language_provider.dart';
 import 'package:hisabet/features/transactions/data/models/transaction_model.dart';
@@ -377,11 +378,11 @@ class _PremiumStatsCard extends StatelessWidget {
   }
 }
 
-class _PremiumQuickActions extends StatelessWidget {
+class _PremiumQuickActions extends ConsumerWidget {
   const _PremiumQuickActions();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
       child: Row(
@@ -389,6 +390,7 @@ class _PremiumQuickActions extends StatelessWidget {
         children: [
           _buildActionItem(
             context,
+            ref,
             Icons.person_add,
             "Add Contact",
             const Color(0xFFE3F2FD),
@@ -397,6 +399,7 @@ class _PremiumQuickActions extends StatelessWidget {
           ),
           _buildActionItem(
             context,
+            ref,
             Icons.qr_code_scanner,
             "Scan",
             const Color(0xFFF3E5F5),
@@ -405,6 +408,7 @@ class _PremiumQuickActions extends StatelessWidget {
           ),
           _buildActionItem(
             context,
+            ref,
             Icons.bar_chart,
             "Analytics",
             const Color(0xFFFFF3E0),
@@ -413,6 +417,7 @@ class _PremiumQuickActions extends StatelessWidget {
           ),
           _buildActionItem(
             context,
+            ref,
             Icons.settings_outlined,
             "Settings",
             const Color(0xFFF5F5F5),
@@ -426,6 +431,7 @@ class _PremiumQuickActions extends StatelessWidget {
 
   Widget _buildActionItem(
     BuildContext context,
+    WidgetRef ref,
     IconData icon,
     String label,
     Color bg,
@@ -433,12 +439,17 @@ class _PremiumQuickActions extends StatelessWidget {
     int index,
   ) {
     return GestureDetector(
-      onTap: () {
-        if (index == 0)
-          Navigator.push(
+      onTap: () async {
+        if (index == 0) {
+          await Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => const AddContactScreen()),
           );
+          // Refresh contacts list after adding
+          ref.invalidate(allContactsProvider);
+          ref.invalidate(dashboardStatsProvider);
+          ref.invalidate(recentActivityProvider);
+        }
       },
       child: Column(
         children: [

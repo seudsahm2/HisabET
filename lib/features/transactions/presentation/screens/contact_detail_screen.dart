@@ -22,257 +22,146 @@ class ContactDetailScreen extends ConsumerWidget {
     final transactionsAsync = ref.watch(
       contactTransactionsProvider(contact.id),
     );
-    // Remove unused l10n to fix lint
     final theme = Theme.of(context);
 
-    // Use current contact data or fallback to passed contact
     final currentContact = contactAsync.value ?? contact;
     final isPositive = currentContact.netBalance.toDouble() >= 0;
     final balanceColor = isPositive ? AppColors.give : AppColors.take;
 
     return Scaffold(
-      backgroundColor: Colors.white, // Explicitly white as requested
-      body: Stack(
-        children: [
-          CustomScrollView(
-            physics: const BouncingScrollPhysics(),
-            slivers: [
-              // Premium App Bar
-              SliverAppBar(
-                expandedHeight: 340, // Increased to fit content
-                pinned: true,
-                backgroundColor: Colors.white,
-                elevation: 0,
-                leading: IconButton(
-                  icon: const CircleAvatar(
-                    backgroundColor: Colors.white,
-                    child: Icon(Icons.arrow_back, color: Colors.black),
-                  ),
-                  onPressed: () => Navigator.pop(context),
-                ),
-                actions: [
-                  IconButton(
-                    icon: const CircleAvatar(
-                      backgroundColor: Colors.white,
-                      child: Icon(Icons.sync_alt, color: Colors.black),
-                    ),
-                    onPressed: () =>
-                        _openReconciliation(context, currentContact),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    icon: CircleAvatar(
-                      backgroundColor: Colors.red.shade50,
-                      child: const Icon(
-                        Icons.delete_outline,
-                        color: Colors.red,
-                      ),
-                    ),
-                    onPressed: () =>
-                        _confirmDelete(context, ref, currentContact),
-                  ),
-                  const SizedBox(width: 16),
-                ],
-                flexibleSpace: FlexibleSpaceBar(
-                  background: Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [balanceColor.withOpacity(0.1), Colors.white],
-                        stops: const [0.0, 0.8],
-                      ),
-                    ),
-                    child: SafeArea(
-                      child: Padding(
-                        padding: const EdgeInsets.only(
-                          top: 20,
-                        ), // Reduced padding
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            // Avatar & Name
-                            Hero(
-                              tag: 'avatar_${currentContact.id}',
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: Colors.white,
-                                    width: 3,
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.1),
-                                      blurRadius: 10,
-                                      offset: const Offset(0, 5),
-                                    ),
-                                  ],
-                                ),
-                                child: CircleAvatar(
-                                  radius: 35,
-                                  backgroundColor: theme.colorScheme.primary,
-                                  child: Text(
-                                    currentContact.name[0].toUpperCase(),
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 28,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  currentContact.name,
-                                  style: const TextStyle(
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.black87,
-                                  ),
-                                ),
-                                if (currentContact.linkedUserUid != null) ...[
-                                  const SizedBox(width: 6),
-                                  const Icon(
-                                    Icons.verified,
-                                    color: Colors.blue,
-                                    size: 20,
-                                  ),
-                                ],
-                              ],
-                            ),
-                            if (currentContact.phoneNumber != null)
-                              Text(
-                                currentContact.phoneNumber!,
-                                style: TextStyle(
-                                  color: Colors.grey.shade600,
-                                  fontSize: 14,
-                                ),
-                              ),
-
-                            const SizedBox(height: 16),
-
-                            // Amount Card
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 24,
-                                vertical: 12,
-                              ),
-                              decoration: BoxDecoration(
-                                color: balanceColor,
-                                borderRadius: BorderRadius.circular(30),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: balanceColor.withOpacity(0.3),
-                                    blurRadius: 12,
-                                    offset: const Offset(0, 6),
-                                  ),
-                                ],
-                              ),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    isPositive
-                                        ? "THEY OWE YOU"
-                                        : "YOU OWE THEM",
-                                    style: TextStyle(
-                                      color: Colors.white.withOpacity(0.9),
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 1.2,
-                                    ),
-                                  ),
-                                  Text(
-                                    'ETB ${currentContact.netBalance.abs()}',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 28,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
+      backgroundColor: Colors.white,
+      // FIXED AppBar - does not scroll
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const CircleAvatar(
+            backgroundColor: Color(0xFFF5F5F5),
+            child: Icon(Icons.arrow_back, color: Colors.black, size: 20),
+          ),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Row(
+          children: [
+            CircleAvatar(
+              radius: 18,
+              backgroundColor: theme.colorScheme.primary,
+              child: Text(
+                currentContact.name[0].toUpperCase(),
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
               ),
-
-              // Transaction List Header
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
-                  child: Row(
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     children: [
-                      Text(
-                        "HISTORY",
-                        style: TextStyle(
-                          color: Colors.grey.shade500,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                          letterSpacing: 1.5,
+                      Flexible(
+                        child: Text(
+                          currentContact.name,
+                          style: const TextStyle(
+                            color: Colors.black87,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      const Spacer(),
+                      if (currentContact.linkedUserUid != null) ...[
+                        const SizedBox(width: 4),
+                        const Icon(Icons.verified, color: Colors.blue, size: 16),
+                      ],
                     ],
                   ),
+                  if (currentContact.phoneNumber != null)
+                    Text(
+                      currentContact.phoneNumber!,
+                      style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          IconButton(
+            icon: CircleAvatar(
+              backgroundColor: Colors.grey.shade100,
+              child: const Icon(Icons.sync_alt, color: Colors.black, size: 18),
+            ),
+            onPressed: () => _openReconciliation(context, currentContact),
+          ),
+          IconButton(
+            icon: CircleAvatar(
+              backgroundColor: Colors.red.shade50,
+              child: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
+            ),
+            onPressed: () => _confirmDelete(context, ref, currentContact),
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      body: Stack(
+        children: [
+          // Main scrollable content with sticky header
+          NestedScrollView(
+            physics: const BouncingScrollPhysics(),
+            headerSliverBuilder: (context, innerBoxIsScrolled) => [
+              // Sticky Balance Card
+              SliverPersistentHeader(
+                pinned: true,
+                delegate: _StickyBalanceCardDelegate(
+                  contact: currentContact,
+                  isPositive: isPositive,
+                  balanceColor: balanceColor,
                 ),
               ),
-
-              // Transaction List
-              transactionsAsync.when(
-                loading: () => const SliverFillRemaining(
-                  child: Center(child: CircularProgressIndicator()),
+              // History Label
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+                  child: Text(
+                    "TRANSACTION HISTORY",
+                    style: TextStyle(
+                      color: Colors.grey.shade500,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 11,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
                 ),
-                error: (e, s) => SliverFillRemaining(
-                  child: Center(child: Text('Error: $e')),
-                ),
-                data: (transactions) {
-                  if (transactions.isEmpty) {
-                    return SliverFillRemaining(
-                      hasScrollBody: false,
-                      child: Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.history,
-                              size: 60,
-                              color: Colors.grey.shade200,
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              "No transactions yet",
-                              style: TextStyle(color: Colors.grey.shade400),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  }
-                  return SliverList(
-                    delegate: SliverChildBuilderDelegate((context, index) {
-                      // Add padding at the bottom for the fixed buttons
-                      if (index == transactions.length) {
-                        return const SizedBox(height: 100);
-                      }
-                      return _TransactionTile(transaction: transactions[index]);
-                    }, childCount: transactions.length + 1),
-                  );
-                },
               ),
             ],
+            body: transactionsAsync.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, s) => Center(child: Text('Error: $e')),
+              data: (transactions) {
+                if (transactions.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.history, size: 60, color: Colors.grey.shade200),
+                        const SizedBox(height: 16),
+                        Text("No transactions yet", style: TextStyle(color: Colors.grey.shade400)),
+                      ],
+                    ),
+                  );
+                }
+                return ListView.builder(
+                  padding: const EdgeInsets.only(bottom: 100),
+                  itemCount: transactions.length,
+                  itemBuilder: (context, index) {
+                    return _TransactionTile(transaction: transactions[index]);
+                  },
+                );
+              },
+            ),
           ),
 
-          // Floating Action Bar Area (Two Huge Buttons)
+          // Floating Action Bar
           Positioned(
             bottom: 20,
             left: 20,
@@ -462,6 +351,113 @@ class _HeroActionButton extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+// Sticky Delegate for the Balance Card - Premium Design
+class _StickyBalanceCardDelegate extends SliverPersistentHeaderDelegate {
+  final ContactModel contact;
+  final bool isPositive;
+  final Color balanceColor;
+
+  _StickyBalanceCardDelegate({
+    required this.contact,
+    required this.isPositive,
+    required this.balanceColor,
+  });
+
+  @override
+  double get minExtent => 72;
+
+  @override
+  double get maxExtent => 72;
+
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: overlapsContent
+            ? [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.08),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ]
+            : null,
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Container(
+        height: 56,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: isPositive
+                ? [const Color(0xFF10B981), const Color(0xFF059669)]
+                : [const Color(0xFFEF4444), const Color(0xFFDC2626)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: balanceColor.withOpacity(0.35),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            // Left: Icon
+            Container(
+              margin: const EdgeInsets.only(left: 16),
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                isPositive ? Icons.trending_up_rounded : Icons.trending_down_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            // Middle: Label
+            Expanded(
+              child: Text(
+                isPositive ? "They Owe You" : "You Owe Them",
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.9),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            // Right: Amount
+            Padding(
+              padding: const EdgeInsets.only(right: 16),
+              child: Text(
+                'ETB ${contact.netBalance.abs()}',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 20,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant _StickyBalanceCardDelegate oldDelegate) {
+    return oldDelegate.contact.netBalance != contact.netBalance ||
+        oldDelegate.balanceColor != balanceColor;
   }
 }
 

@@ -32,13 +32,14 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
   final _amountController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _referenceController = TextEditingController();
-  final _quantityController = TextEditingController();
+  final _cartonsController = TextEditingController();
+  final _qtyPerCartonController = TextEditingController();
   final _unitPriceController = TextEditingController();
 
   // State
   late TransactionType _currentType;
   bool _isLoading = false;
-  bool _showCalculator = false;
+  bool _showCalculator = true; // Enabled by default
   DateTime _selectedDate = DateTime.now();
   String? _selectedPaymentMethod = 'Cash';
 
@@ -58,8 +59,12 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
         if (tx.metadata!['paymentMethod'] != null) {
           _selectedPaymentMethod = tx.metadata!['paymentMethod'];
         }
-        if (tx.metadata!['quantity'] != null) {
-          _quantityController.text = tx.metadata!['quantity'].toString();
+        if (tx.metadata!['cartons'] != null) {
+          _cartonsController.text = tx.metadata!['cartons'].toString();
+          _showCalculator = true;
+        }
+        if (tx.metadata!['qtyPerCarton'] != null) {
+          _qtyPerCartonController.text = tx.metadata!['qtyPerCarton'].toString();
           _showCalculator = true;
         }
         if (tx.metadata!['unitPrice'] != null) {
@@ -101,12 +106,17 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
   }
 
   void _calculateTotal() {
-    if (_quantityController.text.isNotEmpty &&
+    if (_cartonsController.text.isNotEmpty &&
+        _qtyPerCartonController.text.isNotEmpty &&
         _unitPriceController.text.isNotEmpty) {
       try {
-        final quantity = int.parse(_quantityController.text);
-        final unitPrice = Decimal.parse(_unitPriceController.text);
-        final total = MoneyUtil.calculateTotal(quantity, unitPrice);
+        final cartons = int.tryParse(_cartonsController.text) ?? 0;
+        final qtyPerCarton = int.tryParse(_qtyPerCartonController.text) ?? 0;
+        final unitPrice = Decimal.tryParse(_unitPriceController.text) ?? Decimal.zero;
+        
+        // Total = Cartons × Qty/Carton × Price
+        final totalQty = cartons * qtyPerCarton;
+        final total = unitPrice * Decimal.fromInt(totalQty);
         _amountController.text = total.toString();
       } catch (_) {
         // Ignore errors
@@ -126,10 +136,12 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
 
       // Add Calculator Metadata
       if (_showCalculator &&
-          _quantityController.text.isNotEmpty &&
+          _cartonsController.text.isNotEmpty &&
+          _qtyPerCartonController.text.isNotEmpty &&
           _unitPriceController.text.isNotEmpty) {
         metadata = {
-          'quantity': int.parse(_quantityController.text),
+          'cartons': int.tryParse(_cartonsController.text) ?? 0,
+          'qtyPerCarton': int.tryParse(_qtyPerCartonController.text) ?? 0,
           'unitPrice': _unitPriceController.text,
         };
       }
@@ -374,31 +386,40 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                         child: Column(
                           children: [
                             if (_showCalculator) ...[
+                              // Row 1: Cartons × Qty/Carton
                               Row(
                                 children: [
                                   Expanded(
                                     child: TextFormField(
-                                      controller: _quantityController,
+                                      controller: _cartonsController,
                                       keyboardType: TextInputType.number,
                                       onChanged: (_) => _calculateTotal(),
                                       decoration: const InputDecoration(
-                                        labelText: 'Quantity',
-                                        hintText: '10',
+                                        labelText: 'Cartons',
+                                        hintText: '5',
                                         isDense: true,
                                       ),
                                     ),
                                   ),
                                   Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                    ),
-                                    child: Text(
-                                      'x',
-                                      style: TextStyle(
-                                        color: Colors.grey.shade400,
-                                        fontSize: 20,
+                                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                                    child: Text('×', style: TextStyle(color: Colors.grey.shade400, fontSize: 20)),
+                                  ),
+                                  Expanded(
+                                    child: TextFormField(
+                                      controller: _qtyPerCartonController,
+                                      keyboardType: TextInputType.number,
+                                      onChanged: (_) => _calculateTotal(),
+                                      decoration: const InputDecoration(
+                                        labelText: 'Qty/Carton',
+                                        hintText: '12',
+                                        isDense: true,
                                       ),
                                     ),
+                                  ),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                                    child: Text('×', style: TextStyle(color: Colors.grey.shade400, fontSize: 20)),
                                   ),
                                   Expanded(
                                     child: TextFormField(
@@ -407,7 +428,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                                       onChanged: (_) => _calculateTotal(),
                                       decoration: const InputDecoration(
                                         labelText: 'Price',
-                                        hintText: '500',
+                                        hintText: '50',
                                         isDense: true,
                                       ),
                                     ),
