@@ -197,11 +197,34 @@ ReconciliationResult _calculateDiff(
     // > 40 = Weak Match (Maybe Amount differs but Date/Desc strong)
 
     if (bestCandidate != null && bestMatch > 10.0) {
-      // Determine if it's a cleaner Match or a Conflict
-      final isPerfect =
-          bestCandidate.amount == l.amount &&
-          bestCandidate.type == invertType(l.type) &&
-          l.date.difference(bestCandidate.date).inHours.abs() < 24;
+      // Determine if it's a clean Match or a Conflict
+      // 
+      // IMPORTANT: When BOTH users are logging the SAME transaction from
+      // THEIR OWN perspective, they will BOTH select the SAME TYPE.
+      // e.g., User A gives goods -> selects "Goods Given"
+      //       User B (if also logging) selects "Goods Given" (from HIS view, he gave)
+      // So Type will NOT be inverted. We must accept BOTH scenarios.
+      //
+      // A "Perfect Match" is:
+      // 1. Reference ID matches (Golden Key) OR
+      // 2. Amount matches AND date is close AND type is EITHER inverted OR same
+      
+      final hasRefIdMatch = l.referenceId != null &&
+          bestCandidate.referenceId != null &&
+          l.referenceId!.trim().toLowerCase() ==
+              bestCandidate.referenceId!.trim().toLowerCase();
+
+      final amountMatches = bestCandidate.amount == l.amount;
+      final dateClose = l.date.difference(bestCandidate.date).inHours.abs() < 48; // Expanded to 48 hours
+      final typeInverted = bestCandidate.type == invertType(l.type);
+      final typeSame = bestCandidate.type == l.type;
+
+      // Perfect match ONLY if data actually matches.
+      // Reference ID helps us IDENTIFY pairs, but does NOT guarantee data is identical.
+      // 
+      // Match = Data is the same (or close enough)
+      // Conflict = We know they're the same transaction, but data differs
+      final isPerfect = amountMatches && dateClose && (typeInverted || typeSame);
 
       if (isPerfect) {
         diffs.add(
