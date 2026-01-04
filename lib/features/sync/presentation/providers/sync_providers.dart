@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:decimal/decimal.dart'; // Added
 import 'package:hisabet/features/transactions/presentation/providers/transactions_providers.dart';
 import 'package:hisabet/features/sync/domain/entities/transaction_diff.dart';
 import 'package:hisabet/features/transactions/data/models/transaction_model.dart';
