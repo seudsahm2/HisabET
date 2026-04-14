@@ -11,14 +11,24 @@ enum TransactionType {
   paymentReceived, // They paid me
 }
 
+enum TransactionStatus {
+  pending,
+  confirmed,
+  disputed,
+}
+
 /// Model class for Transaction, maps between DB and Domain
 class TransactionModel {
   final String id;
   final String contactId;
   final TransactionType type;
+  final TransactionStatus status;
   final Decimal amount;
   final DateTime date;
   final String? description;
+  final int? cartons;
+  final int? qtyPerCarton;
+  final Decimal? unitPrice;
   final Map<String, dynamic>? metadata; // {quantity, unitPrice, batchCount}
   final String? referenceId; // Shared Bill # / Ticket #
 
@@ -26,9 +36,13 @@ class TransactionModel {
     required this.id,
     required this.contactId,
     required this.type,
+    this.status = TransactionStatus.pending,
     required this.amount,
     required this.date,
     this.description,
+    this.cartons,
+    this.qtyPerCarton,
+    this.unitPrice,
     this.metadata,
     this.referenceId,
   });
@@ -37,9 +51,13 @@ class TransactionModel {
     String? id,
     String? contactId,
     TransactionType? type,
+    TransactionStatus? status,
     Decimal? amount,
     DateTime? date,
     String? description,
+    int? cartons,
+    int? qtyPerCarton,
+    Decimal? unitPrice,
     Map<String, dynamic>? metadata,
     String? referenceId,
   }) {
@@ -47,12 +65,29 @@ class TransactionModel {
       id: id ?? this.id,
       contactId: contactId ?? this.contactId,
       type: type ?? this.type,
+      status: status ?? this.status,
       amount: amount ?? this.amount,
       date: date ?? this.date,
       description: description ?? this.description,
+      cartons: cartons ?? this.cartons,
+      qtyPerCarton: qtyPerCarton ?? this.qtyPerCarton,
+      unitPrice: unitPrice ?? this.unitPrice,
       metadata: metadata ?? this.metadata,
       referenceId: referenceId ?? this.referenceId,
     );
+  }
+
+  static int? _tryParseInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    return int.tryParse(value.toString());
+  }
+
+  static Decimal? _tryParseDecimal(dynamic value) {
+    if (value == null) return null;
+    if (value is Decimal) return value;
+    final parsed = Decimal.tryParse(value.toString());
+    return parsed;
   }
 
   /// From database row (Drift generated class)
@@ -61,9 +96,23 @@ class TransactionModel {
       id: dbTransaction.id,
       contactId: dbTransaction.contactId,
       type: TransactionType.values[dbTransaction.type],
+      status: TransactionStatus.values[dbTransaction.status],
       amount: Decimal.parse(dbTransaction.amount),
       date: dbTransaction.date,
       description: dbTransaction.description,
+        cartons: dbTransaction.cartons ??
+          _tryParseInt(dbTransaction.metadata != null
+            ? (jsonDecode(dbTransaction.metadata!) as Map<String, dynamic>)['cartons']
+            : null),
+        qtyPerCarton: dbTransaction.qtyPerCarton ??
+          _tryParseInt(dbTransaction.metadata != null
+            ? (jsonDecode(dbTransaction.metadata!) as Map<String, dynamic>)['qtyPerCarton']
+            : null),
+        unitPrice: dbTransaction.unitPrice != null
+          ? Decimal.tryParse(dbTransaction.unitPrice!)
+          : _tryParseDecimal(dbTransaction.metadata != null
+            ? (jsonDecode(dbTransaction.metadata!) as Map<String, dynamic>)['unitPrice']
+            : null),
       metadata: dbTransaction.metadata != null
           ? jsonDecode(dbTransaction.metadata!) as Map<String, dynamic>
           : null,
@@ -77,9 +126,13 @@ class TransactionModel {
       id: id,
       contactId: contactId,
       type: type.index,
+      status: drift.Value(status.index),
       amount: amount.toString(),
       date: date,
       description: drift.Value(description),
+      cartons: drift.Value(cartons),
+      qtyPerCarton: drift.Value(qtyPerCarton),
+      unitPrice: drift.Value(unitPrice?.toString()),
       metadata: drift.Value(metadata != null ? jsonEncode(metadata) : null),
       referenceId: drift.Value(referenceId),
     );

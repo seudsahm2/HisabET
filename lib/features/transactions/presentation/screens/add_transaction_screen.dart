@@ -3,7 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hisabet/core/theme/app_colors.dart';
-import 'package:hisabet/core/utils/money_util.dart';
+import 'package:hisabet/features/contacts/data/models/contact_model.dart';
+import 'package:hisabet/features/contacts/presentation/providers/contacts_providers.dart';
+import 'package:hisabet/features/inventory/data/models/product_model.dart';
+import 'package:hisabet/features/inventory/presentation/providers/products_providers.dart';
 import 'package:hisabet/features/transactions/data/models/transaction_model.dart';
 import 'package:hisabet/features/transactions/presentation/providers/transactions_providers.dart';
 import 'package:intl/intl.dart';
@@ -11,7 +14,7 @@ import 'package:intl/intl.dart';
 class AddTransactionScreen extends ConsumerStatefulWidget {
   final String contactId;
   final TransactionType type;
-  final TransactionModel? transactionToEdit; // Added for Edit Mode
+  final TransactionModel? transactionToEdit;
 
   const AddTransactionScreen({
     super.key,
@@ -28,7 +31,6 @@ class AddTransactionScreen extends ConsumerStatefulWidget {
 class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
   final _formKey = GlobalKey<FormState>();
 
-  // Controllers
   final _amountController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _referenceController = TextEditingController();
@@ -36,46 +38,33 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
   final _qtyPerCartonController = TextEditingController();
   final _unitPriceController = TextEditingController();
 
-  // State
   late TransactionType _currentType;
   bool _isLoading = false;
-  bool _showCalculator = true; // Enabled by default
   DateTime _selectedDate = DateTime.now();
   String? _selectedPaymentMethod = 'Cash';
+  String? _selectedInventoryProductId;
+  ProductModel? _selectedInventoryProduct;
+  bool _didAutoSelectInventoryProduct = false;
 
   @override
   void initState() {
     super.initState();
     _currentType = widget.transactionToEdit?.type ?? widget.type;
 
-    if (widget.transactionToEdit != null) {
-      final tx = widget.transactionToEdit!;
+    final tx = widget.transactionToEdit;
+    if (tx != null) {
       _selectedDate = tx.date;
       _amountController.text = tx.amount.toString();
-      if (tx.description != null) _descriptionController.text = tx.description!;
-      if (tx.referenceId != null) _referenceController.text = tx.referenceId!;
-
-      if (tx.metadata != null) {
-        if (tx.metadata!['paymentMethod'] != null) {
-          _selectedPaymentMethod = tx.metadata!['paymentMethod'];
-        }
-        if (tx.metadata!['cartons'] != null) {
-          _cartonsController.text = tx.metadata!['cartons'].toString();
-          _showCalculator = true;
-        }
-        if (tx.metadata!['qtyPerCarton'] != null) {
-          _qtyPerCartonController.text = tx.metadata!['qtyPerCarton'].toString();
-          _showCalculator = true;
-        }
-        if (tx.metadata!['unitPrice'] != null) {
-          _unitPriceController.text = tx.metadata!['unitPrice'].toString();
-          _showCalculator = true;
-        }
-      }
+      _descriptionController.text = tx.description ?? '';
+      _referenceController.text = tx.referenceId ?? '';
+      _cartonsController.text = (tx.cartons ?? _metadataInt(tx.metadata, 'cartons'))?.toString() ?? '';
+      _qtyPerCartonController.text =
+          (tx.qtyPerCarton ?? _metadataInt(tx.metadata, 'qtyPerCarton'))?.toString() ?? '';
+      _unitPriceController.text =
+          (tx.unitPrice ?? _metadataDecimal(tx.metadata, 'unitPrice'))?.toString() ?? '';
+      _selectedPaymentMethod = tx.metadata?['paymentMethod']?.toString() ?? 'Cash';
     }
   }
-
-  // --- Logic Helpers ---
 
   bool get _isGoods =>
       _currentType == TransactionType.goodsGiven ||
@@ -85,104 +74,208 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
       _currentType == TransactionType.goodsGiven ||
       _currentType == TransactionType.paymentGiven;
 
-  // Green for Give, Red for Take
+  bool get _isGoodsGive => _isGoods && _isGive;
+
   Color get _activeColor => _isGive ? AppColors.give : AppColors.take;
+
+  static int? _metadataInt(Map<String, dynamic>? metadata, String key) {
+    if (metadata == null) return null;
+    final value = metadata[key];
+    if (value == null) return null;
+    return int.tryParse(value.toString());
+  }
+
+  static Decimal? _metadataDecimal(Map<String, dynamic>? metadata, String key) {
+    if (metadata == null) return null;
+    final value = metadata[key];
+    if (value == null) return null;
+    return Decimal.tryParse(value.toString());
+  }
 
   void _updateType({bool? isGoods, bool? isGive}) {
     final useGoods = isGoods ?? _isGoods;
     final useGive = isGive ?? _isGive;
 
     setState(() {
-      if (useGoods) {
-        _currentType = useGive
-            ? TransactionType.goodsGiven
-            : TransactionType.goodsTaken;
-      } else {
-        _currentType = useGive
-            ? TransactionType.paymentGiven
-            : TransactionType.paymentReceived;
+      _currentType = useGoods
+          ? (useGive ? TransactionType.goodsGiven : TransactionType.goodsTaken)
+          : (useGive ? TransactionType.paymentGiven : TransactionType.paymentReceived);
+
+      if (!_isGoods) {
+        _cartonsController.clear();
+        _qtyPerCartonController.clear();
+        _unitPriceController.clear();
+        _selectedInventoryProductId = null;
+        _selectedInventoryProduct = null;
       }
     });
   }
 
-  void _calculateTotal() {
-    if (_cartonsController.text.isNotEmpty &&
-        _qtyPerCartonController.text.isNotEmpty &&
-        _unitPriceController.text.isNotEmpty) {
-      try {
-        final cartons = int.tryParse(_cartonsController.text) ?? 0;
-        final qtyPerCarton = int.tryParse(_qtyPerCartonController.text) ?? 0;
-        final unitPrice = Decimal.tryParse(_unitPriceController.text) ?? Decimal.zero;
-        
-        // Total = Cartons × Qty/Carton × Price
-        final totalQty = cartons * qtyPerCarton;
-        final total = unitPrice * Decimal.fromInt(totalQty);
-        _amountController.text = total.toString();
-      } catch (_) {
-        // Ignore errors
+  int _currentCartons() {
+    return int.tryParse(_cartonsController.text.trim()) ?? 0;
+  }
+
+  void _setCartons(int value, {int? maxStock}) {
+    var next = value;
+    if (next < 0) next = 0;
+    if (maxStock != null && maxStock >= 0 && next > maxStock) {
+      next = maxStock;
+    }
+    _cartonsController.text = next.toString();
+    _recalculateGoodsTotal();
+    setState(() {});
+  }
+
+  void _selectInventoryProduct(ProductModel product) {
+    _selectedInventoryProductId = product.id;
+    _selectedInventoryProduct = product;
+
+    _descriptionController.text = product.name;
+    _referenceController.text = product.sku ?? '';
+
+    final qtyPerCarton = product.itemsPerCarton ?? 1;
+    _qtyPerCartonController.text = qtyPerCarton.toString();
+    _unitPriceController.text = product.sellingPrice.toString();
+
+    final preferredCartons = product.stockQuantity > 0 ? 1 : 0;
+    _setCartons(preferredCartons, maxStock: product.stockQuantity);
+  }
+
+  void _tryAutoSelectInventoryProduct(List<ProductModel> products) {
+    if (_didAutoSelectInventoryProduct || !_isGoodsGive) return;
+    _didAutoSelectInventoryProduct = true;
+
+    if (products.isEmpty) return;
+
+    final desc = _descriptionController.text.trim().toLowerCase();
+    final ref = _referenceController.text.trim().toLowerCase();
+
+    ProductModel? matched;
+    for (final product in products) {
+      final sku = (product.sku ?? '').trim().toLowerCase();
+      if (ref.isNotEmpty && sku.isNotEmpty && sku == ref) {
+        matched = product;
+        break;
       }
     }
+
+    matched ??= products.cast<ProductModel?>().firstWhere(
+          (product) =>
+              product != null &&
+              desc.isNotEmpty &&
+              product.name.trim().toLowerCase() == desc,
+          orElse: () => null,
+        );
+
+    if (matched != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() => _selectInventoryProduct(matched!));
+      });
+    }
+  }
+
+  void _recalculateGoodsTotal() {
+    if (!_isGoods) return;
+
+    final cartons = int.tryParse(_cartonsController.text.trim()) ?? 0;
+    final qtyPerCarton = int.tryParse(_qtyPerCartonController.text.trim()) ?? 0;
+    final unitPrice = Decimal.tryParse(_unitPriceController.text.trim()) ?? Decimal.zero;
+    if (cartons <= 0 || qtyPerCarton <= 0 || unitPrice <= Decimal.zero) {
+      _amountController.text = '';
+      return;
+    }
+
+    final total = unitPrice * Decimal.fromInt(cartons * qtyPerCarton);
+    _amountController.text = total.toString();
+  }
+
+  Map<String, dynamic>? _buildMetadata() {
+    if (_isGoods) {
+      final cartons = int.tryParse(_cartonsController.text.trim()) ?? 0;
+      final qtyPerCarton = int.tryParse(_qtyPerCartonController.text.trim()) ?? 0;
+      final unitPrice = Decimal.tryParse(_unitPriceController.text.trim()) ?? Decimal.zero;
+
+      return {
+        'cartons': cartons,
+        'qtyPerCarton': qtyPerCarton,
+        'unitPrice': unitPrice.toString(),
+      };
+    }
+
+    return {
+      'paymentMethod': _selectedPaymentMethod,
+    };
   }
 
   Future<void> _saveTransaction() async {
     if (!_formKey.currentState!.validate()) return;
+
+    if (_isGoodsGive) {
+      if (_selectedInventoryProduct == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Select an inventory item to give.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      final cartons = _currentCartons();
+      if (cartons <= 0 || cartons > _selectedInventoryProduct!.stockQuantity) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Cartons must be between 1 and ${_selectedInventoryProduct!.stockQuantity}.',
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+    }
+
     setState(() => _isLoading = true);
-
     try {
-      final repo = ref.read(transactionsRepositoryProvider);
       final amount = Decimal.parse(_amountController.text.trim());
-
-      Map<String, dynamic>? metadata;
-
-      // Add Calculator Metadata
-      if (_showCalculator &&
-          _cartonsController.text.isNotEmpty &&
-          _qtyPerCartonController.text.isNotEmpty &&
-          _unitPriceController.text.isNotEmpty) {
-        metadata = {
-          'cartons': int.tryParse(_cartonsController.text) ?? 0,
-          'qtyPerCarton': int.tryParse(_qtyPerCartonController.text) ?? 0,
-          'unitPrice': _unitPriceController.text,
-        };
-      }
-
-      // Add Payment Metadata
-      if (!_isGoods) {
-        metadata ??= {};
-        metadata['paymentMethod'] = _selectedPaymentMethod;
-      }
+      final repo = ref.read(transactionsRepositoryProvider);
+      final metadata = _buildMetadata();
+      final description = _descriptionController.text.trim().isEmpty
+          ? null
+          : _descriptionController.text.trim();
+      final referenceId = _referenceController.text.trim().isEmpty
+          ? null
+          : _referenceController.text.trim();
 
       if (widget.transactionToEdit != null) {
-        // UPDATE MODE
-        final updatedTx = widget.transactionToEdit!.copyWith(
-          type: _currentType,
-          amount: amount,
-          date: _selectedDate,
-          description: _descriptionController.text.trim().isEmpty
-              ? null
-              : _descriptionController.text.trim(),
-          metadata: metadata,
-          referenceId: _referenceController.text.trim().isEmpty
-              ? null
-              : _referenceController.text.trim(),
+        await repo.updateTransaction(
+          widget.transactionToEdit!.copyWith(
+            type: _currentType,
+            amount: amount,
+            date: _selectedDate,
+            description: description,
+            referenceId: referenceId,
+            metadata: metadata,
+            cartons: _isGoods ? int.tryParse(_cartonsController.text.trim()) : null,
+            qtyPerCarton: _isGoods ? int.tryParse(_qtyPerCartonController.text.trim()) : null,
+            unitPrice: _isGoods ? Decimal.tryParse(_unitPriceController.text.trim()) : null,
+          ),
         );
-        await repo.updateTransaction(updatedTx);
       } else {
-        // CREATE MODE
         await repo.addTransaction(
           contactId: widget.contactId,
           type: _currentType,
           amount: amount,
           date: _selectedDate,
-          description: _descriptionController.text.trim().isEmpty
-              ? null
-              : _descriptionController.text.trim(),
+          description: description,
           metadata: metadata,
-          referenceId: _referenceController.text.trim().isEmpty
-              ? null
-              : _referenceController.text.trim(),
+          referenceId: referenceId,
         );
       }
+
+      ref.invalidate(allProductsProvider);
+      ref.invalidate(lowStockProductsProvider);
 
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
@@ -196,8 +289,6 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
     }
   }
 
-  // --- UI Components ---
-
   Widget _buildTypeSegment() {
     return Container(
       padding: const EdgeInsets.all(4),
@@ -207,16 +298,8 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
       ),
       child: Row(
         children: [
-          _buildSegmentButton(
-            'Goods / Item',
-            _isGoods,
-            () => _updateType(isGoods: true),
-          ),
-          _buildSegmentButton(
-            'Cash / Payment',
-            !_isGoods,
-            () => _updateType(isGoods: false),
-          ),
+          _buildSegmentButton('Goods / Item', _isGoods, () => _updateType(isGoods: true)),
+          _buildSegmentButton('Cash / Payment', !_isGoods, () => _updateType(isGoods: false)),
         ],
       ),
     );
@@ -235,7 +318,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
             boxShadow: isActive
                 ? [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
+                      color: Colors.black.withValues(alpha: 0.05),
                       blurRadius: 4,
                     ),
                   ]
@@ -257,7 +340,6 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
   Widget _buildDirectionToggle() {
     return Row(
       children: [
-        // GIVE Button
         Expanded(
           child: _buildBigButton(
             label: _isGoods ? 'I GAVE' : 'PAID',
@@ -268,7 +350,6 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
           ),
         ),
         const SizedBox(width: 12),
-        // TAKE Button
         Expanded(
           child: _buildBigButton(
             label: _isGoods ? 'I TOOK' : 'RECEIVED',
@@ -326,7 +407,27 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
   }
 
   @override
+  void dispose() {
+    _amountController.dispose();
+    _descriptionController.dispose();
+    _referenceController.dispose();
+    _cartonsController.dispose();
+    _qtyPerCartonController.dispose();
+    _unitPriceController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final inventoryProductsAsync = ref.watch(allProductsProvider);
+    final contactAsync = ref.watch(contactProvider(widget.contactId));
+    final currentContact = contactAsync.valueOrNull;
+    final inventoryProducts = inventoryProductsAsync.maybeWhen(
+      data: (products) => products.where((p) => p.stockQuantity > 0).toList(),
+      orElse: () => <ProductModel>[],
+    );
+    _tryAutoSelectInventoryProduct(inventoryProducts);
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -334,10 +435,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
           icon: const Icon(Icons.close, color: Colors.black),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          'Add Transaction',
-          style: TextStyle(color: Colors.black),
-        ),
+        title: const Text('Add Transaction', style: TextStyle(color: Colors.black)),
         backgroundColor: Colors.white,
         elevation: 0,
       ),
@@ -354,106 +452,315 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                       _buildTypeSegment(),
                       const SizedBox(height: 20),
                       _buildDirectionToggle(),
-                      const SizedBox(height: 30),
-
-                      // Semantic Header
+                      const SizedBox(height: 24),
+                      if (currentContact != null) ...[
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                currentContact.name,
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            _buildContactVerificationBadge(currentContact.verificationStatus),
+                          ],
+                        ),
+                        if (currentContact.phoneNumber != null) ...[
+                          const SizedBox(height: 4),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              currentContact.phoneNumber!,
+                              style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+                            ),
+                          ),
+                        ],
+                      ],
+                      const SizedBox(height: 8),
                       Text(
                         _isGive
-                            ? (_isGoods
-                                  ? 'You gave items to them'
-                                  : 'You paid them money')
-                            : (_isGoods
-                                  ? 'You took items from them'
-                                  : 'They paid you money'),
+                            ? (_isGoods ? 'You gave items to them' : 'You paid them money')
+                            : (_isGoods ? 'You took items from them' : 'They paid you money'),
                         style: TextStyle(
                           color: _activeColor,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
-                      const SizedBox(height: 10),
-
-                      // Calculator / Amount Section
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _descriptionController,
+                        readOnly: _isGoodsGive,
+                        decoration: InputDecoration(
+                          labelText: _isGoods ? 'Description' : 'Description (Optional)',
+                          prefixIcon: const Icon(Icons.notes_outlined, color: Colors.grey),
+                          filled: true,
+                          fillColor: Colors.grey.shade50,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _referenceController,
+                        readOnly: _isGoodsGive,
+                        decoration: const InputDecoration(
+                          labelText: 'Ref #',
+                          prefixIcon: Icon(Icons.tag, color: Colors.grey),
+                          filled: true,
+                          fillColor: Color(0xFFFAFAFA),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: InkWell(
+                              onTap: () async {
+                                final date = await showDatePicker(
+                                  context: context,
+                                  initialDate: _selectedDate,
+                                  firstDate: DateTime(2020),
+                                  lastDate: DateTime.now(),
+                                );
+                                if (date != null) {
+                                  setState(() => _selectedDate = date);
+                                }
+                              },
+                              child: InputDecorator(
+                                decoration: const InputDecoration(
+                                  labelText: 'Date',
+                                  prefixIcon: Icon(Icons.calendar_today_outlined, color: Colors.grey),
+                                  filled: true,
+                                  fillColor: Color(0xFFFAFAFA),
+                                ),
+                                child: Text(DateFormat('MMM dd, yyyy').format(_selectedDate)),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
                       AnimatedContainer(
-                        duration: const Duration(milliseconds: 300),
+                        duration: const Duration(milliseconds: 250),
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: _showCalculator
-                              ? const Color(0xFFF8FAFC)
-                              : Colors.white,
+                          color: _isGoods ? const Color(0xFFF8FAFC) : Colors.white,
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(color: Colors.grey.shade200),
                         ),
                         child: Column(
                           children: [
-                            if (_showCalculator) ...[
-                              // Row 1: Cartons × Qty/Carton
+                            if (_isGoods) ...[
+                              if (_isGoodsGive) ...[
+                                DropdownButtonFormField<String>(
+                                  initialValue: _selectedInventoryProductId,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Select from inventory',
+                                    prefixIcon: Icon(Icons.inventory_2_outlined),
+                                  ),
+                                  items: inventoryProducts
+                                      .map(
+                                        (p) => DropdownMenuItem<String>(
+                                          value: p.id,
+                                          child: Text(
+                                            '${p.name} (${p.stockQuantity} cartons)',
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      )
+                                      .toList(),
+                                  onChanged: (value) {
+                                    if (value == null) return;
+                                    final found = inventoryProducts.firstWhere(
+                                      (p) => p.id == value,
+                                    );
+                                    setState(() => _selectInventoryProduct(found));
+                                  },
+                                  validator: (value) {
+                                    if (!_isGoodsGive) return null;
+                                    if (value == null || value.trim().isEmpty) {
+                                      return 'Please select an inventory item';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                                const SizedBox(height: 14),
+                              ],
                               Row(
                                 children: [
                                   Expanded(
-                                    child: TextFormField(
-                                      controller: _cartonsController,
-                                      keyboardType: TextInputType.number,
-                                      onChanged: (_) => _calculateTotal(),
-                                      decoration: const InputDecoration(
-                                        labelText: 'Cartons',
-                                        hintText: '5',
-                                        isDense: true,
-                                      ),
-                                    ),
+                                    child: _isGoodsGive
+                                        ? Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                                            children: [
+                                              InputDecorator(
+                                                decoration: const InputDecoration(
+                                                  labelText: 'Cartons',
+                                                  isDense: true,
+                                                  contentPadding: EdgeInsets.symmetric(
+                                                    horizontal: 8,
+                                                    vertical: 6,
+                                                  ),
+                                                ),
+                                                child: FittedBox(
+                                                  fit: BoxFit.scaleDown,
+                                                  alignment: Alignment.centerLeft,
+                                                  child: Row(
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    children: [
+                                                      IconButton(
+                                                        onPressed: (_selectedInventoryProduct == null ||
+                                                                _currentCartons() <= 0)
+                                                            ? null
+                                                            : () => _setCartons(_currentCartons() - 1),
+                                                        padding: EdgeInsets.zero,
+                                                        constraints: const BoxConstraints.tightFor(
+                                                          width: 20,
+                                                          height: 20,
+                                                        ),
+                                                        visualDensity: VisualDensity.compact,
+                                                        iconSize: 16,
+                                                        icon: const Icon(Icons.remove_circle_outline),
+                                                      ),
+                                                      const SizedBox(width: 2),
+                                                      SizedBox(
+                                                        width: 18,
+                                                        child: Center(
+                                                          child: Text(
+                                                            '${_currentCartons()}',
+                                                            style: const TextStyle(
+                                                              fontSize: 13,
+                                                              fontWeight: FontWeight.bold,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 2),
+                                                      IconButton(
+                                                        onPressed: (_selectedInventoryProduct == null)
+                                                            ? null
+                                                            : () => _setCartons(
+                                                                  _currentCartons() + 1,
+                                                                  maxStock: _selectedInventoryProduct!.stockQuantity,
+                                                                ),
+                                                        padding: EdgeInsets.zero,
+                                                        constraints: const BoxConstraints.tightFor(
+                                                          width: 20,
+                                                          height: 20,
+                                                        ),
+                                                        visualDensity: VisualDensity.compact,
+                                                        iconSize: 16,
+                                                        icon: const Icon(Icons.add_circle_outline),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                              if (_isGoodsGive && _selectedInventoryProduct != null)
+                                                Padding(
+                                                  padding: const EdgeInsets.only(top: 6),
+                                                  child: Align(
+                                                    alignment: Alignment.centerLeft,
+                                                    child: Text(
+                                                      'max ${_selectedInventoryProduct!.stockQuantity}',
+                                                      style: TextStyle(
+                                                        color: Colors.grey.shade600,
+                                                        fontSize: 12,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                            ],
+                                          )
+                                        : TextFormField(
+                                            controller: _cartonsController,
+                                            keyboardType: TextInputType.number,
+                                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                                            onChanged: (_) => _recalculateGoodsTotal(),
+                                            decoration: const InputDecoration(
+                                              labelText: 'Cartons',
+                                              hintText: '5',
+                                              isDense: true,
+                                            ),
+                                            validator: (val) {
+                                              final value = int.tryParse((val ?? '').trim()) ?? 0;
+                                              if (value <= 0) return 'Required';
+                                              return null;
+                                            },
+                                          ),
                                   ),
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                                    child: Text('×', style: TextStyle(color: Colors.grey.shade400, fontSize: 20)),
-                                  ),
+                                  const SizedBox(width: 12),
                                   Expanded(
                                     child: TextFormField(
                                       controller: _qtyPerCartonController,
+                                      readOnly: _isGoodsGive,
                                       keyboardType: TextInputType.number,
-                                      onChanged: (_) => _calculateTotal(),
+                                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                                      onChanged: (_) => _recalculateGoodsTotal(),
                                       decoration: const InputDecoration(
-                                        labelText: 'Qty/Carton',
+                                        labelText: 'Qty / Carton',
                                         hintText: '12',
                                         isDense: true,
                                       ),
+                                      validator: (val) {
+                                        final value = int.tryParse((val ?? '').trim()) ?? 0;
+                                        if (value <= 0) return 'Required';
+                                        return null;
+                                      },
                                     ),
                                   ),
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                                    child: Text('×', style: TextStyle(color: Colors.grey.shade400, fontSize: 20)),
-                                  ),
+                                  const SizedBox(width: 12),
                                   Expanded(
                                     child: TextFormField(
                                       controller: _unitPriceController,
-                                      keyboardType: TextInputType.number,
-                                      onChanged: (_) => _calculateTotal(),
+                                      readOnly: _isGoodsGive,
+                                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                      inputFormatters: [
+                                        FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                                      ],
+                                      onChanged: (_) => _recalculateGoodsTotal(),
                                       decoration: const InputDecoration(
-                                        labelText: 'Price',
-                                        hintText: '50',
+                                        labelText: 'Individual Price',
+                                        hintText: 'Price per single item',
                                         isDense: true,
                                       ),
+                                      validator: (val) {
+                                        final price = Decimal.tryParse((val ?? '').trim()) ?? Decimal.zero;
+                                        if (price <= Decimal.zero) return 'Required';
+                                        return null;
+                                      },
                                     ),
                                   ),
                                 ],
                               ),
-                              const Divider(height: 30),
+                              const SizedBox(height: 10),
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  'Total items: ${int.tryParse(_cartonsController.text.trim()) == null || int.tryParse(_qtyPerCartonController.text.trim()) == null ? 0 : (int.parse(_cartonsController.text.trim()) * int.parse(_qtyPerCartonController.text.trim()))}',
+                                  style: TextStyle(color: Colors.grey.shade600),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
                             ],
-
-                            // Main Amount Field
                             Row(
                               crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
                                 Expanded(
                                   child: TextFormField(
                                     controller: _amountController,
-                                    keyboardType: TextInputType.number,
-                                    style: const TextStyle(
-                                      fontSize: 32,
+                                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                    style: TextStyle(
+                                      fontSize: _isGoods ? 30 : 32,
                                       fontWeight: FontWeight.bold,
                                     ),
-                                    readOnly:
-                                        _showCalculator, // Read-only if calculator is active
+                                    readOnly: _isGoods,
                                     decoration: InputDecoration(
-                                      hintText: '0.00',
+                                      hintText: _isGoods ? 'Calculated total' : '0.00',
                                       border: InputBorder.none,
                                       focusedBorder: InputBorder.none,
                                       enabledBorder: InputBorder.none,
@@ -465,36 +772,40 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                                         fontWeight: FontWeight.w400,
                                       ),
                                     ),
-                                    validator: (val) =>
-                                        val == null || val.isEmpty
-                                        ? 'Required'
-                                        : null,
+                                    validator: (val) {
+                                      final price = Decimal.tryParse((val ?? '').trim()) ?? Decimal.zero;
+                                      if (price <= Decimal.zero) {
+                                        return 'Amount must be greater than 0';
+                                      }
+                                      return null;
+                                    },
                                   ),
                                 ),
-                                IconButton(
-                                  onPressed: () => setState(
-                                    () => _showCalculator = !_showCalculator,
+                                if (!_isGoods)
+                                  IconButton(
+                                    icon: const Icon(Icons.payments_outlined, color: Colors.grey, size: 30),
+                                    onPressed: null,
                                   ),
-                                  icon: Icon(
-                                    Icons.calculate_outlined,
-                                    color: _showCalculator
-                                        ? _activeColor
-                                        : Colors.grey,
-                                    size: 32,
-                                  ),
-                                ),
                               ],
                             ),
+                            if (_isGoods)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 8),
+                                child: Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    'Calculated from cartons x qty/carton x individual price. Cash/payment entries stay amount-only.',
+                                    style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                                  ),
+                                ),
+                              ),
                           ],
                         ),
                       ),
-
                       const SizedBox(height: 20),
-
-                      // Optional Details
                       if (!_isGoods) ...[
                         DropdownButtonFormField<String>(
-                          value: _selectedPaymentMethod,
+                          initialValue: _selectedPaymentMethod,
                           icon: const Icon(Icons.keyboard_arrow_down),
                           decoration: InputDecoration(
                             labelText: 'Payment Method',
@@ -506,106 +817,28 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                             fillColor: Colors.grey.shade50,
                           ),
                           items: const [
-                            DropdownMenuItem(
-                              value: 'Cash',
-                              child: Text('Cash'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'CBE',
-                              child: Text('CBE Transfer'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'BOA',
-                              child: Text('Abyssinia (BOA)'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'Telebirr',
-                              child: Text('Telebirr'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'Other',
-                              child: Text('Other'),
-                            ),
+                            DropdownMenuItem(value: 'Cash', child: Text('Cash')),
+                            DropdownMenuItem(value: 'CBE', child: Text('CBE Transfer')),
+                            DropdownMenuItem(value: 'BOA', child: Text('Abyssinia (BOA)')),
+                            DropdownMenuItem(value: 'Telebirr', child: Text('Telebirr')),
+                            DropdownMenuItem(value: 'Other', child: Text('Other')),
                           ],
-                          onChanged: (v) =>
-                              setState(() => _selectedPaymentMethod = v),
+                          onChanged: (v) => setState(() => _selectedPaymentMethod = v),
                         ),
                         const SizedBox(height: 16),
                       ],
-
-                      TextFormField(
-                        controller: _descriptionController,
-                        decoration: InputDecoration(
-                          labelText: 'Description (Optional)',
-                          prefixIcon: const Icon(
-                            Icons.notes_outlined,
-                            color: Colors.grey,
-                          ),
-                          filled: true,
-                          fillColor: Colors.grey.shade50,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: InkWell(
-                              onTap: () async {
-                                final d = await showDatePicker(
-                                  context: context,
-                                  initialDate: _selectedDate,
-                                  firstDate: DateTime(2020),
-                                  lastDate: DateTime.now(),
-                                );
-                                if (d != null)
-                                  setState(() => _selectedDate = d);
-                              },
-                              child: InputDecorator(
-                                decoration: const InputDecoration(
-                                  labelText: 'Date',
-                                  prefixIcon: Icon(
-                                    Icons.calendar_today_outlined,
-                                    color: Colors.grey,
-                                  ),
-                                  filled: true,
-                                  fillColor: Color(0xFFFAFAFA),
-                                ),
-                                child: Text(
-                                  DateFormat(
-                                    'MMM dd, yyyy',
-                                  ).format(_selectedDate),
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: TextFormField(
-                              controller: _referenceController,
-                              decoration: const InputDecoration(
-                                labelText: 'Ref #',
-                                prefixIcon: Icon(Icons.tag, color: Colors.grey),
-                                filled: true,
-                                fillColor: Color(0xFFFAFAFA),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
                     ],
                   ),
                 ),
               ),
             ),
-
-            // Floating Save Button Area
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 color: Colors.white,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withValues(alpha: 0.05),
                     blurRadius: 10,
                     offset: const Offset(0, -5),
                   ),
@@ -638,6 +871,58 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildContactVerificationBadge(ContactVerificationStatus status) {
+    IconData icon;
+    Color color;
+
+    switch (status) {
+      case ContactVerificationStatus.verified:
+        icon = Icons.verified;
+        color = AppColors.give;
+        break;
+      case ContactVerificationStatus.pending:
+        icon = Icons.schedule;
+        color = const Color(0xFFB26A00);
+        break;
+      case ContactVerificationStatus.expired:
+        icon = Icons.cancel_outlined;
+        color = AppColors.take;
+        break;
+      case ContactVerificationStatus.unverified:
+        icon = Icons.circle_outlined;
+        color = AppColors.textSecondary;
+        break;
+    }
+
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: status == ContactVerificationStatus.unverified
+            ? const Text(
+                'Unverified',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textSecondary,
+                ),
+              )
+            : Padding(
+                padding: const EdgeInsets.all(4),
+                child: Icon(
+                  icon,
+                  color: color,
+                  size: 13,
+                ),
+              ),
       ),
     );
   }

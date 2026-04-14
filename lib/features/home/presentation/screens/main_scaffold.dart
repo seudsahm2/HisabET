@@ -6,7 +6,6 @@ import 'package:hisabet/features/contacts/presentation/screens/add_contact_scree
 import 'package:hisabet/features/contacts/presentation/providers/contacts_providers.dart';
 import 'package:hisabet/features/home/presentation/providers/dashboard_providers.dart';
 import 'package:hisabet/features/home/presentation/screens/merchant_modules_screen.dart';
-import 'package:hisabet/features/inventory/presentation/screens/products_list_screen.dart';
 import 'package:hisabet/core/l10n/language_provider.dart';
 import 'package:hisabet/features/transactions/data/models/transaction_model.dart';
 import 'package:intl/intl.dart';
@@ -58,7 +57,7 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
         children: const [
           _HomeDashboard(),
           ContactsListScreen(),
-          ProductsListScreen(),
+          MerchantModulesScreen(),
           _MenuTab(),
         ],
       ),
@@ -92,7 +91,7 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
             NavigationDestination(
               icon: Icon(Icons.inventory_2_outlined),
               selectedIcon: Icon(Icons.inventory_2, color: AppColors.primary),
-              label: 'Inventory',
+              label: 'Store',
             ),
             NavigationDestination(
               icon: Icon(Icons.menu),
@@ -675,19 +674,6 @@ class _MenuTab extends ConsumerWidget {
               title: "Language / ቋንቋ",
               subtitle: "English / አማርኛ",
               onTap: () => _showLanguageSheet(context, ref),
-            ),
-            _buildMenuOption(
-              icon: Icons.dashboard_customize_outlined,
-              title: "Merchant Modules",
-              subtitle: "All business modules in one place",
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const MerchantModulesScreen(),
-                  ),
-                );
-              },
             ),
             _buildMenuOption(
               icon: Icons.bug_report_outlined,

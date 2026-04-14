@@ -2,6 +2,7 @@ import 'package:decimal/decimal.dart';
 import 'package:drift/drift.dart';
 import 'package:hisabet/core/database/app_database.dart';
 import 'package:hisabet/features/sales/data/models/pos_cart_item.dart';
+import 'package:hisabet/features/sales/data/models/sale_line_item_model.dart';
 import 'package:hisabet/features/sales/data/models/sale_model.dart';
 import 'package:uuid/uuid.dart';
 
@@ -17,6 +18,8 @@ abstract class SalesRepository {
   });
 
   Future<List<SaleModel>> getRecentSales({int limit = 30});
+  Future<SaleModel?> getSaleById(String saleId);
+  Future<List<SaleLineItemModel>> getSaleLineItems(String saleId);
 }
 
 class SalesRepositoryImpl implements SalesRepository {
@@ -96,6 +99,8 @@ class SalesRepositoryImpl implements SalesRepository {
                 productId: item.product.id,
                 productName: item.product.name,
                 sku: Value(item.product.sku),
+                unit: Value(item.product.unit),
+                itemsPerCarton: Value(item.product.itemsPerCarton),
                 unitPrice: item.product.sellingPrice.toString(),
                 quantity: item.quantity,
                 lineTotal: item.lineTotal.toString(),
@@ -135,5 +140,21 @@ class SalesRepositoryImpl implements SalesRepository {
         .get();
 
     return rows.map(SaleModel.fromDb).toList();
+  }
+
+  @override
+  Future<SaleModel?> getSaleById(String saleId) async {
+    final row = await (_db.select(_db.sales)..where((tbl) => tbl.id.equals(saleId)))
+        .getSingleOrNull();
+    return row == null ? null : SaleModel.fromDb(row);
+  }
+
+  @override
+  Future<List<SaleLineItemModel>> getSaleLineItems(String saleId) async {
+    final rows = await (_db.select(_db.saleLineItems)
+          ..where((tbl) => tbl.saleId.equals(saleId))
+          ..orderBy([(tbl) => OrderingTerm.asc(tbl.productName)]))
+        .get();
+    return rows.map(SaleLineItemModel.fromDb).toList();
   }
 }

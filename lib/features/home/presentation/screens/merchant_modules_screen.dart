@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:hisabet/features/contacts/presentation/screens/contacts_list_screen.dart';
 import 'package:hisabet/features/inventory/presentation/screens/products_list_screen.dart';
+import 'package:hisabet/features/expenses/presentation/screens/expenses_screen.dart';
+import 'package:hisabet/features/purchases/presentation/screens/purchase_orders_screen.dart';
 import 'package:hisabet/features/sales/presentation/screens/pos_cart_screen.dart';
 
 class MerchantModulesScreen extends StatelessWidget {
@@ -9,71 +12,83 @@ class MerchantModulesScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final modules = _merchantModules;
 
-    return SafeArea(
-      child: CustomScrollView(
-        slivers: [
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text(
-                    'Merchant Modules',
-                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
+    return Scaffold(
+      backgroundColor: const Color(0xFFF7F8FA),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        title: const Text(
+          'Merchant Modules',
+          style: TextStyle(color: Colors.black, fontWeight: FontWeight.w700),
+        ),
+      ),
+      body: GridView.builder(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+        itemCount: modules.length,
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          mainAxisSpacing: 12,
+          crossAxisSpacing: 12,
+          mainAxisExtent: 176,
+        ),
+        itemBuilder: (context, index) {
+          final module = modules[index];
+          return _ModuleCard(
+            module: module,
+            onTap: () {
+              if (module.title == 'Inventory') {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const ProductsListScreen(),
                   ),
-                  SizedBox(height: 6),
-                  Text(
-                    'Choose any business area to manage your operations.',
-                    style: TextStyle(color: Colors.black54),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
-            sliver: SliverGrid(
-              delegate: SliverChildBuilderDelegate((context, index) {
-                final module = modules[index];
-                return _ModuleCard(
-                  module: module,
-                  onTap: () {
-                    if (module.title == 'Inventory') {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const ProductsListScreen(),
-                        ),
-                      );
-                      return;
-                    }
-
-                    if (module.title == 'Sales') {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const PosCartScreen(),
-                        ),
-                      );
-                      return;
-                    }
-
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => FeatureWorkspaceScreen(module: module),
-                      ),
-                    );
-                  },
                 );
-              }, childCount: modules.length),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
-                childAspectRatio: 1.05,
-              ),
-            ),
-          ),
-        ],
+                return;
+              }
+
+              if (module.title == 'Sales') {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const PosCartScreen(),
+                  ),
+                );
+                return;
+              }
+
+              if (module.title == 'Purchases') {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const PurchaseOrdersScreen(),
+                  ),
+                );
+                return;
+              }
+
+              if (module.title == 'Suppliers') {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const ContactsListScreen(initialFilterIndex: 2),
+                  ),
+                );
+                return;
+              }
+
+              if (module.title == 'Expenses') {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const ExpensesScreen(),
+                  ),
+                );
+                return;
+              }
+
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => FeatureWorkspaceScreen(module: module),
+                ),
+              );
+            },
+          );
+        },
       ),
     );
   }
@@ -201,17 +216,24 @@ class _ModuleCard extends StatelessWidget {
                   backgroundColor: module.color.withValues(alpha: 0.18),
                   child: Icon(module.icon, color: module.color),
                 ),
-                const Spacer(),
-                Text(
-                  module.title,
-                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  module.shortLabel,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 12, color: Colors.black54),
+                const SizedBox(height: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      module.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      module.shortLabel,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12, color: Colors.black54),
+                    ),
+                  ],
                 ),
               ],
             ),

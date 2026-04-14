@@ -46,6 +46,14 @@ class ProfileCheckGate extends StatefulWidget {
 }
 
 class _ProfileCheckGateState extends State<ProfileCheckGate> {
+  bool _isProfileComplete(Map<String, dynamic>? data) {
+    if (data == null) return false;
+    final hasName = data['name']?.toString().trim().isNotEmpty == true;
+    final hasPhone = data['phone']?.toString().trim().isNotEmpty == true;
+    final hasAccountType = data['accountType']?.toString().trim().isNotEmpty == true;
+    return hasName && hasPhone && hasAccountType;
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
@@ -65,7 +73,7 @@ class _ProfileCheckGateState extends State<ProfileCheckGate> {
         }
 
         final data = snapshot.data?.data() as Map<String, dynamic>?;
-        if (data != null && data['name'] != null) {
+        if (_isProfileComplete(data)) {
           return const MainScaffold();
         }
 

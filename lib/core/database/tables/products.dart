@@ -8,6 +8,7 @@ class Products extends Table {
   TextColumn get category => text().nullable()();
   TextColumn get brand => text().nullable()();
   TextColumn get unit => text().withDefault(const Constant('pcs'))();
+  IntColumn get itemsPerCarton => integer().nullable()();
   TextColumn get costPrice => text().withDefault(const Constant('0.0'))();
   TextColumn get sellingPrice => text().withDefault(const Constant('0.0'))();
   IntColumn get stockQuantity => integer().withDefault(const Constant(0))();

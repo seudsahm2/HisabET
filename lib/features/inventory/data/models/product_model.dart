@@ -10,6 +10,7 @@ class ProductModel {
   final String? category;
   final String? brand;
   final String unit;
+  final int? itemsPerCarton;
   final Decimal costPrice;
   final Decimal sellingPrice;
   final int stockQuantity;
@@ -26,6 +27,7 @@ class ProductModel {
     this.category,
     this.brand,
     this.unit = 'pcs',
+    this.itemsPerCarton,
     required this.costPrice,
     required this.sellingPrice,
     required this.stockQuantity,
@@ -44,6 +46,7 @@ class ProductModel {
       category: dbProduct.category,
       brand: dbProduct.brand,
       unit: dbProduct.unit,
+      itemsPerCarton: dbProduct.itemsPerCarton,
       costPrice: Decimal.parse(dbProduct.costPrice),
       sellingPrice: Decimal.parse(dbProduct.sellingPrice),
       stockQuantity: dbProduct.stockQuantity,
@@ -62,6 +65,7 @@ class ProductModel {
     String? category,
     String? brand,
     String? unit,
+    int? itemsPerCarton,
     Decimal? costPrice,
     Decimal? sellingPrice,
     int? stockQuantity,
@@ -78,6 +82,7 @@ class ProductModel {
       category: category ?? this.category,
       brand: brand ?? this.brand,
       unit: unit ?? this.unit,
+      itemsPerCarton: itemsPerCarton ?? this.itemsPerCarton,
       costPrice: costPrice ?? this.costPrice,
       sellingPrice: sellingPrice ?? this.sellingPrice,
       stockQuantity: stockQuantity ?? this.stockQuantity,
@@ -97,6 +102,7 @@ class ProductModel {
       category: drift.Value(category),
       brand: drift.Value(brand),
       unit: drift.Value(unit),
+      itemsPerCarton: drift.Value(itemsPerCarton),
       costPrice: drift.Value(costPrice.toString()),
       sellingPrice: drift.Value(sellingPrice.toString()),
       stockQuantity: drift.Value(stockQuantity),

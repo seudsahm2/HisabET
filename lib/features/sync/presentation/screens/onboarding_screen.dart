@@ -29,16 +29,27 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   final _phoneController = TextEditingController();
   final _otpController = TextEditingController();
   final _nameController = TextEditingController();
+  final _profilePhoneController = TextEditingController();
+  final _supplierEmailController = TextEditingController();
+  final _supplierAddressController = TextEditingController();
+  final _supplierTermsController = TextEditingController(text: '0');
+  final _supplierOpeningBalanceController = TextEditingController(text: '0');
+  final _supplierCurrentBalanceController = TextEditingController(text: '0');
   final _formKey = GlobalKey<FormState>();
 
   bool _isLoading = false;
   bool _codeSent = false;
   late bool _isNameStep; // Late initialization
+  String _accountType = 'merchant';
 
   @override
   void initState() {
     super.initState();
     _isNameStep = widget.startAtProfile;
+    final signedInPhone = FirebaseAuth.instance.currentUser?.phoneNumber;
+    if (signedInPhone != null && signedInPhone.trim().isNotEmpty) {
+      _profilePhoneController.text = signedInPhone;
+    }
   }
 
   String? _verificationId;
@@ -55,6 +66,12 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     _phoneController.dispose();
     _otpController.dispose();
     _nameController.dispose();
+    _profilePhoneController.dispose();
+    _supplierEmailController.dispose();
+    _supplierAddressController.dispose();
+    _supplierTermsController.dispose();
+    _supplierOpeningBalanceController.dispose();
+    _supplierCurrentBalanceController.dispose();
     _timer?.cancel();
     super.dispose();
   }
@@ -303,7 +320,13 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         .doc(user.uid)
         .get();
 
-    if (doc.exists && doc.data() != null && doc.data()!['name'] != null) {
+    final data = doc.data();
+    final hasName = data?['name']?.toString().trim().isNotEmpty == true;
+    final hasPhone = data?['phone']?.toString().trim().isNotEmpty == true;
+    final hasAccountType =
+        data?['accountType']?.toString().trim().isNotEmpty == true;
+
+    if (doc.exists && hasName && hasPhone && hasAccountType) {
       // User exists and has name -> AuthGate handles navigation
     } else {
       // User is new -> Show Name Setup
@@ -318,18 +341,46 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   Future<void> _saveProfile() async {
     final name = _nameController.text.trim();
-    if (name.isEmpty) return;
+    final profilePhone = PhoneUtil.normalize(_profilePhoneController.text.trim());
+    if (name.isEmpty || profilePhone.isEmpty) return;
     setState(() => _isLoading = true);
 
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
-        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+        final profilePayload = <String, dynamic>{
           'id': user.uid,
-          'phone': user.phoneNumber,
+          'phone': profilePhone,
           'name': name,
+          'accountType': _accountType,
           'created_at': DateTime.now().toIso8601String(),
-        }, SetOptions(merge: true));
+        };
+
+        if (_accountType == 'supplier') {
+          profilePayload['supplierEmail'] =
+              _supplierEmailController.text.trim().isEmpty
+                  ? null
+                  : _supplierEmailController.text.trim();
+          profilePayload['supplierAddress'] =
+              _supplierAddressController.text.trim().isEmpty
+                  ? null
+                  : _supplierAddressController.text.trim();
+          profilePayload['supplierTermsDays'] =
+              int.tryParse(_supplierTermsController.text.trim()) ?? 0;
+          profilePayload['supplierOpeningBalance'] =
+              _supplierOpeningBalanceController.text.trim().isEmpty
+                  ? '0'
+                  : _supplierOpeningBalanceController.text.trim();
+          profilePayload['supplierCurrentBalance'] =
+              _supplierCurrentBalanceController.text.trim().isEmpty
+                  ? '0'
+                  : _supplierCurrentBalanceController.text.trim();
+        }
+
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .set(profilePayload, SetOptions(merge: true));
 
         if (mounted) {
           Navigator.of(context).pushReplacement(
@@ -421,6 +472,104 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                       prefixIcon: Icon(Icons.badge),
                     ),
                   ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _profilePhoneController,
+                    keyboardType: TextInputType.phone,
+                    decoration: const InputDecoration(
+                      labelText: 'Phone Number',
+                      hintText: '+251911223344',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.phone),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    initialValue: _accountType,
+                    decoration: const InputDecoration(
+                      labelText: 'Account Type',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.person_search),
+                    ),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'merchant',
+                        child: Text('Merchant'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'supplier',
+                        child: Text('Supplier'),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        setState(() => _accountType = value);
+                      }
+                    },
+                  ),
+                  if (_accountType == 'supplier') ...[
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _supplierEmailController,
+                      keyboardType: TextInputType.emailAddress,
+                      decoration: const InputDecoration(
+                        labelText: 'Supplier Email (Optional)',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.email_outlined),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _supplierAddressController,
+                      maxLines: 2,
+                      decoration: const InputDecoration(
+                        labelText: 'Supplier Address (Optional)',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.location_on_outlined),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _supplierTermsController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Credit Terms (Days, Optional)',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.schedule),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: _supplierOpeningBalanceController,
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            decoration: const InputDecoration(
+                              labelText: 'Opening Balance',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextFormField(
+                            controller: _supplierCurrentBalanceController,
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            decoration: const InputDecoration(
+                              labelText: 'Current Balance',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Keep balances at 0 unless you are migrating from existing paper/old records.',
+                      style: TextStyle(color: Colors.grey, fontSize: 12),
+                    ),
+                  ],
                   const SizedBox(height: 16),
                   ElevatedButton(
                     onPressed: _isLoading ? null : _saveProfile,

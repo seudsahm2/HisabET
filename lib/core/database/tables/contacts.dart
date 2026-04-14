@@ -3,6 +3,11 @@ import 'package:drift/drift.dart';
 class Contacts extends Table {
   TextColumn get id => text()(); // UUID
   TextColumn get name => text()();
+  IntColumn get role => integer().withDefault(const Constant(0))();
+  IntColumn get verificationStatus => integer().withDefault(const Constant(0))();
+  DateTimeColumn get verificationRequestedAt => dateTime().nullable()();
+  DateTimeColumn get verificationDeadlineAt => dateTime().nullable()();
+  IntColumn get verificationTimeoutPolicy => integer().withDefault(const Constant(0))();
   TextColumn get phoneNumber => text().nullable()();
   TextColumn get shopNumber => text().nullable()();
   // Using RealColumn for balance might have precision issues,

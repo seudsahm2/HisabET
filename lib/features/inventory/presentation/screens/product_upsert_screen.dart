@@ -24,6 +24,7 @@ class _ProductUpsertScreenState extends ConsumerState<ProductUpsertScreen> {
   final _categoryController = TextEditingController();
   final _brandController = TextEditingController();
   final _unitController = TextEditingController(text: 'pcs');
+  final _itemsPerCartonController = TextEditingController();
   final _costPriceController = TextEditingController();
   final _sellingPriceController = TextEditingController();
   final _stockQuantityController = TextEditingController(text: '0');
@@ -48,6 +49,7 @@ class _ProductUpsertScreenState extends ConsumerState<ProductUpsertScreen> {
     _categoryController.text = product.category ?? '';
     _brandController.text = product.brand ?? '';
     _unitController.text = product.unit;
+    _itemsPerCartonController.text = product.itemsPerCarton?.toString() ?? '';
     _costPriceController.text = product.costPrice.toString();
     _sellingPriceController.text = product.sellingPrice.toString();
     _stockQuantityController.text = product.stockQuantity.toString();
@@ -63,6 +65,7 @@ class _ProductUpsertScreenState extends ConsumerState<ProductUpsertScreen> {
     _categoryController.dispose();
     _brandController.dispose();
     _unitController.dispose();
+    _itemsPerCartonController.dispose();
     _costPriceController.dispose();
     _sellingPriceController.dispose();
     _stockQuantityController.dispose();
@@ -87,6 +90,7 @@ class _ProductUpsertScreenState extends ConsumerState<ProductUpsertScreen> {
       final unit = _unitController.text.trim().isEmpty
           ? 'pcs'
           : _unitController.text.trim();
+        final itemsPerCarton = int.tryParse(_itemsPerCartonController.text.trim());
       final costPrice = Decimal.tryParse(_costPriceController.text.trim()) ??
           Decimal.zero;
       final sellingPrice =
@@ -105,6 +109,7 @@ class _ProductUpsertScreenState extends ConsumerState<ProductUpsertScreen> {
             category: category.isEmpty ? null : category,
             brand: brand.isEmpty ? null : brand,
             unit: unit,
+            itemsPerCarton: unit.toLowerCase() == 'carton' ? itemsPerCarton : null,
             costPrice: costPrice,
             sellingPrice: sellingPrice,
             stockQuantity: stockQuantity,
@@ -120,6 +125,7 @@ class _ProductUpsertScreenState extends ConsumerState<ProductUpsertScreen> {
           category: category.isEmpty ? null : category,
           brand: brand.isEmpty ? null : brand,
           unit: unit,
+          itemsPerCarton: unit.toLowerCase() == 'carton' ? itemsPerCarton : null,
           costPrice: costPrice,
           sellingPrice: sellingPrice,
           stockQuantity: stockQuantity,
@@ -328,6 +334,7 @@ class _ProductUpsertScreenState extends ConsumerState<ProductUpsertScreen> {
                         icon: Icons.straighten,
                         child: TextFormField(
                           controller: _unitController,
+                          onChanged: (_) => setState(() {}),
                           decoration: const InputDecoration(
                             hintText: 'pcs',
                             border: InputBorder.none,
@@ -359,6 +366,33 @@ class _ProductUpsertScreenState extends ConsumerState<ProductUpsertScreen> {
                     ),
                   ],
                 ),
+                if (_unitController.text.trim().toLowerCase() == 'carton') ...[
+                  const SizedBox(height: 16),
+                  _buildInputCard(
+                    label: 'Items per Carton',
+                    icon: Icons.view_module_outlined,
+                    child: TextFormField(
+                      controller: _itemsPerCartonController,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      decoration: const InputDecoration(
+                        hintText: '12',
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                      validator: (value) {
+                        if (_unitController.text.trim().toLowerCase() != 'carton') {
+                          return null;
+                        }
+                        final count = int.tryParse(value?.trim() ?? '');
+                        if (count == null || count <= 0) {
+                          return 'Items per carton required';
+                        }
+                        return null;
+                      },
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 16),
                 Row(
                   children: [

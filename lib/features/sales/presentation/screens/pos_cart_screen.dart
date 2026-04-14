@@ -6,6 +6,7 @@ import 'package:hisabet/core/theme/app_colors.dart';
 import 'package:hisabet/features/inventory/presentation/providers/products_providers.dart';
 import 'package:hisabet/features/sales/presentation/providers/pos_cart_provider.dart';
 import 'package:hisabet/features/sales/presentation/providers/sales_providers.dart';
+import 'package:hisabet/features/sales/presentation/screens/sales_history_screen.dart';
 
 class PosCartScreen extends ConsumerStatefulWidget {
   const PosCartScreen({super.key});
@@ -36,10 +37,22 @@ class _PosCartScreenState extends ConsumerState<PosCartScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(
         title: const Text('POS Checkout'),
         backgroundColor: AppColors.background,
         elevation: 0,
+        actions: [
+          IconButton(
+            tooltip: 'Recent sales',
+            icon: const Icon(Icons.receipt_long_outlined),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const SalesHistoryScreen()),
+              );
+            },
+          ),
+        ],
       ),
       body: productsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -51,7 +64,7 @@ class _PosCartScreenState extends ConsumerState<PosCartScreen> {
             final q = _query.toLowerCase();
             return product.name.toLowerCase().contains(q) ||
                 (product.sku?.toLowerCase().contains(q) ?? false);
-          }).toList();
+          }).where((product) => product.stockQuantity > 0).toList();
 
           return Column(
             children: [
@@ -75,23 +88,27 @@ class _PosCartScreenState extends ConsumerState<PosCartScreen> {
                   itemCount: filtered.length,
                   itemBuilder: (context, index) {
                     final product = filtered[index];
-                    final isOut = product.stockQuantity <= 0;
-
+                    final isBundle =
+                        product.unit.toLowerCase() == 'carton' ||
+                        (product.itemsPerCarton ?? 0) > 0;
+                    final pricePerCarton = isBundle
+                        ? product.sellingPrice * Decimal.fromInt(product.itemsPerCarton ?? 1)
+                        : Decimal.zero;
                     return Card(
                       margin: const EdgeInsets.only(bottom: 10),
                       child: ListTile(
                         title: Text(product.name),
                         subtitle: Text(
-                          'Stock: ${product.stockQuantity} ${product.unit} • ETB ${product.sellingPrice}',
+                          isBundle
+                              ? 'Stock: ${product.stockQuantity} cartons • ${product.itemsPerCarton ?? 1} items/carton • ETB ${pricePerCarton} per carton'
+                              : 'Stock: ${product.stockQuantity} ${product.unit} • ETB ${product.sellingPrice}',
                         ),
                         trailing: ElevatedButton(
-                          onPressed: isOut
-                              ? null
-                              : () {
-                                  ref
-                                      .read(posCartProvider.notifier)
-                                      .addProduct(product);
-                                },
+                          onPressed: () {
+                            ref
+                                .read(posCartProvider.notifier)
+                                .addProduct(product);
+                          },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.primary,
                             foregroundColor: Colors.white,
@@ -170,7 +187,9 @@ class _CartSummaryPanel extends ConsumerWidget {
                     dense: true,
                     title: Text(item.product.name),
                     subtitle: Text(
-                      'ETB ${item.product.sellingPrice} x ${item.quantity}',
+                      item.isBundle
+                          ? '${item.quantity} carton(s) x ETB ${item.pricePerCarton} /carton'
+                          : 'ETB ${item.product.sellingPrice} x ${item.quantity}',
                     ),
                     trailing: SizedBox(
                       width: 120,
@@ -283,26 +302,29 @@ class _CheckoutBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-      child: SizedBox(
-        height: 52,
-        child: ElevatedButton.icon(
-          onPressed: cart.items.isEmpty
-              ? null
-              : () async {
-                  await _showCheckoutDialog(context, ref, cart);
-                },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.primary,
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
+    return SafeArea(
+      top: false,
+      child: Container(
+        color: Colors.white,
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+        child: SizedBox(
+          height: 52,
+          child: ElevatedButton.icon(
+            onPressed: cart.items.isEmpty
+                ? null
+                : () async {
+                    await _showCheckoutDialog(context, ref, cart);
+                  },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
             ),
+            icon: const Icon(Icons.point_of_sale),
+            label: Text('Checkout • ETB ${cart.total}'),
           ),
-          icon: const Icon(Icons.point_of_sale),
-          label: Text('Checkout • ETB ${cart.total}'),
         ),
       ),
     );
@@ -318,17 +340,32 @@ class _CheckoutBar extends ConsumerWidget {
     final noteCtrl = TextEditingController();
     String paymentMethod = 'cash';
 
-    final result = await showDialog<bool>(
+    final result = await showModalBottomSheet<bool>(
       context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      backgroundColor: Colors.white,
       builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Complete Checkout'),
-          content: StatefulBuilder(
-            builder: (context, setState) {
-              return SingleChildScrollView(
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                16,
+                8,
+                16,
+                MediaQuery.of(context).viewInsets.bottom + 16,
+              ),
+              child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    const Text(
+                      'Complete Checkout',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                    ),
+                    const SizedBox(height: 12),
                     TextField(
                       controller: customerNameCtrl,
                       decoration: const InputDecoration(
@@ -376,21 +413,29 @@ class _CheckoutBar extends ConsumerWidget {
                         labelText: 'Note (optional)',
                       ),
                     ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.of(dialogContext).pop(false),
+                            child: const Text('Cancel'),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () => Navigator.of(dialogContext).pop(true),
+                            child: const Text('Confirm'),
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
-              );
-            },
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: const Text('Confirm'),
-            ),
-          ],
+              ),
+            );
+          },
         );
       },
     );
@@ -419,7 +464,9 @@ class _CheckoutBar extends ConsumerWidget {
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Sale completed successfully.')),
+          const SnackBar(
+            content: Text('Sale completed and saved. Open Receipts for history.'),
+          ),
         );
       }
     } catch (e) {

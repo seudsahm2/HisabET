@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:decimal/decimal.dart';
 import 'package:hisabet/core/theme/app_colors.dart';
 import 'package:hisabet/features/inventory/data/models/product_model.dart';
 import 'package:hisabet/features/inventory/presentation/providers/products_providers.dart';
@@ -8,82 +9,132 @@ import 'package:hisabet/features/inventory/presentation/screens/product_upsert_s
 class ProductsListScreen extends ConsumerWidget {
   const ProductsListScreen({super.key});
 
+  bool _isBundle(ProductModel product) {
+    return product.unit.toLowerCase() == 'carton' || product.itemsPerCarton != null;
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final productsAsync = ref.watch(allProductsProvider);
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text('Inventory Products'),
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
         backgroundColor: AppColors.background,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.search),
-            onPressed: () {},
+        appBar: AppBar(
+          title: const Text('Inventory Products'),
+          backgroundColor: AppColors.background,
+          elevation: 0,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.search),
+              onPressed: () {},
+            ),
+          ],
+          bottom: const TabBar(
+            tabs: [
+              Tab(text: 'Single Items'),
+              Tab(text: 'Bundle Items'),
+            ],
           ),
-        ],
-      ),
-      body: productsAsync.when(
+        ),
+        body: productsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, stack) => Center(child: Text('Error: $err')),
         data: (products) {
-          if (products.isEmpty) {
-            return _EmptyProductsState(
-              onCreateProduct: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const ProductUpsertScreen(),
-                  ),
-                );
-              },
-            );
-          }
+          final singleItems = products.where((product) => !_isBundle(product)).toList();
+          final bundleItems = products.where(_isBundle).toList();
 
-          return RefreshIndicator(
-            onRefresh: () async {
-              ref.invalidate(allProductsProvider);
-              ref.invalidate(lowStockProductsProvider);
-            },
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
-              children: [
-                _InventorySummary(products: products),
-                const SizedBox(height: 12),
-                ...products.map(
-                  (product) => _ProductTile(
-                    product: product,
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => ProductUpsertScreen(
-                            productToEdit: product,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
+          return TabBarView(
+            children: [
+              _InventoryTypeList(
+                products: singleItems,
+                emptyMessage: 'No single items yet.',
+                onRefresh: () async {
+                  ref.invalidate(allProductsProvider);
+                  ref.invalidate(lowStockProductsProvider);
+                },
+              ),
+              _InventoryTypeList(
+                products: bundleItems,
+                emptyMessage: 'No bundle items yet.',
+                onRefresh: () async {
+                  ref.invalidate(allProductsProvider);
+                  ref.invalidate(lowStockProductsProvider);
+                },
+              ),
+            ],
           );
         },
+        ),
+        floatingActionButton: FloatingActionButton.extended(
+          backgroundColor: AppColors.primary,
+          onPressed: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const ProductUpsertScreen(),
+              ),
+            );
+          },
+          icon: const Icon(Icons.add, color: Colors.white),
+          label: const Text(
+            'Add Product',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+        ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: AppColors.primary,
-        onPressed: () {
+    );
+  }
+}
+
+class _InventoryTypeList extends StatelessWidget {
+  final List<ProductModel> products;
+  final String emptyMessage;
+  final Future<void> Function() onRefresh;
+
+  const _InventoryTypeList({
+    required this.products,
+    required this.emptyMessage,
+    required this.onRefresh,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (products.isEmpty) {
+      return _EmptyProductsState(
+        message: emptyMessage,
+        onCreateProduct: () {
           Navigator.of(context).push(
             MaterialPageRoute(
               builder: (_) => const ProductUpsertScreen(),
             ),
           );
         },
-        icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text(
-          'Add Product',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: onRefresh,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+        children: [
+          _InventorySummary(products: products),
+          const SizedBox(height: 12),
+          ...products.map(
+            (product) => _ProductTile(
+              product: product,
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => ProductUpsertScreen(
+                      productToEdit: product,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -98,6 +149,13 @@ class _ProductTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isLowStock = product.isLowStock;
+    final isBundle = product.unit.toLowerCase() == 'carton' || product.itemsPerCarton != null;
+    final itemsPerCarton = product.itemsPerCarton ?? 0;
+    final individualPrice = product.sellingPrice;
+    final cartonPrice = itemsPerCarton > 0
+        ? individualPrice * Decimal.fromInt(itemsPerCarton)
+        : Decimal.zero;
+    final allCartonsTotal = cartonPrice * Decimal.fromInt(product.stockQuantity);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -137,37 +195,57 @@ class _ProductTile extends StatelessWidget {
                 product.name,
                 style: const TextStyle(fontWeight: FontWeight.w700),
               ),
-              subtitle: Text(
-                [
-                  if (product.sku != null && product.sku!.isNotEmpty)
-                    'SKU: ${product.sku}',
-                  if (product.category != null && product.category!.isNotEmpty)
-                    product.category!,
-                  'Stock: ${product.stockQuantity} ${product.unit}',
-                ].join(' • '),
-              ),
-              trailing: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    'ETB ${product.sellingPrice}',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
+              subtitle: isBundle
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Cartons: ${product.stockQuantity}'),
+                        Text('Qty/Carton: ${itemsPerCarton > 0 ? itemsPerCarton : '-'}'),
+                        Text('Individual Price: ETB $individualPrice'),
+                        Text('One Carton Price: ETB $cartonPrice'),
+                        Text('All Cartons Total: ETB $allCartonsTotal'),
+                      ],
+                    )
+                  : Text(
+                      [
+                        if (product.sku != null && product.sku!.isNotEmpty)
+                          'SKU: ${product.sku}',
+                        if (product.category != null && product.category!.isNotEmpty)
+                          product.category!,
+                        'Stock: ${product.stockQuantity} ${product.unit}',
+                      ].join(' • '),
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    isLowStock ? 'Low stock' : 'In stock',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: isLowStock ? Colors.redAccent : Colors.green,
+              trailing: isBundle
+                  ? Text(
+                      isLowStock ? 'Low stock' : 'In stock',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: isLowStock ? Colors.redAccent : Colors.green,
+                      ),
+                    )
+                  : Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          'ETB ${product.sellingPrice}',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          isLowStock ? 'Low stock' : 'In stock',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: isLowStock ? Colors.redAccent : Colors.green,
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
-              ),
             ),
           ),
         ),
@@ -269,8 +347,9 @@ class _SummaryCard extends StatelessWidget {
 
 class _EmptyProductsState extends StatelessWidget {
   final VoidCallback onCreateProduct;
+  final String message;
 
-  const _EmptyProductsState({required this.onCreateProduct});
+  const _EmptyProductsState({required this.onCreateProduct, required this.message});
 
   @override
   Widget build(BuildContext context) {
@@ -287,11 +366,11 @@ class _EmptyProductsState extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 8),
-        const Center(
+        Center(
           child: Text(
-            'Start by creating your first product.',
+            message,
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey),
+            style: const TextStyle(color: Colors.grey),
           ),
         ),
         const SizedBox(height: 24),

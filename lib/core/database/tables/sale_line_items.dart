@@ -8,6 +8,8 @@ class SaleLineItems extends Table {
   TextColumn get productId => text().references(Products, #id)();
   TextColumn get productName => text()();
   TextColumn get sku => text().nullable()();
+  TextColumn get unit => text().nullable()();
+  IntColumn get itemsPerCarton => integer().nullable()();
   TextColumn get unitPrice => text()();
   IntColumn get quantity => integer()();
   TextColumn get lineTotal => text()();

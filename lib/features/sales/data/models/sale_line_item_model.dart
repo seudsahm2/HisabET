@@ -7,6 +7,8 @@ class SaleLineItemModel {
   final String productId;
   final String productName;
   final String? sku;
+  final String? unit;
+  final int? itemsPerCarton;
   final Decimal unitPrice;
   final int quantity;
   final Decimal lineTotal;
@@ -17,6 +19,8 @@ class SaleLineItemModel {
     required this.productId,
     required this.productName,
     this.sku,
+    this.unit,
+    this.itemsPerCarton,
     required this.unitPrice,
     required this.quantity,
     required this.lineTotal,
@@ -29,9 +33,19 @@ class SaleLineItemModel {
       productId: dbItem.productId,
       productName: dbItem.productName,
       sku: dbItem.sku,
+      unit: dbItem.unit,
+      itemsPerCarton: dbItem.itemsPerCarton,
       unitPrice: Decimal.parse(dbItem.unitPrice),
       quantity: dbItem.quantity,
       lineTotal: Decimal.parse(dbItem.lineTotal),
     );
+  }
+
+  bool get isBundle => (unit?.toLowerCase() == 'carton') || (itemsPerCarton ?? 0) > 0;
+
+  Decimal get pricePerCarton {
+    final perCarton = itemsPerCarton ?? 0;
+    if (perCarton <= 0) return unitPrice;
+    return unitPrice * Decimal.fromInt(perCarton);
   }
 }

@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:decimal/decimal.dart';
+import 'package:flutter/foundation.dart';
 import 'package:hisabet/core/utils/phone_util.dart';
 import 'package:hisabet/features/transactions/data/models/transaction_model.dart';
 
@@ -26,8 +27,12 @@ class TransactionSyncService {
         'id': transaction.id,
         'amount': transaction.amount.toString(),
         'type': transaction.type.index, // Store as Int index
+        'status': transaction.status.index,
         'date': transaction.date.toIso8601String(),
         'description': transaction.description,
+        'cartons': transaction.cartons,
+        'qty_per_carton': transaction.qtyPerCarton,
+        'unit_price': transaction.unitPrice?.toString(),
         'metadata': transaction.metadata,
         'creator_phone': creatorPhone,
         'contact_phone': contactPhone,
@@ -38,7 +43,7 @@ class TransactionSyncService {
       await docRef.set(data, SetOptions(merge: true));
     } catch (e) {
       // Log error or rethrow, for now silent fail is okay as offline-first implies retry later
-      print('Sync Error: $e');
+      debugPrint('Sync Error: $e');
     }
   }
 
@@ -77,9 +82,19 @@ class TransactionSyncService {
           id: data['id'] ?? doc.id,
           contactId: 'REMOTE',
           type: TransactionType.values[data['type'] as int],
+            status: data['status'] == null
+              ? TransactionStatus.pending
+              : TransactionStatus.values[int.tryParse(data['status'].toString()) ?? 0],
           amount: Decimal.parse(data['amount'] as String),
           date: DateTime.parse(data['date'] as String),
           description: data['description'],
+          cartons: data['cartons'] == null ? null : int.tryParse(data['cartons'].toString()),
+          qtyPerCarton: data['qty_per_carton'] == null
+            ? null
+            : int.tryParse(data['qty_per_carton'].toString()),
+          unitPrice: data['unit_price'] != null
+              ? Decimal.tryParse(data['unit_price'].toString())
+              : null,
           metadata: data['metadata'],
           referenceId: data['reference_id'],
         );

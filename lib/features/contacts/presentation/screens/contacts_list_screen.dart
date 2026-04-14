@@ -3,15 +3,57 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hisabet/core/theme/app_colors.dart';
+import 'package:hisabet/features/contacts/data/models/contact_model.dart';
 import 'package:hisabet/features/contacts/presentation/providers/contacts_providers.dart';
 import 'package:hisabet/features/contacts/presentation/screens/add_contact_screen.dart';
 import 'package:hisabet/features/transactions/presentation/screens/contact_detail_screen.dart';
 
-class ContactsListScreen extends ConsumerWidget {
-  const ContactsListScreen({super.key});
+class ContactsListScreen extends ConsumerStatefulWidget {
+  final int initialFilterIndex;
+
+  const ContactsListScreen({
+    super.key,
+    this.initialFilterIndex = 0,
+  });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ContactsListScreen> createState() => _ContactsListScreenState();
+}
+
+class _ContactsListScreenState extends ConsumerState<ContactsListScreen> {
+  late int _selectedFilterIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedFilterIndex = widget.initialFilterIndex;
+  }
+
+  List<ContactModel> _applyRoleFilter(List<ContactModel> contacts) {
+    switch (_selectedFilterIndex) {
+      case 1:
+        return contacts
+            .where(
+              (contact) =>
+                  contact.role == ContactRole.merchant ||
+                  contact.role == ContactRole.both,
+            )
+            .toList();
+      case 2:
+        return contacts
+            .where(
+              (contact) =>
+                  contact.role == ContactRole.supplier ||
+                  contact.role == ContactRole.both,
+            )
+            .toList();
+      default:
+        return contacts;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final contactsAsync = ref.watch(allContactsProvider);
 
     return Scaffold(
@@ -62,6 +104,31 @@ class ContactsListScreen extends ConsumerWidget {
               ),
             ],
           ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+              child: Wrap(
+                spacing: 8,
+                children: [
+                  ChoiceChip(
+                    label: const Text('All'),
+                    selected: _selectedFilterIndex == 0,
+                    onSelected: (_) => setState(() => _selectedFilterIndex = 0),
+                  ),
+                  ChoiceChip(
+                    label: const Text('Merchants'),
+                    selected: _selectedFilterIndex == 1,
+                    onSelected: (_) => setState(() => _selectedFilterIndex = 1),
+                  ),
+                  ChoiceChip(
+                    label: const Text('Suppliers'),
+                    selected: _selectedFilterIndex == 2,
+                    onSelected: (_) => setState(() => _selectedFilterIndex = 2),
+                  ),
+                ],
+              ),
+            ),
+          ),
 
           // 2. Contacts List
           contactsAsync.when(
@@ -71,7 +138,8 @@ class ContactsListScreen extends ConsumerWidget {
             error: (err, stack) =>
                 SliverFillRemaining(child: Center(child: Text('Error: $err'))),
             data: (contacts) {
-              if (contacts.isEmpty) {
+              final filteredContacts = _applyRoleFilter(contacts);
+              if (filteredContacts.isEmpty) {
                 return const SliverFillRemaining(
                   child: Center(
                     child: Column(
@@ -84,7 +152,7 @@ class ContactsListScreen extends ConsumerWidget {
                         ),
                         SizedBox(height: 16),
                         Text(
-                          'No merchants yet',
+                          'No contacts yet',
                           style: TextStyle(fontSize: 18, color: Colors.grey),
                         ),
                       ],
@@ -99,10 +167,9 @@ class ContactsListScreen extends ConsumerWidget {
                 ),
                 sliver: SliverList(
                   delegate: SliverChildBuilderDelegate((context, index) {
-                    final contact = contacts[index];
+                    final contact = filteredContacts[index];
                     final balance = contact.netBalance.toDouble();
                     final isPositive = balance >= 0;
-
                     return Container(
                       margin: const EdgeInsets.only(bottom: 12),
                       decoration: BoxDecoration(
@@ -167,13 +234,22 @@ class ContactsListScreen extends ConsumerWidget {
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      Text(
-                                        contact.name,
-                                        style: const TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                          color: AppColors.textPrimary,
-                                        ),
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              contact.name,
+                                              style: const TextStyle(
+                                                fontSize: 18,
+                                                fontWeight: FontWeight.bold,
+                                                color: AppColors.textPrimary,
+                                              ),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          _buildVerificationBadge(contact.verificationStatus),
+                                        ],
                                       ),
                                       const SizedBox(height: 4),
                                       Text(
@@ -234,7 +310,7 @@ class ContactsListScreen extends ConsumerWidget {
                         ),
                       ),
                     );
-                  }, childCount: contacts.length),
+                  }, childCount: filteredContacts.length),
                 ),
               );
             },
@@ -245,7 +321,7 @@ class ContactsListScreen extends ConsumerWidget {
         backgroundColor: AppColors.primary,
         icon: const Icon(Icons.add, color: Colors.white),
         label: const Text(
-          "New Merchant",
+          "New Contact",
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         onPressed: () async {
@@ -256,5 +332,53 @@ class ContactsListScreen extends ConsumerWidget {
         },
       ),
     );
+  }
+
+  Widget _buildVerificationBadge(ContactVerificationStatus status) {
+    switch (status) {
+      case ContactVerificationStatus.verified:
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: AppColors.give.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: const Icon(Icons.verified, size: 13, color: AppColors.give),
+        );
+      case ContactVerificationStatus.pending:
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: Color(0xFFFFF7E6),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: const Icon(Icons.schedule, size: 13, color: Color(0xFFB26A00)),
+        );
+      case ContactVerificationStatus.expired:
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: AppColors.take.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: const Icon(Icons.cancel_outlined, size: 13, color: AppColors.take),
+        );
+      case ContactVerificationStatus.unverified:
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: AppColors.textSecondary.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: const Text(
+            'Unverified',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textSecondary,
+            ),
+          ),
+        );
+    }
   }
 }

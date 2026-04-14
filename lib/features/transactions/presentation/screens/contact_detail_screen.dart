@@ -8,7 +8,6 @@ import 'package:hisabet/features/transactions/data/models/transaction_model.dart
 import 'package:hisabet/features/transactions/presentation/providers/transactions_providers.dart';
 import 'package:hisabet/features/transactions/presentation/screens/add_transaction_screen.dart';
 import 'package:hisabet/features/sync/presentation/screens/reconciliation_screen.dart';
-import 'package:hisabet/core/l10n/generated/app_localizations.dart';
 import 'package:intl/intl.dart';
 
 class ContactDetailScreen extends ConsumerWidget {
@@ -69,12 +68,11 @@ class ContactDetailScreen extends ConsumerWidget {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      if (currentContact.linkedUserUid != null) ...[
-                        const SizedBox(width: 4),
-                        const Icon(Icons.verified, color: Colors.blue, size: 16),
-                      ],
+                      const SizedBox(width: 8),
+                      _buildVerificationBadge(currentContact.verificationStatus),
                     ],
                   ),
+                  const SizedBox(height: 2),
                   if (currentContact.phoneNumber != null)
                     Text(
                       currentContact.phoneNumber!,
@@ -199,6 +197,63 @@ class ContactDetailScreen extends ConsumerWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildVerificationBadge(ContactVerificationStatus status) {
+    IconData icon;
+    Color fg;
+    Color bg;
+
+    switch (status) {
+      case ContactVerificationStatus.verified:
+        icon = Icons.verified;
+        fg = AppColors.give;
+        bg = AppColors.give.withValues(alpha: 0.12);
+        break;
+      case ContactVerificationStatus.pending:
+        icon = Icons.schedule;
+        fg = const Color(0xFFB26A00);
+        bg = const Color(0xFFFFF7E6);
+        break;
+      case ContactVerificationStatus.expired:
+        icon = Icons.cancel_outlined;
+        fg = AppColors.take;
+        bg = AppColors.take.withValues(alpha: 0.12);
+        break;
+      case ContactVerificationStatus.unverified:
+        icon = Icons.circle_outlined;
+        fg = AppColors.textSecondary;
+        bg = AppColors.textSecondary.withValues(alpha: 0.12);
+        break;
+    }
+
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: status == ContactVerificationStatus.unverified
+            ? const Text(
+                'Unverified',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textSecondary,
+                ),
+              )
+            : Padding(
+                padding: const EdgeInsets.all(4),
+                child: Icon(
+                  icon,
+                  size: 13,
+                  color: fg,
+                ),
+              ),
       ),
     );
   }
@@ -521,6 +576,8 @@ class _TransactionTile extends ConsumerWidget {
                           fontSize: 16,
                         ),
                       ),
+                      const SizedBox(height: 6),
+                      _buildStatusChip(transaction.status),
                       const SizedBox(height: 4),
                       Text(
                         DateFormat('MMM dd • hh:mm a').format(transaction.date),
@@ -567,9 +624,46 @@ class _TransactionTile extends ConsumerWidget {
                           _editTransaction(context, ref);
                         } else if (value == 'delete') {
                           _deleteTransaction(context, ref);
+                        } else if (value == 'pending') {
+                          _updateStatus(context, ref, TransactionStatus.pending);
+                        } else if (value == 'confirmed') {
+                          _updateStatus(context, ref, TransactionStatus.confirmed);
+                        } else if (value == 'disputed') {
+                          _updateStatus(context, ref, TransactionStatus.disputed);
                         }
                       },
                       itemBuilder: (context) => [
+                        const PopupMenuItem(
+                          value: 'pending',
+                          child: Row(
+                            children: [
+                              Icon(Icons.schedule, size: 18),
+                              SizedBox(width: 8),
+                              Text('Mark Pending'),
+                            ],
+                          ),
+                        ),
+                        const PopupMenuItem(
+                          value: 'confirmed',
+                          child: Row(
+                            children: [
+                              Icon(Icons.check_circle_outline, size: 18, color: Colors.green),
+                              SizedBox(width: 8),
+                              Text('Mark Confirmed'),
+                            ],
+                          ),
+                        ),
+                        const PopupMenuItem(
+                          value: 'disputed',
+                          child: Row(
+                            children: [
+                              Icon(Icons.error_outline, size: 18, color: Colors.orange),
+                              SizedBox(width: 8),
+                              Text('Mark Disputed'),
+                            ],
+                          ),
+                        ),
+                        const PopupMenuDivider(),
                         const PopupMenuItem(
                           value: 'edit',
                           child: Row(
@@ -600,6 +694,46 @@ class _TransactionTile extends ConsumerWidget {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatusChip(TransactionStatus status) {
+    Color bg;
+    Color fg;
+    String label;
+
+    switch (status) {
+      case TransactionStatus.pending:
+        bg = const Color(0xFFFFF7E6);
+        fg = const Color(0xFFB26A00);
+        label = 'Pending';
+        break;
+      case TransactionStatus.confirmed:
+        bg = const Color(0xFFEAF9F0);
+        fg = const Color(0xFF1E8E4A);
+        label = 'Confirmed';
+        break;
+      case TransactionStatus.disputed:
+        bg = const Color(0xFFFFEFEF);
+        fg = const Color(0xFFBF2A2A);
+        label = 'Disputed';
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: fg,
+          fontWeight: FontWeight.w600,
+          fontSize: 11,
         ),
       ),
     );
@@ -668,6 +802,33 @@ class _TransactionTile extends ConsumerWidget {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text("Transaction deleted")));
+      }
+    }
+  }
+
+  Future<void> _updateStatus(
+    BuildContext context,
+    WidgetRef ref,
+    TransactionStatus status,
+  ) async {
+    try {
+      await ref
+          .read(transactionsRepositoryProvider)
+          .updateTransactionStatus(transaction.id, status);
+      ref.invalidate(contactTransactionsProvider(transaction.contactId));
+      ref.invalidate(contactProvider(transaction.contactId));
+      ref.invalidate(allContactsProvider);
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Status updated to ${status.name}.')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to update status: $e')),
+        );
       }
     }
   }

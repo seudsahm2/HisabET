@@ -6,7 +6,12 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 
 import 'package:hisabet/core/database/tables/contacts.dart';
+import 'package:hisabet/core/database/tables/expense_categories.dart';
+import 'package:hisabet/core/database/tables/expenses.dart';
 import 'package:hisabet/core/database/tables/products.dart';
+import 'package:hisabet/core/database/tables/purchase_order_line_items.dart';
+import 'package:hisabet/core/database/tables/purchase_orders.dart';
+import 'package:hisabet/core/database/tables/suppliers.dart';
 import 'package:hisabet/core/database/tables/sale_line_items.dart';
 import 'package:hisabet/core/database/tables/sales.dart';
 import 'package:hisabet/core/database/tables/stock_movements.dart';
@@ -17,7 +22,12 @@ part 'app_database.g.dart';
 @DriftDatabase(
   tables: [
     Contacts,
+    ExpenseCategories,
+    Expenses,
     Products,
+    PurchaseOrderLineItems,
+    PurchaseOrders,
+    Suppliers,
     Sales,
     SaleLineItems,
     StockMovements,
@@ -27,8 +37,19 @@ part 'app_database.g.dart';
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
+  Future<bool> _hasColumn(String tableName, String columnName) async {
+    final rows = await customSelect('PRAGMA table_info("$tableName")').get();
+    for (final row in rows) {
+      final name = row.data['name']?.toString();
+      if (name != null && name.toLowerCase() == columnName.toLowerCase()) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 16;
 
   @override
   MigrationStrategy get migration {
@@ -38,10 +59,14 @@ class AppDatabase extends _$AppDatabase {
       },
       onUpgrade: (Migrator m, int from, int to) async {
         if (from < 2) {
-          await m.addColumn(contacts, contacts.linkedUserUid);
+          if (!await _hasColumn('contacts', 'linked_user_uid')) {
+            await m.addColumn(contacts, contacts.linkedUserUid);
+          }
         }
         if (from < 3) {
-          await m.addColumn(transactions, transactions.referenceId);
+          if (!await _hasColumn('transactions', 'reference_id')) {
+            await m.addColumn(transactions, transactions.referenceId);
+          }
         }
         if (from < 4) {
           await m.createTable(products);
@@ -52,6 +77,67 @@ class AppDatabase extends _$AppDatabase {
         if (from < 6) {
           await m.createTable(sales);
           await m.createTable(saleLineItems);
+        }
+        if (from < 7) {
+          if (!await _hasColumn('transactions', 'cartons')) {
+            await m.addColumn(transactions, transactions.cartons);
+          }
+          if (!await _hasColumn('transactions', 'qty_per_carton')) {
+            await m.addColumn(transactions, transactions.qtyPerCarton);
+          }
+          if (!await _hasColumn('transactions', 'unit_price')) {
+            await m.addColumn(transactions, transactions.unitPrice);
+          }
+        }
+        if (from < 8) {
+          if (!await _hasColumn('products', 'items_per_carton')) {
+            await m.addColumn(products, products.itemsPerCarton);
+          }
+        }
+        if (from < 9) {
+          if (!await _hasColumn('transactions', 'status')) {
+            await m.addColumn(transactions, transactions.status);
+          }
+        }
+        if (from < 10) {
+          await m.createTable(suppliers);
+        }
+        if (from < 11) {
+          await m.createTable(purchaseOrders);
+        }
+        if (from < 12) {
+          if (!await _hasColumn('contacts', 'role')) {
+            await m.addColumn(contacts, contacts.role);
+          }
+        }
+        if (from < 13) {
+          if (!await _hasColumn('sale_line_items', 'unit')) {
+            await m.addColumn(saleLineItems, saleLineItems.unit);
+          }
+          if (!await _hasColumn('sale_line_items', 'items_per_carton')) {
+            await m.addColumn(saleLineItems, saleLineItems.itemsPerCarton);
+          }
+        }
+        if (from < 14) {
+          if (!await _hasColumn('contacts', 'verification_status')) {
+            await m.addColumn(contacts, contacts.verificationStatus);
+          }
+          if (!await _hasColumn('contacts', 'verification_requested_at')) {
+            await m.addColumn(contacts, contacts.verificationRequestedAt);
+          }
+          if (!await _hasColumn('contacts', 'verification_deadline_at')) {
+            await m.addColumn(contacts, contacts.verificationDeadlineAt);
+          }
+          if (!await _hasColumn('contacts', 'verification_timeout_policy')) {
+            await m.addColumn(contacts, contacts.verificationTimeoutPolicy);
+          }
+        }
+        if (from < 15) {
+          await m.createTable(purchaseOrderLineItems);
+        }
+        if (from < 16) {
+          await m.createTable(expenseCategories);
+          await m.createTable(expenses);
         }
       },
       beforeOpen: (details) async {
