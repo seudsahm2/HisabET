@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HisabET | Trust-ledger for everyday business</title>
+    <meta
+      name="description"
+      content="HisabET is a modern trust-ledger app for recording transactions, reconciling balances, and keeping daily business relationships clear."
+    />
+    <meta name="theme-color" content="#0d7a6f" />
+    <meta property="og:title" content="HisabET" />
+    <meta
+      property="og:description"
+      content="Trust-ledger for everyday business relationships with clear phone-based authentication, reconciliation, and privacy controls."
+    />
+    <meta property="og:type" content="website" />
+    <link rel="icon" href="/app-logo.jpg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+    <script defer src="./site.js"></script>
+  </head>
+  <body>
+    <div class="bg-orb orb-a"></div>
+    <div class="bg-orb orb-b"></div>
+    <div class="noise"></div>
+
+    <header class="topbar shell reveal">
+      <a class="brand" href="/" aria-label="HisabET home">
+        <span class="brand-mark" aria-hidden="true">
+          <img src="/app-logo.jpg" alt="" />
+        </span>
+        <span>
+          <strong>HisabET</strong>
+          <small>Clear records. Real trust.</small>
+        </span>
+      </a>
+      <nav class="navlinks" aria-label="Primary">
+        <a href="#features">Features</a>
+        <a href="#workflow">Workflow</a>
+        <a href="#trust">Trust</a>
+        <a href="/privacy">Privacy</a>
+        <a href="/terms">Terms</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero shell reveal">
+        <div class="hero-copy">
+          <span class="eyebrow"
+            >Built for shops, customers, and daily balance checks</span
+          >
+          <h1>Record every transaction with clarity, dignity, and trust.</h1>
+          <p class="lede">
+            HisabET is a digital ledger for small businesses and everyday trade.
+            It helps users record who gave goods, who took goods, who paid, and
+            who still owes so both sides can reconcile balances clearly. We use
+            phone verification to create secure accounts and keep records tied
+            to the right person.
+          </p>
+          <div class="hero-actions">
+            <a class="button primary" href="/privacy">Read Privacy</a>
+            <a class="button secondary" href="/terms">View Terms</a>
+          </div>
+          <div class="microstats" aria-label="Highlights">
+            <div><strong>2-way</strong><span>balance reconciliation</span></div>
+            <div><strong>Fast</strong><span>phone-based onboarding</span></div>
+            <div>
+              <strong>Secure</strong><span>Firebase-auth protected</span>
+            </div>
+          </div>
+          <p class="lede" style="margin-top: 18px; font-size: 0.98rem">
+            Privacy policy: <a href="/privacy">hisabet.web.app/privacy</a>.
+            Terms: <a href="/terms">hisabet.web.app/terms</a>.
+          </p>
+        </div>
+
+        <div class="hero-visual" aria-hidden="true">
+          <div
+            class="logo-spot"
+            style="position: absolute; left: 24px; top: 22px; z-index: 3"
+          >
+            <img src="/app-logo.jpg" alt="" />
+          </div>
+          <div class="glass-card card-main">
+            <div class="mini-head">
+              <span class="dot green"></span>
+              <span class="dot amber"></span>
+              <span class="dot pale"></span>
+            </div>
+            <div class="ledger-panel">
+              <div class="ledger-row highlight">
+                <span>Today</span>
+                <strong>+12,450 ETB</strong>
+              </div>
+              <div class="ledger-row">
+                <span>Goods given</span>
+                <strong>8 entries</strong>
+              </div>
+              <div class="ledger-row">
+                <span>Payments received</span>
+                <strong>5 entries</strong>
+              </div>
+              <div class="ledger-row balance">
+                <span>Net balance</span>
+                <strong>In sync</strong>
+              </div>
+            </div>
+          </div>
+          <div class="floating-chip chip-a">Ledger</div>
+          <div class="floating-chip chip-b">Reconcile</div>
+          <div class="floating-chip chip-c">Verify</div>
+        </div>
+      </section>
+
+      <section id="features" class="shell section-grid reveal">
+        <article class="feature-card">
+          <span class="icon-badge">01</span>
+          <h2>Fast data entry</h2>
+          <p>
+            Designed to feel quick in real business use, with the minimum
+            friction needed for busy daily updates.
+          </p>
+        </article>
+        <article class="feature-card">
+          <span class="icon-badge">02</span>
+          <h2>Balanced language</h2>
+          <p>
+            Clear UI tone that is calm, trustworthy, and suitable for both
+            professional and everyday users.
+          </p>
+        </article>
+        <article class="feature-card">
+          <span class="icon-badge">03</span>
+          <h2>Mobile-first trust</h2>
+          <p>
+            Built around phone verification and simple ledger workflows so users
+            can access data from anywhere.
+          </p>
+        </article>
+      </section>
+
+      <section id="workflow" class="shell narrative reveal">
+        <div class="section-heading">
+          <span class="eyebrow">How it works</span>
+          <h2>
+            A clean workflow that mirrors real-world transaction handling.
+          </h2>
+        </div>
+        <div class="timeline">
+          <div class="step">
+            <span>1</span>
+            <h3>Verify phone</h3>
+            <p>
+              Users sign in with their number so the account feels personal and
+              secure.
+            </p>
+          </div>
+          <div class="step">
+            <span>2</span>
+            <h3>Create profile</h3>
+            <p>
+              Add a name for the business or contact so records stay
+              understandable later.
+            </p>
+          </div>
+          <div class="step">
+            <span>3</span>
+            <h3>Track ledger flow</h3>
+            <p>
+              Log goods, payments, and shared history in a way that is easy to
+              reconcile.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section id="trust" class="shell trust-band reveal">
+        <div>
+          <span class="eyebrow">Trust and transparency</span>
+          <h2>
+            Created for real business relationships, not just data collection.
+          </h2>
+        </div>
+        <p>
+          Every part of the experience is designed to support accountability,
+          reduce disputes, and make daily bookkeeping feel modern instead of
+          heavy. The homepage is public, readable without login, and links to
+          the privacy policy and terms required for verification.
+        </p>
+        <div class="trust-points">
+          <span>Phone auth</span>
+          <span>Privacy policy</span>
+          <span>Terms of service</span>
+          <span>Firebase hosting</span>
+        </div>
+      </section>
+
+      <section class="shell cta-panel reveal">
+        <div>
+          <span class="eyebrow">Need the legal pages?</span>
+          <h2>They are live and ready to attach to your consent screen.</h2>
+        </div>
+        <div class="hero-actions">
+          <a class="button primary" href="/privacy">Open Privacy</a>
+          <a class="button secondary" href="/terms">Open Terms</a>
+        </div>
+      </section>
+    </main>
+
+    <footer class="shell footer reveal">
+      <p>
+        Support: <a href="mailto:seudsahm1@gmail.com">seudsahm1@gmail.com</a>
+      </p>
+      <p>HisabET is built to feel calm, sharp, and dependable.</p>
+    </footer>
+  </body>
+</html>

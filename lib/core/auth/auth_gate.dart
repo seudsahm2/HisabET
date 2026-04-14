@@ -5,6 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:hisabet/features/sync/presentation/screens/onboarding_screen.dart';
 import 'package:hisabet/features/home/presentation/screens/main_scaffold.dart';
 
+const bool kDevBypassProfileCheck = bool.fromEnvironment(
+  'DEV_BYPASS_PROFILE_CHECK',
+);
+
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
 
@@ -21,6 +25,9 @@ class AuthGate extends StatelessWidget {
 
         // If user is logged in, authorize them
         if (snapshot.hasData) {
+          if (kDevBypassProfileCheck) {
+            return const MainScaffold();
+          }
           return const ProfileCheckGate();
         }
 
@@ -43,6 +50,7 @@ class _ProfileCheckGateState extends State<ProfileCheckGate> {
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return const OnboardingScreen();
+    if (kDevBypassProfileCheck) return const MainScaffold();
 
     return StreamBuilder<DocumentSnapshot>(
       stream: FirebaseFirestore.instance

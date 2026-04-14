@@ -5,6 +5,8 @@ import 'package:hisabet/features/contacts/presentation/screens/contacts_list_scr
 import 'package:hisabet/features/contacts/presentation/screens/add_contact_screen.dart';
 import 'package:hisabet/features/contacts/presentation/providers/contacts_providers.dart';
 import 'package:hisabet/features/home/presentation/providers/dashboard_providers.dart';
+import 'package:hisabet/features/home/presentation/screens/merchant_modules_screen.dart';
+import 'package:hisabet/features/inventory/presentation/screens/products_list_screen.dart';
 import 'package:hisabet/core/l10n/language_provider.dart';
 import 'package:hisabet/features/transactions/data/models/transaction_model.dart';
 import 'package:intl/intl.dart';
@@ -56,7 +58,7 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
         children: const [
           _HomeDashboard(),
           ContactsListScreen(),
-          Center(child: Icon(Icons.store, size: 80, color: Colors.grey)),
+          ProductsListScreen(),
           _MenuTab(),
         ],
       ),
@@ -90,7 +92,7 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
             NavigationDestination(
               icon: Icon(Icons.inventory_2_outlined),
               selectedIcon: Icon(Icons.inventory_2, color: AppColors.primary),
-              label: 'Store',
+              label: 'Inventory',
             ),
             NavigationDestination(
               icon: Icon(Icons.menu),
@@ -449,6 +451,32 @@ class _PremiumQuickActions extends ConsumerWidget {
           ref.invalidate(allContactsProvider);
           ref.invalidate(dashboardStatsProvider);
           ref.invalidate(recentActivityProvider);
+          return;
+        }
+
+        if (index == 1) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('QR/Barcode scanning module will be added next.'),
+            ),
+          );
+          return;
+        }
+
+        if (index == 2) {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const _AnalyticsScreen()),
+          );
+          return;
+        }
+
+        if (index == 3) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Use Menu tab for full settings and tools.'),
+            ),
+          );
         }
       },
       child: Column(
@@ -649,6 +677,19 @@ class _MenuTab extends ConsumerWidget {
               onTap: () => _showLanguageSheet(context, ref),
             ),
             _buildMenuOption(
+              icon: Icons.dashboard_customize_outlined,
+              title: "Merchant Modules",
+              subtitle: "All business modules in one place",
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const MerchantModulesScreen(),
+                  ),
+                );
+              },
+            ),
+            _buildMenuOption(
               icon: Icons.bug_report_outlined,
               title: "Debug Tools",
               subtitle: "Reconciliation & Logs",
@@ -759,6 +800,123 @@ class _MenuTab extends ConsumerWidget {
         subtitle: Text(subtitle, style: TextStyle(color: Colors.grey.shade500)),
         trailing: Icon(Icons.chevron_right, color: Colors.grey.shade400),
         onTap: onTap,
+      ),
+    );
+  }
+}
+
+class _AnalyticsScreen extends ConsumerWidget {
+  const _AnalyticsScreen();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final statsAsync = ref.watch(dashboardStatsProvider);
+
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: const Text('Analytics'),
+        backgroundColor: AppColors.background,
+        elevation: 0,
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(20),
+        child: statsAsync.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, s) => Center(child: Text('Failed to load analytics: $e')),
+          data: (stats) {
+            return ListView(
+              children: [
+                _analyticsCard(
+                  title: 'Net Balance',
+                  value: 'ETB ${stats.netBalance}',
+                  icon: Icons.account_balance_wallet,
+                  color: AppColors.primary,
+                ),
+                const SizedBox(height: 12),
+                _analyticsCard(
+                  title: 'Receivable',
+                  value: 'ETB ${stats.totalReceivable}',
+                  icon: Icons.trending_up,
+                  color: AppColors.give,
+                ),
+                const SizedBox(height: 12),
+                _analyticsCard(
+                  title: 'Payable',
+                  value: 'ETB ${stats.totalPayable.abs()}',
+                  icon: Icons.trending_down,
+                  color: AppColors.take,
+                ),
+                const SizedBox(height: 20),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.grey.shade200),
+                  ),
+                  child: const Text(
+                    'This analytics area is reserved for analytics activities only. Detailed charts and reports will be expanded here next.',
+                    style: TextStyle(color: AppColors.textSecondary),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _analyticsCard({
+    required String title,
+    required String value,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            backgroundColor: color.withOpacity(0.12),
+            child: Icon(icon, color: color),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

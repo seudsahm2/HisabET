@@ -3,6 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:hisabet/core/utils/phone_util.dart';
 import 'package:hisabet/features/contacts/presentation/screens/contacts_list_screen.dart';
 
 class OnboardingScreen extends ConsumerStatefulWidget {
@@ -14,6 +16,16 @@ class OnboardingScreen extends ConsumerStatefulWidget {
 }
 
 class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
+  static const bool _manualBypassEnabled = bool.fromEnvironment(
+    'PHONE_AUTH_MANUAL_BYPASS',
+  );
+  static const bool _devBypassProfileCheck = bool.fromEnvironment(
+    'DEV_BYPASS_PROFILE_CHECK',
+  );
+  static const String _manualBypassCode = String.fromEnvironment(
+    'PHONE_AUTH_TEST_CODE',
+  );
+
   final _phoneController = TextEditingController();
   final _otpController = TextEditingController();
   final _nameController = TextEditingController();
@@ -31,6 +43,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   String? _verificationId;
   String? _phoneError;
+  int? _resendToken;
 
   // Timer Logic
   Timer? _timer;
@@ -72,8 +85,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       _phoneError = null;
     });
 
-    final phone = _phoneController.text.trim();
-    if (phone.isEmpty) {
+    final rawPhone = _phoneController.text.trim();
+    if (rawPhone.isEmpty) {
       setState(() {
         _isLoading = false;
         _phoneError = 'Phone number required. ex: +251...';
@@ -81,21 +94,47 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       return;
     }
 
+    final phone = PhoneUtil.normalize(rawPhone);
+    final digitCount = phone.replaceAll(RegExp(r'\D'), '').length;
+    if (!phone.startsWith('+') || digitCount < 10 || digitCount > 15) {
+      setState(() {
+        _isLoading = false;
+        _phoneError = 'Use a valid phone number in international format.';
+      });
+      return;
+    }
+
+    _phoneController.text = phone;
+
+    // Debug-only manual bypass mode for development without SMS/billing.
+    if (_manualBypassEnabled && _manualBypassCode.isNotEmpty) {
+      if (mounted) {
+        setState(() {
+          _verificationId = '__manual_dev_bypass__';
+          _codeSent = true;
+          _isLoading = false;
+        });
+        _startTimer();
+      }
+      return;
+    }
+
     try {
       await FirebaseAuth.instance.verifyPhoneNumber(
         phoneNumber: phone,
+        forceResendingToken: _resendToken,
         verificationCompleted: (PhoneAuthCredential credential) async {
           // Auto-resolution (Instant)
           await FirebaseAuth.instance.signInWithCredential(credential);
           if (mounted) {
-            _checkUserProfile();
+            await _checkUserProfile();
           }
         },
         verificationFailed: (FirebaseAuthException e) {
           if (mounted) {
             setState(() {
               _isLoading = false;
-              _phoneError = e.message;
+              _phoneError = _readablePhoneAuthError(e);
             });
           }
         },
@@ -103,6 +142,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           if (mounted) {
             setState(() {
               _verificationId = verificationId;
+              _resendToken = resendToken;
               _codeSent = true;
               _isLoading = false;
             });
@@ -128,6 +168,35 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     if (_otpController.text.length != 6 || _verificationId == null) return;
     setState(() => _isLoading = true);
 
+    if (_verificationId == '__manual_dev_bypass__') {
+      final enteredCode = _otpController.text.trim();
+      if (enteredCode != _manualBypassCode) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Invalid test code for manual bypass.')),
+          );
+        }
+        return;
+      }
+
+      try {
+        // Anonymous sign-in unlocks authenticated app flow for feature development.
+        await FirebaseAuth.instance.signInAnonymously();
+        if (mounted) {
+          await _checkUserProfile();
+        }
+      } on FirebaseAuthException catch (e) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(e.message ?? 'Anonymous dev sign-in failed.')),
+          );
+        }
+      }
+      return;
+    }
+
     try {
       final credential = PhoneAuthProvider.credential(
         verificationId: _verificationId!,
@@ -139,6 +208,13 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       if (mounted) {
         await _checkUserProfile();
       }
+    } on FirebaseAuthException catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_readablePhoneAuthError(e))),
+        );
+      }
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -146,6 +222,74 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           context,
         ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
+    }
+  }
+
+  Future<void> _signInWithGoogle() async {
+    setState(() {
+      _isLoading = true;
+      _phoneError = null;
+    });
+
+    try {
+      final googleSignIn = GoogleSignIn();
+      final googleUser = await googleSignIn.signIn();
+
+      if (googleUser == null) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
+        return;
+      }
+
+      final googleAuth = await googleUser.authentication;
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      await FirebaseAuth.instance.signInWithCredential(credential);
+
+      if (mounted) {
+        await _checkUserProfile();
+      }
+    } on FirebaseAuthException catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message ?? 'Google sign-in failed.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Google sign-in failed: $e')),
+        );
+      }
+    }
+  }
+
+  String _readablePhoneAuthError(FirebaseAuthException e) {
+    switch (e.code) {
+      case 'invalid-phone-number':
+        return 'Invalid phone format. Example: +251911223344';
+      case 'invalid-verification-code':
+        return 'The OTP code is invalid. Please try again.';
+      case 'invalid-verification-id':
+        return 'Verification session expired. Please request a new code.';
+      case 'session-expired':
+        return 'Code expired. Request a new verification code.';
+      case 'quota-exceeded':
+        return 'SMS quota exceeded. Try again later or use a test number.';
+      case 'too-many-requests':
+        return 'Too many attempts. Please wait and retry.';
+      case 'app-not-authorized':
+        return 'This app is not authorized in Firebase. Check SHA-1/SHA-256 setup.';
+      case 'captcha-check-failed':
+        return 'App verification failed. Retry and complete the reCAPTCHA step.';
+      default:
+        return e.message ?? 'Phone verification failed. Please try again.';
     }
   }
 
@@ -193,8 +337,34 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           );
         }
       }
+    } on FirebaseException catch (e) {
+      if (!mounted) return;
+
+      if (e.code == 'permission-denied') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Profile save blocked by Firestore rules. Allow users/{uid} write in Firebase rules.',
+            ),
+          ),
+        );
+
+        if (_devBypassProfileCheck) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => const ContactsListScreen()),
+          );
+        }
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Profile save failed: ${e.message ?? e.code}')),
+      );
     } catch (e) {
-      // Error
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Profile save failed: $e')),
+      );
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -300,6 +470,34 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                         ? const CircularProgressIndicator(color: Colors.white)
                         : const Text('Send Code'),
                   ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: const [
+                      Expanded(child: Divider()),
+                      Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 10),
+                        child: Text('or'),
+                      ),
+                      Expanded(child: Divider()),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  OutlinedButton.icon(
+                    onPressed: _isLoading ? null : _signInWithGoogle,
+                    icon: const Icon(Icons.login),
+                    label: const Text('Continue with Google'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.all(14),
+                    ),
+                  ),
+                  if (_manualBypassEnabled && _manualBypassCode.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Dev mode: manual OTP bypass is enabled.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.grey, fontSize: 12),
+                    ),
+                  ],
                 ] else ...[
                   const Icon(Icons.message, size: 64, color: Colors.green),
                   const SizedBox(height: 24),
@@ -348,7 +546,11 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                         : const Text('Verify & Login'),
                   ),
                   TextButton(
-                    onPressed: () => setState(() => _codeSent = false),
+                    onPressed: () => setState(() {
+                      _codeSent = false;
+                      _verificationId = null;
+                      _otpController.clear();
+                    }),
                     child: const Text('Wrong Number?'),
                   ),
                 ],

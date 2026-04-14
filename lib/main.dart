@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter/foundation.dart';
 import 'package:hisabet/core/theme/app_theme.dart';
 import 'package:hisabet/core/l10n/generated/app_localizations.dart';
 import 'package:hisabet/core/l10n/language_provider.dart'; // Added
 import 'package:hisabet/core/auth/auth_gate.dart';
 
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -14,7 +16,31 @@ Future<void> main() async {
   // Initialize Firebase
   await Firebase.initializeApp();
 
+  _configurePhoneAuthTesting();
+
   runApp(const ProviderScope(child: MyApp()));
+}
+
+void _configurePhoneAuthTesting() {
+  const testingEnabled = bool.fromEnvironment('PHONE_AUTH_TESTING');
+  if (!testingEnabled || !kDebugMode) return;
+
+  const testPhone = String.fromEnvironment('PHONE_AUTH_TEST_NUMBER');
+  const testCode = String.fromEnvironment('PHONE_AUTH_TEST_CODE');
+
+  // Apply all testing config in one call.
+  // This avoids settings being accidentally overridden by a second call.
+  if (testPhone.isNotEmpty && testCode.isNotEmpty) {
+    FirebaseAuth.instance.setSettings(
+      appVerificationDisabledForTesting: true,
+      phoneNumber: testPhone,
+      smsCode: testCode,
+    );
+    return;
+  }
+
+  // Fallback: disable app verification only.
+  FirebaseAuth.instance.setSettings(appVerificationDisabledForTesting: true);
 }
 
 class MyApp extends ConsumerWidget {

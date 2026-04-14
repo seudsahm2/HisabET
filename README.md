@@ -2,6 +2,10 @@
 
 A new Flutter project.
 
+## Project Docs
+
+- Phone auth setup and troubleshooting: [PHONE_AUTH_SETUP.md](PHONE_AUTH_SETUP.md)
+
 ## Getting Started
 
 This project is a starting point for a Flutter application.

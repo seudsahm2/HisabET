@@ -6,16 +6,29 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 
 import 'package:hisabet/core/database/tables/contacts.dart';
+import 'package:hisabet/core/database/tables/products.dart';
+import 'package:hisabet/core/database/tables/sale_line_items.dart';
+import 'package:hisabet/core/database/tables/sales.dart';
+import 'package:hisabet/core/database/tables/stock_movements.dart';
 import 'package:hisabet/core/database/tables/transactions.dart';
 
 part 'app_database.g.dart';
 
-@DriftDatabase(tables: [Contacts, Transactions])
+@DriftDatabase(
+  tables: [
+    Contacts,
+    Products,
+    Sales,
+    SaleLineItems,
+    StockMovements,
+    Transactions,
+  ],
+)
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration {
@@ -29,6 +42,16 @@ class AppDatabase extends _$AppDatabase {
         }
         if (from < 3) {
           await m.addColumn(transactions, transactions.referenceId);
+        }
+        if (from < 4) {
+          await m.createTable(products);
+        }
+        if (from < 5) {
+          await m.createTable(stockMovements);
+        }
+        if (from < 6) {
+          await m.createTable(sales);
+          await m.createTable(saleLineItems);
         }
       },
       beforeOpen: (details) async {

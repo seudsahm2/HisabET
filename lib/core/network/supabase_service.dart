@@ -1,17 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
-/// Provider for the Supabase Client
-final supabaseClientProvider = Provider<SupabaseClient>((ref) {
-  return Supabase.instance.client;
+/// Legacy backend provider kept only to avoid breaking old imports.
+///
+/// The app now uses Firebase as its backend.
+final supabaseClientProvider = Provider<Object?>((ref) {
+  return null;
 });
 
-/// Service to handle Supabase initialization
+/// Legacy initializer kept only for compatibility.
 class SupabaseService {
-  static Future<void> initialize({
-    required String url,
-    required String anonKey,
-  }) async {
-    await Supabase.initialize(url: url, anonKey: anonKey);
-  }
+  static Future<void> initialize({required String url, required String anonKey}) async {}
 }
