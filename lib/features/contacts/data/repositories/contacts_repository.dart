@@ -9,6 +9,7 @@ import 'package:uuid/uuid.dart';
 
 abstract class ContactsRepository {
   Future<List<ContactModel>> getAllContacts();
+  Future<List<ContactModel>> getCustomerContacts();
   Future<ContactModel?> getContactById(String id);
   Future<String> addContact(
     String name,
@@ -20,6 +21,14 @@ abstract class ContactsRepository {
         VerificationTimeoutPolicy.autoConfirm,
   });
   Future<void> deleteContact(String id);
+  Future<void> updateCustomerProfile({
+    required String id,
+    required String name,
+    String? phone,
+    String? shop,
+    required Decimal creditLimit,
+    required int loyaltyPoints,
+  });
   Future<void> updateNetBalance(String id, Decimal newBalance);
   Future<Map<String, dynamic>?> searchUserByPhone(String phone);
   Stream<ContactModel?> watchContact(String id);
@@ -37,6 +46,21 @@ class ContactsRepositoryImpl implements ContactsRepository {
     await _resolvePendingVerificationTimeouts();
     final rows = await _db.select(_db.contacts).get();
     return rows.map((e) => ContactModel.fromDb(e)).toList();
+  }
+
+  @override
+  Future<List<ContactModel>> getCustomerContacts() async {
+    await _resolvePendingVerificationTimeouts();
+    final rows =
+        await (_db.select(_db.contacts)
+              ..where(
+                (tbl) =>
+                    tbl.role.equals(ContactRole.merchant.index) |
+                    tbl.role.equals(ContactRole.both.index),
+              )
+              ..orderBy([(tbl) => OrderingTerm.asc(tbl.name)]))
+            .get();
+    return rows.map(ContactModel.fromDb).toList();
   }
 
   @override
@@ -62,12 +86,14 @@ class ContactsRepositoryImpl implements ContactsRepository {
   }) async {
     final id = const Uuid().v4();
     final now = DateTime.now();
-    final hasLinkedUser = linkedUserUid != null && linkedUserUid.trim().isNotEmpty;
+    final hasLinkedUser =
+        linkedUserUid != null && linkedUserUid.trim().isNotEmpty;
     final verificationStatus = hasLinkedUser
         ? ContactVerificationStatus.pending
         : ContactVerificationStatus.unverified;
-    final verificationDeadlineAt =
-        hasLinkedUser ? now.add(_verificationTimeout) : null;
+    final verificationDeadlineAt = hasLinkedUser
+        ? now.add(_verificationTimeout)
+        : null;
 
     await _db
         .into(_db.contacts)
@@ -99,6 +125,26 @@ class ContactsRepositoryImpl implements ContactsRepository {
       // 2. Delete the contact
       await (_db.delete(_db.contacts)..where((c) => c.id.equals(id))).go();
     });
+  }
+
+  @override
+  Future<void> updateCustomerProfile({
+    required String id,
+    required String name,
+    String? phone,
+    String? shop,
+    required Decimal creditLimit,
+    required int loyaltyPoints,
+  }) async {
+    await (_db.update(_db.contacts)..where((tbl) => tbl.id.equals(id))).write(
+      ContactsCompanion(
+        name: Value(name),
+        phoneNumber: Value(phone),
+        shopNumber: Value(shop),
+        creditLimit: Value(creditLimit.toString()),
+        loyaltyPoints: Value(loyaltyPoints),
+      ),
+    );
   }
 
   @override
@@ -146,11 +192,13 @@ class ContactsRepositoryImpl implements ContactsRepository {
 
   Future<void> _resolvePendingVerificationTimeouts() async {
     final now = DateTime.now();
-    final pendingRows = await (_db.select(_db.contacts)
-          ..where((tbl) => tbl.verificationStatus.equals(
+    final pendingRows =
+        await (_db.select(_db.contacts)..where(
+              (tbl) => tbl.verificationStatus.equals(
                 ContactVerificationStatus.pending.index,
-              )))
-        .get();
+              ),
+            ))
+            .get();
 
     for (final row in pendingRows) {
       if (row.verificationDeadlineAt == null) continue;
@@ -168,20 +216,18 @@ class ContactsRepositoryImpl implements ContactsRepository {
       return row;
     }
 
-    final nextStatus = row.verificationTimeoutPolicy ==
+    final nextStatus =
+        row.verificationTimeoutPolicy ==
             VerificationTimeoutPolicy.autoExpire.index
         ? ContactVerificationStatus.expired
         : ContactVerificationStatus.verified;
 
-    await (_db.update(_db.contacts)..where((tbl) => tbl.id.equals(row.id))).write(
-      ContactsCompanion(
-        verificationStatus: Value(nextStatus.index),
-      ),
-    );
+    await (_db.update(_db.contacts)..where((tbl) => tbl.id.equals(row.id)))
+        .write(ContactsCompanion(verificationStatus: Value(nextStatus.index)));
 
-    final updated = await (_db.select(_db.contacts)
-          ..where((tbl) => tbl.id.equals(row.id)))
-        .getSingleOrNull();
+    final updated = await (_db.select(
+      _db.contacts,
+    )..where((tbl) => tbl.id.equals(row.id))).getSingleOrNull();
     return updated ?? row;
   }
 }

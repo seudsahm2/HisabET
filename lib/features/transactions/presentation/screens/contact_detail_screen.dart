@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:hisabet/core/theme/app_colors.dart';
+import 'package:intl/intl.dart';
+
+import 'package:hisabet/core/presentation/widgets/widgets.dart';
+import 'package:hisabet/core/theme/theme.dart';
 import 'package:hisabet/features/contacts/data/models/contact_model.dart';
 import 'package:hisabet/features/contacts/presentation/providers/contacts_providers.dart';
 import 'package:hisabet/features/transactions/data/models/transaction_model.dart';
 import 'package:hisabet/features/transactions/presentation/providers/transactions_providers.dart';
 import 'package:hisabet/features/transactions/presentation/screens/add_transaction_screen.dart';
 import 'package:hisabet/features/sync/presentation/screens/reconciliation_screen.dart';
-import 'package:intl/intl.dart';
+import 'package:hisabet/features/team/data/models/team_member_model.dart';
+import 'package:hisabet/features/team/presentation/providers/team_providers.dart';
 
 class ContactDetailScreen extends ConsumerWidget {
   final ContactModel contact;
@@ -18,304 +22,158 @@ class ContactDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final contactAsync = ref.watch(contactProvider(contact.id));
-    final transactionsAsync = ref.watch(
-      contactTransactionsProvider(contact.id),
-    );
-    final theme = Theme.of(context);
+    final transactionsAsync = ref.watch(contactTransactionsProvider(contact.id));
 
     final currentContact = contactAsync.value ?? contact;
     final isPositive = currentContact.netBalance.toDouble() >= 0;
     final balanceColor = isPositive ? AppColors.give : AppColors.take;
 
     return Scaffold(
-      backgroundColor: Colors.white,
-      // FIXED AppBar - does not scroll
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const CircleAvatar(
-            backgroundColor: Color(0xFFF5F5F5),
-            child: Icon(Icons.arrow_back, color: Colors.black, size: 20),
-          ),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Row(
-          children: [
-            CircleAvatar(
-              radius: 18,
-              backgroundColor: theme.colorScheme.primary,
-              child: Text(
-                currentContact.name[0].toUpperCase(),
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Flexible(
-                        child: Text(
-                          currentContact.name,
-                          style: const TextStyle(
-                            color: Colors.black87,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      _buildVerificationBadge(currentContact.verificationStatus),
-                    ],
-                  ),
-                  const SizedBox(height: 2),
-                  if (currentContact.phoneNumber != null)
-                    Text(
-                      currentContact.phoneNumber!,
-                      style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
-                    ),
-                ],
-              ),
-            ),
-          ],
+        title: _ContactHeaderTitle(
+          contact: currentContact,
+          badge: _buildVerificationBadge(currentContact.verificationStatus),
         ),
         actions: [
           IconButton(
-            icon: CircleAvatar(
-              backgroundColor: Colors.grey.shade100,
-              child: const Icon(Icons.sync_alt, color: Colors.black, size: 18),
-            ),
+            icon: const Icon(Icons.sync_alt_rounded),
             onPressed: () => _openReconciliation(context, currentContact),
           ),
           IconButton(
-            icon: CircleAvatar(
-              backgroundColor: Colors.red.shade50,
-              child: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
-            ),
+            icon: const Icon(Icons.delete_outline_rounded, color: AppColors.negative),
             onPressed: () => _confirmDelete(context, ref, currentContact),
           ),
-          const SizedBox(width: 8),
         ],
       ),
-      body: Stack(
-        children: [
-          // Main scrollable content with sticky header
-          NestedScrollView(
-            physics: const BouncingScrollPhysics(),
-            headerSliverBuilder: (context, innerBoxIsScrolled) => [
-              // Sticky Balance Card
-              SliverPersistentHeader(
-                pinned: true,
-                delegate: _StickyBalanceCardDelegate(
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(AppDimensions.pagePaddingH, 0, AppDimensions.pagePaddingH, AppDimensions.md),
+          child: Row(
+            children: [
+              Expanded(
+                child: _HeroActionButton(
+                  label: "I GAVE",
+                  subLabel: "(Collect)",
+                  color: AppColors.give,
+                  icon: Icons.arrow_upward_rounded,
+                  onTap: () => _addTransaction(context, ref, TransactionType.goodsGiven),
+                ),
+              ),
+              const SizedBox(width: AppDimensions.md),
+              Expanded(
+                child: _HeroActionButton(
+                  label: "I TOOK",
+                  subLabel: "(Pay)",
+                  color: AppColors.take,
+                  icon: Icons.arrow_downward_rounded,
+                  onTap: () => _addTransaction(context, ref, TransactionType.goodsTaken),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      body: transactionsAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, s) => Center(child: Text('Error: $e')),
+        data: (transactions) {
+          return RefreshIndicator(
+            onRefresh: () async {
+              ref.invalidate(contactTransactionsProvider(contact.id));
+              ref.invalidate(contactProvider(contact.id));
+              ref.invalidate(allContactsProvider);
+            },
+            child: ListView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(
+                AppDimensions.pagePaddingH,
+                AppDimensions.lg,
+                AppDimensions.pagePaddingH,
+                120,
+              ),
+              children: [
+                _BalanceSummaryCard(
                   contact: currentContact,
                   isPositive: isPositive,
                   balanceColor: balanceColor,
                 ),
-              ),
-              // History Label
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-                  child: Text(
-                    "TRANSACTION HISTORY",
-                    style: TextStyle(
-                      color: Colors.grey.shade500,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 11,
-                      letterSpacing: 1.5,
+                const SizedBox(height: AppDimensions.xl),
+                const AppSectionHeader(title: 'Transaction History', uppercase: true),
+                const SizedBox(height: AppDimensions.sm),
+                if (transactions.isEmpty)
+                  const AppEmptyState(
+                    icon: Icons.history_rounded,
+                    title: 'No ledger history',
+                    subtitle: 'Transact directly to populate the contact ledger log.',
+                  )
+                else
+                  ...transactions.map(
+                    (transaction) => Padding(
+                      padding: const EdgeInsets.only(bottom: AppDimensions.sm),
+                      child: _TransactionTile(transaction: transaction, ref: ref, contact: currentContact),
                     ),
                   ),
-                ),
-              ),
-            ],
-            body: transactionsAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, s) => Center(child: Text('Error: $e')),
-              data: (transactions) {
-                if (transactions.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.history, size: 60, color: Colors.grey.shade200),
-                        const SizedBox(height: 16),
-                        Text("No transactions yet", style: TextStyle(color: Colors.grey.shade400)),
-                      ],
-                    ),
-                  );
-                }
-                return ListView.builder(
-                  padding: const EdgeInsets.only(bottom: 100),
-                  itemCount: transactions.length,
-                  itemBuilder: (context, index) {
-                    return _TransactionTile(transaction: transactions[index]);
-                  },
-                );
-              },
-            ),
-          ),
-
-          // Floating Action Bar
-          Positioned(
-            bottom: 20,
-            left: 20,
-            right: 20,
-            child: Row(
-              children: [
-                Expanded(
-                  child: _HeroActionButton(
-                    label: "I GAVE",
-                    subLabel: "(Collect)",
-                    color: AppColors.give,
-                    icon: Icons.arrow_upward_rounded,
-                    onTap: () => _addTransaction(
-                      context,
-                      ref,
-                      TransactionType.goodsGiven,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _HeroActionButton(
-                    label: "I TOOK",
-                    subLabel: "(Pay)",
-                    color: AppColors.take,
-                    icon: Icons.arrow_downward_rounded,
-                    onTap: () => _addTransaction(
-                      context,
-                      ref,
-                      TransactionType.goodsTaken,
-                    ),
-                  ),
-                ),
               ],
             ),
-          ),
-        ],
+          );
+        },
       ),
     );
   }
 
   Widget _buildVerificationBadge(ContactVerificationStatus status) {
-    IconData icon;
-    Color fg;
-    Color bg;
-
     switch (status) {
       case ContactVerificationStatus.verified:
-        icon = Icons.verified;
-        fg = AppColors.give;
-        bg = AppColors.give.withValues(alpha: 0.12);
-        break;
+        return AppStatusBadge.success(label: 'Verified', small: true);
       case ContactVerificationStatus.pending:
-        icon = Icons.schedule;
-        fg = const Color(0xFFB26A00);
-        bg = const Color(0xFFFFF7E6);
-        break;
+        return AppStatusBadge.warning(label: 'Pending', small: true);
       case ContactVerificationStatus.expired:
-        icon = Icons.cancel_outlined;
-        fg = AppColors.take;
-        bg = AppColors.take.withValues(alpha: 0.12);
-        break;
+        return AppStatusBadge.danger(label: 'Expired', small: true);
       case ContactVerificationStatus.unverified:
-        icon = Icons.circle_outlined;
-        fg = AppColors.textSecondary;
-        bg = AppColors.textSecondary.withValues(alpha: 0.12);
-        break;
+        return AppStatusBadge.neutral(label: 'Unverified', small: true);
     }
-
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: status == ContactVerificationStatus.unverified
-            ? const Text(
-                'Unverified',
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textSecondary,
-                ),
-              )
-            : Padding(
-                padding: const EdgeInsets.all(4),
-                child: Icon(
-                  icon,
-                  size: 13,
-                  color: fg,
-                ),
-              ),
-      ),
-    );
   }
 
   void _openReconciliation(BuildContext context, ContactModel contact) {
     if (contact.phoneNumber == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Contact has no phone number')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Contact has no phone number')));
       return;
     }
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => ReconciliationScreen(
-          contactId: contact.id,
-          contactName: contact.name,
-          contactPhone: contact.phoneNumber!,
-        ),
+        builder: (_) => ReconciliationScreen(contactId: contact.id, contactName: contact.name, contactPhone: contact.phoneNumber!),
       ),
     );
   }
 
-  Future<void> _addTransaction(
-    BuildContext context,
-    WidgetRef ref,
-    TransactionType type,
-  ) async {
+  Future<void> _addTransaction(BuildContext context, WidgetRef ref, TransactionType type) async {
+    final allowed = await _ensureTransactionPermission(context, ref, attemptedAction: 'add_transaction', entityType: 'contact', entityId: contact.id);
+    if (!allowed) return;
+
     await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => AddTransactionScreen(contactId: contact.id, type: type),
-      ),
+      MaterialPageRoute(builder: (_) => AddTransactionScreen(contactId: contact.id, type: type)),
     );
-    // Force refresh
     ref.invalidate(contactTransactionsProvider(contact.id));
     ref.invalidate(contactProvider(contact.id));
     ref.invalidate(allContactsProvider);
   }
 
-  Future<void> _confirmDelete(
-    BuildContext context,
-    WidgetRef ref,
-    ContactModel contact,
-  ) async {
+  Future<void> _confirmDelete(BuildContext context, WidgetRef ref, ContactModel contact) async {
+    final allowed = await _ensureTransactionPermission(context, ref, attemptedAction: 'delete_contact', entityType: 'contact', entityId: contact.id);
+    if (!allowed) return;
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Contact?'),
-        content: Text(
-          'Are you sure you want to delete "${contact.name}" and ALL their transactions?\n\nThis cannot be undone.',
-          style: const TextStyle(color: Colors.red),
-        ),
+        content: Text('Are you sure you want to delete "${contact.name}" and ALL their transactions?\n\nThis cannot be undone.', style: const TextStyle(color: AppColors.negative)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppDimensions.radiusLg)),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () => Navigator.of(context).pop(true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.negative, foregroundColor: Colors.white),
             child: const Text('Delete Permanently'),
           ),
         ],
@@ -326,16 +184,133 @@ class ContactDetailScreen extends ConsumerWidget {
       try {
         final repo = ref.read(contactsRepositoryProvider);
         await repo.deleteContact(contact.id);
+        final actorRole = ref.read(currentRoleProvider);
+        await ref.read(auditRepositoryProvider).logAction(actorRole: actorRole, action: 'contact_deleted', entityType: 'contact', entityId: contact.id, message: 'Contact ${contact.name} was deleted with all transactions.');
+        ref.invalidate(recentAuditLogsProvider);
         if (context.mounted) {
           Navigator.of(context).pop();
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Deleted ${contact.name}')));
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Deleted ${contact.name}')));
         }
       } catch (e) {
-        // Handle error
+        // Ignored
       }
     }
+  }
+
+  Future<bool> _ensureTransactionPermission(
+    BuildContext context,
+    WidgetRef ref, {
+    required String attemptedAction,
+    required String entityType,
+    required String entityId,
+  }) async {
+    final requiredPermission = attemptedAction == 'delete_contact' ? TeamPermission.manageTeam : TeamPermission.processSales;
+    final allowed = ref.read(hasPermissionProvider(requiredPermission));
+    if (allowed) return true;
+
+    final actorRole = ref.read(currentRoleProvider);
+    await ref.read(auditRepositoryProvider).logAction(
+      actorRole: actorRole,
+      action: 'permission_denied',
+      entityType: entityType,
+      entityId: entityId,
+      message: 'Denied $attemptedAction for role ${actorRole.name}.',
+    );
+    ref.invalidate(recentAuditLogsProvider);
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('You do not have permission for this action.')));
+    }
+    return false;
+  }
+}
+
+class _ContactHeaderTitle extends StatelessWidget {
+  final ContactModel contact;
+  final Widget badge;
+
+  const _ContactHeaderTitle({required this.contact, required this.badge});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        CircleAvatar(
+          radius: 18,
+          backgroundColor: AppColors.primary,
+          child: Text(
+            contact.name[0].toUpperCase(),
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+        ),
+        const SizedBox(width: AppDimensions.md),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      contact.name,
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
+                  ),
+                  const SizedBox(width: AppDimensions.sm),
+                  badge,
+                ],
+              ),
+              if (contact.phoneNumber != null)
+                Text(
+                  contact.phoneNumber!,
+                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _BalanceSummaryCard extends StatelessWidget {
+  final ContactModel contact;
+  final bool isPositive;
+  final Color balanceColor;
+
+  const _BalanceSummaryCard({required this.contact, required this.isPositive, required this.balanceColor});
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      padding: const EdgeInsets.all(AppDimensions.lg),
+      color: balanceColor,
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(10)),
+            child: Icon(isPositive ? Icons.trending_up_rounded : Icons.trending_down_rounded, color: Colors.white, size: 24),
+          ),
+          const SizedBox(width: AppDimensions.md),
+          Expanded(
+            child: Text(
+              isPositive ? "They Owe You" : "You Owe Them",
+              style: TextStyle(color: Colors.white.withOpacity(0.95), fontSize: 15, fontWeight: FontWeight.w600),
+            ),
+          ),
+          Text(
+            'ETB ${contact.netBalance.abs()}',
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20, letterSpacing: 0.5),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -345,7 +320,6 @@ class _HeroActionButton extends StatelessWidget {
   final Color color;
   final IconData icon;
   final VoidCallback onTap;
-
   const _HeroActionButton({
     required this.label,
     required this.subLabel,
@@ -362,13 +336,13 @@ class _HeroActionButton extends StatelessWidget {
         onTap();
       },
       child: Container(
-        height: 60,
+        height: 64,
         decoration: BoxDecoration(
           color: color,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
           boxShadow: [
             BoxShadow(
-              color: color.withOpacity(0.4),
+              color: color.withOpacity(0.3),
               blurRadius: 12,
               offset: const Offset(0, 6),
             ),
@@ -378,7 +352,7 @@ class _HeroActionButton extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(icon, color: Colors.white, size: 24),
-            const SizedBox(width: 8),
+            const SizedBox(width: AppDimensions.sm),
             Column(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -389,15 +363,15 @@ class _HeroActionButton extends StatelessWidget {
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
-                    height: 1,
+                    height: 1.1,
                   ),
                 ),
                 Text(
                   subLabel,
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.8),
+                    color: Colors.white.withOpacity(0.9),
                     fontSize: 11,
-                    fontWeight: FontWeight.w500,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],
@@ -409,427 +383,97 @@ class _HeroActionButton extends StatelessWidget {
   }
 }
 
-// Sticky Delegate for the Balance Card - Premium Design
-class _StickyBalanceCardDelegate extends SliverPersistentHeaderDelegate {
-  final ContactModel contact;
-  final bool isPositive;
-  final Color balanceColor;
-
-  _StickyBalanceCardDelegate({
-    required this.contact,
-    required this.isPositive,
-    required this.balanceColor,
-  });
-
-  @override
-  double get minExtent => 72;
-
-  @override
-  double get maxExtent => 72;
-
-  @override
-  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: overlapsContent
-            ? [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.08),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ]
-            : null,
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Container(
-        height: 56,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: isPositive
-                ? [const Color(0xFF10B981), const Color(0xFF059669)]
-                : [const Color(0xFFEF4444), const Color(0xFFDC2626)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: balanceColor.withOpacity(0.35),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            // Left: Icon
-            Container(
-              margin: const EdgeInsets.only(left: 16),
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(
-                isPositive ? Icons.trending_up_rounded : Icons.trending_down_rounded,
-                color: Colors.white,
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: 12),
-            // Middle: Label
-            Expanded(
-              child: Text(
-                isPositive ? "They Owe You" : "You Owe Them",
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.9),
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            // Right: Amount
-            Padding(
-              padding: const EdgeInsets.only(right: 16),
-              child: Text(
-                'ETB ${contact.netBalance.abs()}',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 20,
-                  letterSpacing: 0.5,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  @override
-  bool shouldRebuild(covariant _StickyBalanceCardDelegate oldDelegate) {
-    return oldDelegate.contact.netBalance != contact.netBalance ||
-        oldDelegate.balanceColor != balanceColor;
-  }
-}
-
-class _TransactionTile extends ConsumerWidget {
+class _TransactionTile extends StatelessWidget {
   final TransactionModel transaction;
+  final WidgetRef ref;
+  final ContactModel contact;
 
-  const _TransactionTile({required this.transaction});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final isPositive = transaction.balanceEffect.toDouble() >= 0;
-    final color = isPositive ? AppColors.give : AppColors.take;
-
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.08),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-        border: Border.all(color: Colors.grey.shade100),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: () {},
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    isPositive
-                        ? Icons.arrow_upward_rounded
-                        : Icons.arrow_downward_rounded,
-                    color: color,
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _getTypeLabel(transaction.type),
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      _buildStatusChip(transaction.status),
-                      const SizedBox(height: 4),
-                      Text(
-                        DateFormat('MMM dd • hh:mm a').format(transaction.date),
-                        style: TextStyle(
-                          color: Colors.grey.shade400,
-                          fontSize: 12,
-                        ),
-                      ),
-                      if (transaction.description != null &&
-                          transaction.description!.isNotEmpty)
-                        Text(
-                          transaction.description!,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: Colors.grey.shade600,
-                            fontSize: 13,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      "${isPositive ? '+' : ''}${transaction.amount}",
-                      style: TextStyle(
-                        color: color,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                      ),
-                    ),
-                    PopupMenuButton<String>(
-                      icon: const Icon(
-                        Icons.more_horiz,
-                        color: Colors.grey,
-                        size: 20,
-                      ),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                      onSelected: (value) {
-                        if (value == 'edit') {
-                          _editTransaction(context, ref);
-                        } else if (value == 'delete') {
-                          _deleteTransaction(context, ref);
-                        } else if (value == 'pending') {
-                          _updateStatus(context, ref, TransactionStatus.pending);
-                        } else if (value == 'confirmed') {
-                          _updateStatus(context, ref, TransactionStatus.confirmed);
-                        } else if (value == 'disputed') {
-                          _updateStatus(context, ref, TransactionStatus.disputed);
-                        }
-                      },
-                      itemBuilder: (context) => [
-                        const PopupMenuItem(
-                          value: 'pending',
-                          child: Row(
-                            children: [
-                              Icon(Icons.schedule, size: 18),
-                              SizedBox(width: 8),
-                              Text('Mark Pending'),
-                            ],
-                          ),
-                        ),
-                        const PopupMenuItem(
-                          value: 'confirmed',
-                          child: Row(
-                            children: [
-                              Icon(Icons.check_circle_outline, size: 18, color: Colors.green),
-                              SizedBox(width: 8),
-                              Text('Mark Confirmed'),
-                            ],
-                          ),
-                        ),
-                        const PopupMenuItem(
-                          value: 'disputed',
-                          child: Row(
-                            children: [
-                              Icon(Icons.error_outline, size: 18, color: Colors.orange),
-                              SizedBox(width: 8),
-                              Text('Mark Disputed'),
-                            ],
-                          ),
-                        ),
-                        const PopupMenuDivider(),
-                        const PopupMenuItem(
-                          value: 'edit',
-                          child: Row(
-                            children: [
-                              Icon(Icons.edit, size: 18),
-                              SizedBox(width: 8),
-                              Text("Edit"),
-                            ],
-                          ),
-                        ),
-                        const PopupMenuItem(
-                          value: 'delete',
-                          child: Row(
-                            children: [
-                              Icon(Icons.delete, color: Colors.red, size: 18),
-                              SizedBox(width: 8),
-                              Text(
-                                "Delete",
-                                style: TextStyle(color: Colors.red),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatusChip(TransactionStatus status) {
-    Color bg;
-    Color fg;
-    String label;
-
-    switch (status) {
-      case TransactionStatus.pending:
-        bg = const Color(0xFFFFF7E6);
-        fg = const Color(0xFFB26A00);
-        label = 'Pending';
-        break;
-      case TransactionStatus.confirmed:
-        bg = const Color(0xFFEAF9F0);
-        fg = const Color(0xFF1E8E4A);
-        label = 'Confirmed';
-        break;
-      case TransactionStatus.disputed:
-        bg = const Color(0xFFFFEFEF);
-        fg = const Color(0xFFBF2A2A);
-        label = 'Disputed';
-        break;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: fg,
-          fontWeight: FontWeight.w600,
-          fontSize: 11,
-        ),
-      ),
-    );
-  }
+  const _TransactionTile({required this.transaction, required this.ref, required this.contact});
 
   String _getTypeLabel(TransactionType type) {
     switch (type) {
       case TransactionType.goodsGiven:
-        return "Gave Goods";
+        return "Items Given";
       case TransactionType.goodsTaken:
-        return "Took Goods";
-      case TransactionType.paymentGiven:
-        return "Payment Made";
+        return "Items Received";
       case TransactionType.paymentReceived:
-        return "Payment Received";
+        return "Payment In";
+      case TransactionType.paymentGiven:
+        return "Payment Out";
     }
   }
 
-  void _editTransaction(BuildContext context, WidgetRef ref) {
-    Navigator.of(context)
-        .push(
-          MaterialPageRoute(
-            builder: (_) => AddTransactionScreen(
-              contactId: transaction.contactId,
-              type: transaction.type,
-              transactionToEdit: transaction,
-            ),
-          ),
-        )
-        .then((_) {
-          ref.invalidate(contactTransactionsProvider(transaction.contactId));
-          ref.invalidate(contactProvider(transaction.contactId));
-          ref.invalidate(allContactsProvider);
-        });
+  Widget _buildMappedBadge(TransactionStatus status) {
+    switch (status) {
+      case TransactionStatus.pending:
+        return AppStatusBadge.warning(label: 'Pending', small: true);
+      case TransactionStatus.confirmed:
+        return AppStatusBadge.success(label: 'Confirmed', small: true);
+      case TransactionStatus.disputed:
+        return AppStatusBadge.danger(label: 'Disputed', small: true);
+    }
   }
 
-  Future<void> _deleteTransaction(BuildContext context, WidgetRef ref) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Delete Transaction?"),
-        content: const Text(
-          "This will permanently remove this record from the balance.",
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text("Cancel"),
+  @override
+  Widget build(BuildContext context) {
+    final isPositive = transaction.balanceEffect.toDouble() >= 0;
+
+    return AppListTile(
+      leadingIcon: isPositive ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
+      leadingColor: isPositive ? AppColors.give : AppColors.take,
+      title: _getTypeLabel(transaction.type),
+      subtitle: '${DateFormat('MMM dd • hh:mm a').format(transaction.date)}${transaction.description != null ? '\n${transaction.description}' : ''}',
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              _buildMappedBadge(transaction.status),
+              const SizedBox(height: 4),
+              AppAmountText(amount: transaction.amount.toString(), fontSize: 16, isPositive: isPositive, showSign: true),
+            ],
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text("Delete", style: TextStyle(color: Colors.red)),
+          const SizedBox(width: AppDimensions.sm),
+          PopupMenuButton<String>(
+            tooltip: 'Transaction options',
+            icon: const Icon(Icons.more_vert_rounded, color: AppColors.textSecondary),
+            onSelected: (value) async {
+              if (value == 'edit') {
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => AddTransactionScreen(contactId: contact.id, type: transaction.type, transactionToEdit: transaction)));
+              } else if (value == 'delete') {
+                final repo = ref.read(transactionsRepositoryProvider);
+                await repo.deleteTransaction(transaction.id);
+                ref.invalidate(contactTransactionsProvider(contact.id));
+                ref.invalidate(contactProvider(contact.id));
+                ref.invalidate(allContactsProvider);
+              } else if (value == 'pending') {
+                final repo = ref.read(transactionsRepositoryProvider);
+                await repo.updateTransaction(transaction.copyWith(status: TransactionStatus.pending));
+                ref.invalidate(contactTransactionsProvider(contact.id));
+              } else if (value == 'confirmed') {
+                final repo = ref.read(transactionsRepositoryProvider);
+                await repo.updateTransaction(transaction.copyWith(status: TransactionStatus.confirmed));
+                ref.invalidate(contactTransactionsProvider(contact.id));
+              } else if (value == 'disputed') {
+                final repo = ref.read(transactionsRepositoryProvider);
+                await repo.updateTransaction(transaction.copyWith(status: TransactionStatus.disputed));
+                ref.invalidate(contactTransactionsProvider(contact.id));
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(value: 'pending', child: Text('Mark Pending')),
+              const PopupMenuItem(value: 'confirmed', child: Text('Mark Confirmed')),
+              const PopupMenuItem(value: 'disputed', child: Text('Mark Disputed')),
+              const PopupMenuDivider(),
+              const PopupMenuItem(value: 'edit', child: Text('Edit')),
+              const PopupMenuItem(value: 'delete', child: Text('Delete', style: TextStyle(color: AppColors.negative))),
+            ],
           ),
         ],
       ),
+      onTap: () {},
     );
-
-    if (confirmed == true) {
-      await ref
-          .read(transactionsRepositoryProvider)
-          .deleteTransaction(transaction.id);
-      ref.invalidate(contactTransactionsProvider(transaction.contactId));
-      ref.invalidate(contactProvider(transaction.contactId));
-      ref.invalidate(allContactsProvider);
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text("Transaction deleted")));
-      }
-    }
-  }
-
-  Future<void> _updateStatus(
-    BuildContext context,
-    WidgetRef ref,
-    TransactionStatus status,
-  ) async {
-    try {
-      await ref
-          .read(transactionsRepositoryProvider)
-          .updateTransactionStatus(transaction.id, status);
-      ref.invalidate(contactTransactionsProvider(transaction.contactId));
-      ref.invalidate(contactProvider(transaction.contactId));
-      ref.invalidate(allContactsProvider);
-
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Status updated to ${status.name}.')),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to update status: $e')),
-        );
-      }
-    }
   }
 }

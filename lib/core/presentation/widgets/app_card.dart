@@ -1,0 +1,161 @@
+import 'package:flutter/material.dart';
+import 'package:hisabet/core/theme/theme.dart';
+
+/// Standard card widget used across the entire app.
+/// Replaces every manual `Container(decoration: BoxDecoration(...))` white card.
+///
+/// Usage:
+/// ```dart
+/// AppCard(
+///   child: ListTile(title: Text('Hello')),
+/// )
+/// ```
+class AppCard extends StatelessWidget {
+  const AppCard({
+    super.key,
+    required this.child,
+    this.padding,
+    this.margin,
+    this.onTap,
+    this.onLongPress,
+    this.color,
+    this.borderRadius,
+    this.border,
+    this.elevation = 0,
+    this.clip = Clip.antiAlias,
+  });
+
+  final Widget child;
+  final EdgeInsetsGeometry? padding;
+  final EdgeInsetsGeometry? margin;
+  final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
+  final Color? color;
+  final BorderRadiusGeometry? borderRadius;
+  final BoxBorder? border;
+  final double elevation;
+  final Clip clip;
+
+  @override
+  Widget build(BuildContext context) {
+    final radius =
+        borderRadius ?? BorderRadius.circular(AppDimensions.cardRadius);
+    final bg = color ?? Theme.of(context).colorScheme.surface;
+
+    Widget card = Container(
+      margin: margin,
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: radius,
+        border: border ?? Border.all(color: AppColors.border),
+        boxShadow: elevation > 0
+            ? [
+                BoxShadow(
+                  color: AppColors.shadowLight,
+                  blurRadius: 10 * elevation,
+                  offset: Offset(0, 4 * elevation),
+                ),
+              ]
+            : const [
+                BoxShadow(
+                  color: AppColors.shadowLight,
+                  blurRadius: 10,
+                  offset: Offset(0, 4),
+                ),
+              ],
+      ),
+      clipBehavior: clip,
+      child: padding != null ? Padding(padding: padding!, child: child) : child,
+    );
+
+    if (onTap != null || onLongPress != null) {
+      card = Container(
+        margin: margin,
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: radius,
+          border: border ?? Border.all(color: AppColors.border),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.shadowLight,
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        clipBehavior: clip,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            onLongPress: onLongPress,
+            borderRadius: radius is BorderRadius ? radius : null,
+            child: padding != null
+                ? Padding(padding: padding!, child: child)
+                : child,
+          ),
+        ),
+      );
+    }
+
+    return card;
+  }
+}
+
+/// A card with a colored top accent strip (3px left border).
+/// Use in list screens to color-code items by category.
+class AppAccentCard extends StatelessWidget {
+  const AppAccentCard({
+    super.key,
+    required this.child,
+    required this.accentColor,
+    this.padding,
+    this.margin,
+    this.onTap,
+  });
+
+  final Widget child;
+  final Color accentColor;
+  final EdgeInsetsGeometry? padding;
+  final EdgeInsetsGeometry? margin;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: margin,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(AppDimensions.cardRadius),
+        border: Border.all(color: AppColors.border),
+        boxShadow: const [
+          BoxShadow(
+            color: AppColors.shadowLight,
+            blurRadius: 10,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(width: 4, color: accentColor),
+            Expanded(
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: onTap,
+                  child: padding != null
+                      ? Padding(padding: padding!, child: child)
+                      : child,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

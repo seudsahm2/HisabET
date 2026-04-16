@@ -2,9 +2,14 @@ import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:hisabet/core/theme/app_colors.dart';
+
+import 'package:hisabet/core/presentation/widgets/widgets.dart';
+import 'package:hisabet/core/theme/theme.dart';
+
 import 'package:hisabet/features/suppliers/data/models/supplier_model.dart';
 import 'package:hisabet/features/suppliers/presentation/providers/suppliers_providers.dart';
+import 'package:hisabet/features/team/data/models/team_member_model.dart';
+import 'package:hisabet/features/team/presentation/providers/team_providers.dart';
 
 class SupplierUpsertScreen extends ConsumerStatefulWidget {
   final SupplierModel? supplierToEdit;
@@ -28,7 +33,6 @@ class _SupplierUpsertScreenState extends ConsumerState<SupplierUpsertScreen> {
 
   bool _isActive = true;
   bool _isLoading = false;
-
   bool get _isEditing => widget.supplierToEdit != null;
 
   @override
@@ -62,8 +66,10 @@ class _SupplierUpsertScreenState extends ConsumerState<SupplierUpsertScreen> {
   }
 
   Future<void> _saveSupplier() async {
-    if (!_formKey.currentState!.validate()) return;
+    final allowed = await _ensureManagePurchasesPermission(context, ref, attemptedAction: _isEditing ? 'update_supplier' : 'create_supplier', entityId: widget.supplierToEdit?.id);
+    if (!allowed) return;
 
+    if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
 
     try {
@@ -76,44 +82,22 @@ class _SupplierUpsertScreenState extends ConsumerState<SupplierUpsertScreen> {
       final openingBalance = Decimal.tryParse(_openingBalanceController.text.trim()) ?? Decimal.zero;
       final currentBalance = Decimal.tryParse(_currentBalanceController.text.trim()) ?? Decimal.zero;
       final notes = _notesController.text.trim();
+      final actorRole = ref.read(currentRoleProvider);
 
       if (_isEditing) {
-        await repo.updateSupplier(
-          widget.supplierToEdit!.copyWith(
-            name: name,
-            phone: phone.isEmpty ? null : phone,
-            email: email.isEmpty ? null : email,
-            address: address.isEmpty ? null : address,
-            termsDays: termsDays,
-            openingBalance: openingBalance,
-            currentBalance: currentBalance,
-            notes: notes.isEmpty ? null : notes,
-            isActive: _isActive,
-          ),
-        );
+        await repo.updateSupplier(widget.supplierToEdit!.copyWith(name: name, phone: phone.isEmpty ? null : phone, email: email.isEmpty ? null : email, address: address.isEmpty ? null : address, termsDays: termsDays, openingBalance: openingBalance, currentBalance: currentBalance, notes: notes.isEmpty ? null : notes, isActive: _isActive));
+        await ref.read(auditRepositoryProvider).logAction(actorRole: actorRole, action: 'supplier_updated', entityType: 'supplier', entityId: widget.supplierToEdit!.id, message: 'Supplier "$name" was updated.');
       } else {
-        await repo.addSupplier(
-          name: name,
-          phone: phone.isEmpty ? null : phone,
-          email: email.isEmpty ? null : email,
-          address: address.isEmpty ? null : address,
-          termsDays: termsDays,
-          openingBalance: openingBalance,
-          currentBalance: currentBalance,
-          notes: notes.isEmpty ? null : notes,
-          isActive: _isActive,
-        );
+        await repo.addSupplier(name: name, phone: phone.isEmpty ? null : phone, email: email.isEmpty ? null : email, address: address.isEmpty ? null : address, termsDays: termsDays, openingBalance: openingBalance, currentBalance: currentBalance, notes: notes.isEmpty ? null : notes, isActive: _isActive);
+        await ref.read(auditRepositoryProvider).logAction(actorRole: actorRole, action: 'supplier_created', entityType: 'supplier', message: 'Supplier "$name" was created.');
       }
 
       ref.invalidate(allSuppliersProvider);
+      ref.invalidate(recentAuditLogsProvider);
 
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
-      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -122,208 +106,159 @@ class _SupplierUpsertScreenState extends ConsumerState<SupplierUpsertScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: AppColors.background,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.close),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        title: Text(_isEditing ? 'Edit Supplier' : 'New Supplier'),
+        title: Text(_isEditing ? 'Modify B2B Supplier' : 'Register B2B Supplier'),
+        leading: IconButton(icon: const Icon(Icons.close_rounded), onPressed: () => Navigator.of(context).pop()),
       ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(AppDimensions.pagePaddingH),
+          child: ElevatedButton(
+            onPressed: _isLoading ? null : _saveSupplier,
+            child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : Text(_isEditing ? 'UPDATE SUPPLIER' : 'REGISTER SUPPLIER'),
+          ),
+        ),
+      ),
+      body: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.symmetric(horizontal: AppDimensions.pagePaddingH, vertical: AppDimensions.lg),
+          children: [
+            AppFormSection(
+              title: 'Business Identity',
+              icon: Icons.storefront_rounded,
               children: [
-                _fieldCard(
-                  label: 'Supplier Name',
-                  icon: Icons.business,
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: AppDimensions.xl, vertical: AppDimensions.sm),
                   child: TextFormField(
                     controller: _nameController,
-                    decoration: const InputDecoration(
-                      hintText: 'ABC Trading',
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.zero,
-                    ),
-                    validator: (value) => value == null || value.trim().isEmpty ? 'Required' : null,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    decoration: const InputDecoration(labelText: 'Supplier Name', border: InputBorder.none, hintText: 'ABC Trading'),
+                    validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
                   ),
                 ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _fieldCard(
-                        label: 'Phone',
-                        icon: Icons.phone,
+                const Divider(height: 1),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: AppDimensions.xl, vertical: AppDimensions.sm),
+                  child: Row(
+                    children: [
+                      Expanded(
                         child: TextFormField(
                           controller: _phoneController,
                           keyboardType: TextInputType.phone,
-                          decoration: const InputDecoration(
-                            hintText: '+251 ...',
-                            border: InputBorder.none,
-                            contentPadding: EdgeInsets.zero,
+                          decoration: const InputDecoration(labelText: 'Phone', border: InputBorder.none, hintText: '+251...'),
+                        ),
+                      ),
+                      Container(width: 1, height: 40, color: AppColors.divider),
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.only(left: AppDimensions.md),
+                          child: TextFormField(
+                            controller: _emailController,
+                            keyboardType: TextInputType.emailAddress,
+                            decoration: const InputDecoration(labelText: 'Email Address', border: InputBorder.none),
                           ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _fieldCard(
-                        label: 'Terms (days)',
-                        icon: Icons.schedule,
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: AppDimensions.xl, vertical: AppDimensions.xs),
+                  child: SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: _isActive,
+                    onChanged: (val) => setState(() => _isActive = val),
+                    title: const Text('Active B2B Supplier', style: TextStyle(fontSize: 14)),
+                  ),
+                )
+              ],
+            ),
+            const SizedBox(height: AppDimensions.xl),
+            AppFormSection(
+              title: 'Trading Parameters',
+              icon: Icons.handshake_rounded,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: AppDimensions.xl, vertical: AppDimensions.sm),
+                  child: Row(
+                    children: [
+                      Expanded(
                         child: TextFormField(
                           controller: _termsDaysController,
                           keyboardType: TextInputType.number,
                           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                          decoration: const InputDecoration(
-                            hintText: '0',
-                            border: InputBorder.none,
-                            contentPadding: EdgeInsets.zero,
+                          decoration: const InputDecoration(labelText: 'Tender Terms (Days)', border: InputBorder.none),
+                        ),
+                      ),
+                      Container(width: 1, height: 40, color: AppColors.divider),
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.only(left: AppDimensions.md),
+                          child: TextFormField(
+                            controller: _currentBalanceController,
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
+                            decoration: const InputDecoration(labelText: 'Current Owed Balance', border: InputBorder.none),
                           ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                _fieldCard(
-                  label: 'Email',
-                  icon: Icons.email,
-                  child: TextFormField(
-                    controller: _emailController,
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: const InputDecoration(
-                      hintText: 'supplier@example.com',
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.zero,
-                    ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 16),
-                _fieldCard(
-                  label: 'Address',
-                  icon: Icons.location_on_outlined,
+                const Divider(height: 1),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: AppDimensions.xl, vertical: AppDimensions.sm),
                   child: TextFormField(
-                    controller: _addressController,
-                    maxLines: 2,
-                    decoration: const InputDecoration(
-                      hintText: 'City, sub-city, area',
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.zero,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _fieldCard(
-                        label: 'Opening Balance',
-                        icon: Icons.account_balance_wallet_outlined,
-                        child: TextFormField(
-                          controller: _openingBalanceController,
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
-                          decoration: const InputDecoration(
-                            hintText: '0.00',
-                            border: InputBorder.none,
-                            contentPadding: EdgeInsets.zero,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _fieldCard(
-                        label: 'Current Balance',
-                        icon: Icons.balance,
-                        child: TextFormField(
-                          controller: _currentBalanceController,
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
-                          decoration: const InputDecoration(
-                            hintText: '0.00',
-                            border: InputBorder.none,
-                            contentPadding: EdgeInsets.zero,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                _fieldCard(
-                  label: 'Notes',
-                  icon: Icons.notes,
-                  child: TextFormField(
-                    controller: _notesController,
-                    maxLines: 3,
-                    decoration: const InputDecoration(
-                      hintText: 'Terms, contact preferences, delivery notes',
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.zero,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  value: _isActive,
-                  onChanged: (value) => setState(() => _isActive = value),
-                  title: const Text('Active supplier'),
-                  subtitle: const Text('Use this supplier in purchase flows.'),
-                ),
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  height: 54,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _saveSupplier,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    ),
-                    child: _isLoading
-                        ? const CircularProgressIndicator(color: Colors.white)
-                        : Text(_isEditing ? 'UPDATE SUPPLIER' : 'SAVE SUPPLIER'),
+                    controller: _openingBalanceController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
+                    decoration: const InputDecoration(labelText: 'Historic Opening Balance', border: InputBorder.none),
                   ),
                 ),
               ],
             ),
-          ),
+            const SizedBox(height: AppDimensions.xl),
+            AppFormSection(
+              title: 'Location & Addendums',
+              icon: Icons.map_rounded,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: AppDimensions.xl, vertical: AppDimensions.sm),
+                  child: TextFormField(
+                    controller: _addressController,
+                    decoration: const InputDecoration(labelText: 'Factory / Office Address', border: InputBorder.none),
+                  ),
+                ),
+                const Divider(height: 1),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: AppDimensions.xl, vertical: AppDimensions.sm),
+                  child: TextFormField(
+                    controller: _notesController,
+                    maxLines: 2,
+                    decoration: const InputDecoration(labelText: 'Terms / Logistics Notes', border: InputBorder.none),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 100),
+          ],
         ),
       ),
     );
   }
 
-  Widget _fieldCard({required String label, required IconData icon, required Widget child}) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 18, color: AppColors.primary),
-              const SizedBox(width: 8),
-              Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
-            ],
-          ),
-          const SizedBox(height: 10),
-          child,
-        ],
-      ),
-    );
+  Future<bool> _ensureManagePurchasesPermission(BuildContext context, WidgetRef ref, {required String attemptedAction, String? entityId}) async {
+    final allowed = ref.read(hasPermissionProvider(TeamPermission.managePurchases));
+    if (allowed) return true;
+
+    final actorRole = ref.read(currentRoleProvider);
+    await ref.read(auditRepositoryProvider).logAction(actorRole: actorRole, action: 'permission_denied', entityType: 'supplier', entityId: entityId, message: 'Denied $attemptedAction for role ${actorRole.name}.');
+    ref.invalidate(recentAuditLogsProvider);
+
+    if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Permission denied.')));
+    return false;
   }
 }

@@ -1,362 +1,323 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'package:hisabet/core/presentation/widgets/widgets.dart';
+import 'package:hisabet/core/theme/theme.dart';
+
+// Screens
+import 'package:hisabet/features/cashbook/presentation/screens/cashbook_screen.dart';
 import 'package:hisabet/features/contacts/presentation/screens/contacts_list_screen.dart';
+import 'package:hisabet/features/customers/presentation/screens/customers_screen.dart';
 import 'package:hisabet/features/inventory/presentation/screens/products_list_screen.dart';
 import 'package:hisabet/features/expenses/presentation/screens/expenses_screen.dart';
+import 'package:hisabet/features/orders/presentation/screens/orders_screen.dart';
+import 'package:hisabet/features/promotions/presentation/screens/promotions_screen.dart';
+import 'package:hisabet/features/settings/presentation/screens/settings_screen.dart';
+import 'package:hisabet/features/reports/presentation/screens/reports_screen.dart';
 import 'package:hisabet/features/purchases/presentation/screens/purchase_orders_screen.dart';
 import 'package:hisabet/features/sales/presentation/screens/pos_cart_screen.dart';
+import 'package:hisabet/features/team/data/models/team_member_model.dart';
+import 'package:hisabet/features/team/presentation/providers/team_providers.dart';
+import 'package:hisabet/features/team/presentation/screens/team_management_screen.dart';
+import 'package:hisabet/features/suppliers/presentation/screens/suppliers_list_screen.dart';
 
-class MerchantModulesScreen extends StatelessWidget {
+class MerchantModulesScreen extends ConsumerWidget {
   const MerchantModulesScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final modules = _merchantModules;
-
+  Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F8FA),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        title: const Text(
-          'Merchant Modules',
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.w700),
-        ),
-      ),
-      body: GridView.builder(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-        itemCount: modules.length,
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          mainAxisSpacing: 12,
-          crossAxisSpacing: 12,
-          mainAxisExtent: 176,
-        ),
-        itemBuilder: (context, index) {
-          final module = modules[index];
-          return _ModuleCard(
-            module: module,
-            onTap: () {
-              if (module.title == 'Inventory') {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const ProductsListScreen(),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      body: SafeArea(
+        child: CustomScrollView(
+          physics: const BouncingScrollPhysics(),
+          slivers: [
+            // ─────────────────────────────────────────────────────────────
+            // Header & Pulse Bar
+            // ─────────────────────────────────────────────────────────────
+            const SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(AppDimensions.lg, AppDimensions.lg,
+                    AppDimensions.lg, AppDimensions.sm),
+                child: Text(
+                  "Business Hub",
+                  style: TextStyle(
+                    fontSize: 26,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textPrimary,
                   ),
-                );
-                return;
-              }
-
-              if (module.title == 'Sales') {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const PosCartScreen(),
-                  ),
-                );
-                return;
-              }
-
-              if (module.title == 'Purchases') {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const PurchaseOrdersScreen(),
-                  ),
-                );
-                return;
-              }
-
-              if (module.title == 'Suppliers') {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const ContactsListScreen(initialFilterIndex: 2),
-                  ),
-                );
-                return;
-              }
-
-              if (module.title == 'Expenses') {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const ExpensesScreen(),
-                  ),
-                );
-                return;
-              }
-
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => FeatureWorkspaceScreen(module: module),
                 ),
-              );
-            },
-          );
-        },
-      ),
-    );
-  }
-}
-
-class FeatureWorkspaceScreen extends StatelessWidget {
-  final MerchantModule module;
-
-  const FeatureWorkspaceScreen({super.key, required this.module});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(module.title)),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: module.color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(16),
+              ),
             ),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor: module.color,
-                  child: Icon(module.icon, color: Colors.white),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+            SliverToBoxAdapter(
+              child: AppPulseBar(
+                chips: [
+                  AppPulseChip(
+                    icon: Icons.warning_amber_rounded,
+                    label: '3 items low stock',
+                    color: AppColors.warning,
+                  ),
+                  AppPulseChip(
+                    icon: Icons.access_time_filled,
+                    label: '2 pending orders',
+                    color: AppColors.info,
+                  ),
+                  AppPulseChip(
+                    icon: Icons.receipt_long,
+                    label: '1 unpaid bill',
+                    color: AppColors.negative,
+                  ),
+                ],
+              ),
+            ),
+            const SliverToBoxAdapter(child: SizedBox(height: AppDimensions.lg)),
+
+            // ─────────────────────────────────────────────────────────────
+            // Daily Operations (Priority Cards)
+            // ─────────────────────────────────────────────────────────────
+            const SliverToBoxAdapter(
+              child: AppSectionHeader(
+                title: 'Daily Operations',
+                uppercase: true,
+              ),
+            ),
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: AppDimensions.pagePaddingH),
+              sliver: SliverGrid.count(
+                crossAxisCount: 2,
+                mainAxisSpacing: AppDimensions.md,
+                crossAxisSpacing: AppDimensions.md,
+                childAspectRatio: 1.1,
+                children: [
+                  AppModuleCard.priority(
+                    title: 'Sales (POS)',
+                    subtitle: 'Point of sale, invoices & carts',
+                    icon: Icons.point_of_sale,
+                    color: AppColors.moduleSales,
+                    onTap: () => _navigate(context, ref, 'Sales', const PosCartScreen()),
+                  ),
+                  AppModuleCard.priority(
+                    title: 'Inventory',
+                    subtitle: 'Products, stock levels & SKUs',
+                    icon: Icons.inventory_2,
+                    color: AppColors.moduleInventory,
+                    onTap: () => _navigate(context, ref, 'Inventory', const ProductsListScreen()),
+                  ),
+                  AppModuleCard.priority(
+                    title: 'Orders',
+                    subtitle: 'Manage fulfillment & delivery',
+                    icon: Icons.list_alt,
+                    color: AppColors.moduleOrders,
+                    onTap: () => _navigate(context, ref, 'Orders', const OrdersScreen()),
+                    badge: const AppStatusBadgeData(label: '2 New', color: AppColors.info),
+                  ),
+                  AppModuleCard.priority(
+                    title: 'Purchases',
+                    subtitle: 'Supplier bills & buying',
+                    icon: Icons.shopping_cart,
+                    color: AppColors.modulePurchases,
+                    onTap: () => _navigate(context, ref, 'Purchases', const PurchaseOrdersScreen()),
+                  ),
+                ],
+              ),
+            ),
+            const SliverToBoxAdapter(child: SizedBox(height: AppDimensions.xl)),
+
+            // ─────────────────────────────────────────────────────────────
+            // Finance & Tracking (Compact Cards)
+            // ─────────────────────────────────────────────────────────────
+            const SliverToBoxAdapter(
+              child: AppSectionHeader(
+                title: 'Finance & Tracking',
+                uppercase: true,
+              ),
+            ),
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: AppDimensions.pagePaddingH),
+              sliver: SliverList(
+                delegate: SliverChildListDelegate([
+                  AppModuleCard.compact(
+                    title: 'Expenses',
+                    subtitle: 'Operating costs and recurring bills',
+                    icon: Icons.receipt_long,
+                    color: AppColors.moduleExpenses,
+                    onTap: () => _navigate(context, ref, 'Expenses', const ExpensesScreen()),
+                  ),
+                  const SizedBox(height: AppDimensions.sm),
+                  AppModuleCard.compact(
+                    title: 'Cashbook',
+                    subtitle: 'Daily cash and bank reconciliation',
+                    icon: Icons.account_balance_wallet,
+                    color: AppColors.moduleCashbook,
+                    onTap: () => _navigate(context, ref, 'Cashbook', const CashbookScreen()),
+                  ),
+                  const SizedBox(height: AppDimensions.sm),
+                  AppModuleCard.compact(
+                    title: 'Reports',
+                    subtitle: 'Profits, trends and analytics',
+                    icon: Icons.bar_chart,
+                    color: AppColors.moduleReports,
+                    onTap: () => _navigate(context, ref, 'Reports', const ReportsScreen()),
+                  ),
+                ]),
+              ),
+            ),
+            const SliverToBoxAdapter(child: SizedBox(height: AppDimensions.xl)),
+
+            // ─────────────────────────────────────────────────────────────
+            // People & Relationships
+            // ─────────────────────────────────────────────────────────────
+            const SliverToBoxAdapter(
+              child: AppSectionHeader(
+                title: 'People & Relationships',
+                uppercase: true,
+              ),
+            ),
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: AppDimensions.pagePaddingH),
+              sliver: SliverList(
+                delegate: SliverChildListDelegate([
+                  Row(
                     children: [
-                      Text(
-                        module.title,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
+                      Expanded(
+                        child: AppModuleCard.compact(
+                          title: 'Customers',
+                          subtitle: 'CRM',
+                          icon: Icons.groups,
+                          color: AppColors.moduleCustomers,
+                          onTap: () => _navigate(context, ref, 'Customers', const CustomersScreen()),
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        module.subtitle,
-                        style: const TextStyle(color: Colors.black54),
+                      const SizedBox(width: AppDimensions.sm),
+                      Expanded(
+                        child: AppModuleCard.compact(
+                          title: 'B2B Tenders',
+                          subtitle: 'Global supply bids',
+                          icon: Icons.storefront_rounded,
+                          color: AppColors.moduleSuppliers,
+                          onTap: () => _navigate(context, ref, 'Suppliers', const SuppliersListScreen()),
+                        ),
                       ),
                     ],
                   ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 18),
-          const Text(
-            'Initial Feature Set',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-          ),
-          const SizedBox(height: 10),
-          ...module.features.map(
-            (feature) => Card(
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-                side: BorderSide(color: Colors.grey.shade200),
+                  const SizedBox(height: AppDimensions.sm),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: AppModuleCard.compact(
+                          title: 'Promotions',
+                          subtitle: 'Coupons',
+                          icon: Icons.local_offer,
+                          color: AppColors.modulePromotions,
+                          onTap: () => _navigate(context, ref, 'Promotions', const PromotionsScreen()),
+                        ),
+                      ),
+                      const SizedBox(width: AppDimensions.sm),
+                      Expanded(
+                        child: AppModuleCard.compact(
+                          title: 'Team',
+                          subtitle: 'Staff info',
+                          icon: Icons.badge,
+                          color: AppColors.moduleTeam,
+                          onTap: () => _navigate(context, ref, 'Team', const TeamManagementScreen()),
+                        ),
+                      ),
+                    ],
+                  ),
+                ]),
               ),
-              child: ListTile(
-                leading: const Icon(Icons.check_circle_outline),
-                title: Text(feature),
-                subtitle: const Text('Ready for incremental implementation'),
+            ),
+            const SliverToBoxAdapter(child: SizedBox(height: AppDimensions.xl)),
+
+            // ─────────────────────────────────────────────────────────────
+            // Administration
+            // ─────────────────────────────────────────────────────────────
+            const SliverToBoxAdapter(
+              child: AppSectionHeader(
+                title: 'Administration',
+                uppercase: true,
               ),
             ),
-          ),
-          const SizedBox(height: 18),
-          ElevatedButton.icon(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('${module.title} build queue started.'),
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: AppDimensions.pagePaddingH),
+              sliver: SliverToBoxAdapter(
+                child: AppModuleCard.compact(
+                  title: 'Store Settings',
+                  subtitle: 'Taxes, invoices and business profile',
+                  icon: Icons.settings,
+                  color: AppColors.moduleSettings,
+                  onTap: () => _navigate(context, ref, 'Settings', const SettingsScreen()),
                 ),
-              );
-            },
-            icon: const Icon(Icons.play_arrow),
-            label: const Text('Start Building This Module'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ModuleCard extends StatelessWidget {
-  final MerchantModule module;
-  final VoidCallback onTap;
-
-  const _ModuleCard({required this.module, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(20),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
-        child: Ink(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            color: Colors.white,
-            border: Border.all(color: Colors.grey.shade200),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
               ),
-            ],
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                CircleAvatar(
-                  radius: 18,
-                  backgroundColor: module.color.withValues(alpha: 0.18),
-                  child: Icon(module.icon, color: module.color),
-                ),
-                const SizedBox(height: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      module.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      module.shortLabel,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 12, color: Colors.black54),
-                    ),
-                  ],
-                ),
-              ],
             ),
-          ),
+            const SliverToBoxAdapter(child: SizedBox(height: 100)),
+          ],
         ),
       ),
     );
   }
+
+  // Permission handling wrapper
+  Future<void> _navigate(
+      BuildContext context, WidgetRef ref, String moduleTitle, Widget screen) async {
+    final allowed = await _ensureModulePermission(context, ref, moduleTitle);
+    if (!allowed) return;
+    if (!context.mounted) return;
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
+  }
+
+  Future<bool> _ensureModulePermission(
+    BuildContext context,
+    WidgetRef ref,
+    String moduleTitle,
+  ) async {
+    TeamPermission? requiredPermission;
+
+    switch (moduleTitle) {
+      case 'Inventory':
+        requiredPermission = TeamPermission.manageInventory;
+        break;
+      case 'Sales':
+      case 'Customers':
+      case 'Orders':
+      case 'Promotions':
+        requiredPermission = TeamPermission.processSales;
+        break;
+      case 'Settings':
+        requiredPermission = TeamPermission.manageTeam;
+        break;
+      case 'Purchases':
+      case 'Suppliers':
+        requiredPermission = TeamPermission.managePurchases;
+        break;
+      case 'Expenses':
+        requiredPermission = TeamPermission.manageExpenses;
+        break;
+      case 'Reports':
+      case 'Cashbook':
+        requiredPermission = TeamPermission.viewReports;
+        break;
+      case 'Team':
+        // Always allow Team so users can switch session role. Mutable actions protected inside.
+        requiredPermission = null;
+        break;
+      default:
+        requiredPermission = null;
+    }
+
+    if (requiredPermission == null) return true;
+
+    final allowed = ref.read(hasPermissionProvider(requiredPermission));
+    if (allowed) return true;
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('You do not have access to $moduleTitle module.'),
+          backgroundColor: AppColors.negative,
+        ),
+      );
+    }
+    return false;
+  }
 }
-
-class MerchantModule {
-  final String title;
-  final String shortLabel;
-  final String subtitle;
-  final IconData icon;
-  final Color color;
-  final List<String> features;
-
-  const MerchantModule({
-    required this.title,
-    required this.shortLabel,
-    required this.subtitle,
-    required this.icon,
-    required this.color,
-    required this.features,
-  });
-}
-
-const List<MerchantModule> _merchantModules = [
-  MerchantModule(
-    title: 'Inventory',
-    shortLabel: 'Stock, SKU, low stock',
-    subtitle: 'Track stock levels, SKUs, reorder points and stock adjustments.',
-    icon: Icons.inventory_2,
-    color: Colors.indigo,
-    features: ['Products', 'Stock adjustments', 'Low stock alerts', 'Barcode support'],
-  ),
-  MerchantModule(
-    title: 'Sales',
-    shortLabel: 'POS and invoices',
-    subtitle: 'Create invoices, process payments and monitor daily sales.',
-    icon: Icons.point_of_sale,
-    color: Colors.green,
-    features: ['POS checkout', 'Invoice printing', 'Discounts', 'Refunds'],
-  ),
-  MerchantModule(
-    title: 'Purchases',
-    shortLabel: 'Supplier buying flow',
-    subtitle: 'Record supplier purchases, bills and cost tracking.',
-    icon: Icons.shopping_cart,
-    color: Colors.orange,
-    features: ['Purchase orders', 'Goods receipt', 'Bills', 'Due dates'],
-  ),
-  MerchantModule(
-    title: 'Customers',
-    shortLabel: 'CRM and credit',
-    subtitle: 'Manage customer profiles, receivables and loyalty.',
-    icon: Icons.groups,
-    color: Colors.blue,
-    features: ['Customer profiles', 'Credit limits', 'Loyalty points', 'Statements'],
-  ),
-  MerchantModule(
-    title: 'Suppliers',
-    shortLabel: 'Payables and terms',
-    subtitle: 'Supplier directory, balances and payment terms.',
-    icon: Icons.local_shipping,
-    color: Colors.teal,
-    features: ['Supplier profiles', 'Payables', 'Terms management', 'Supplier ledger'],
-  ),
-  MerchantModule(
-    title: 'Expenses',
-    shortLabel: 'Business cost control',
-    subtitle: 'Track operating expenses and recurring costs.',
-    icon: Icons.receipt_long,
-    color: Colors.deepOrange,
-    features: ['Expense categories', 'Recurring expenses', 'Receipts', 'Approvals'],
-  ),
-  MerchantModule(
-    title: 'Cashbook',
-    shortLabel: 'Cash and bank flow',
-    subtitle: 'Daily cash-in/cash-out and bank account reconciliation.',
-    icon: Icons.account_balance_wallet,
-    color: Colors.brown,
-    features: ['Cash entries', 'Bank accounts', 'Transfer', 'Reconciliation'],
-  ),
-  MerchantModule(
-    title: 'Reports',
-    shortLabel: 'Business intelligence',
-    subtitle: 'Profit, stock movement, sales trends and debtor reports.',
-    icon: Icons.bar_chart,
-    color: Colors.purple,
-    features: ['Profit report', 'Sales trend', 'Inventory valuation', 'Top products'],
-  ),
-  MerchantModule(
-    title: 'Team',
-    shortLabel: 'Staff and permissions',
-    subtitle: 'Role-based access and performance tracking for employees.',
-    icon: Icons.badge,
-    color: Colors.cyan,
-    features: ['Roles & permissions', 'Staff accounts', 'Audit trail', 'Activity logs'],
-  ),
-  MerchantModule(
-    title: 'Orders',
-    shortLabel: 'Online and offline orders',
-    subtitle: 'Capture order lifecycle from pending to delivered.',
-    icon: Icons.list_alt,
-    color: Colors.redAccent,
-    features: ['Order board', 'Status workflow', 'Delivery notes', 'Returns'],
-  ),
-  MerchantModule(
-    title: 'Promotions',
-    shortLabel: 'Campaign and coupons',
-    subtitle: 'Run offers, bundles and discount campaigns.',
-    icon: Icons.local_offer,
-    color: Colors.pink,
-    features: ['Coupons', 'Bundles', 'Campaign windows', 'Usage analytics'],
-  ),
-  MerchantModule(
-    title: 'Settings',
-    shortLabel: 'Business profile setup',
-    subtitle: 'Configure tax, invoices, localization and company profile.',
-    icon: Icons.settings,
-    color: Colors.grey,
-    features: ['Business profile', 'Tax settings', 'Invoice template', 'Backup options'],
-  ),
-];

@@ -1,13 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:hisabet/core/theme/app_colors.dart';
+import 'package:hisabet/core/presentation/widgets/widgets.dart';
+import 'package:hisabet/core/theme/theme.dart';
+
 import 'package:hisabet/features/contacts/presentation/screens/contacts_list_screen.dart';
 import 'package:hisabet/features/contacts/presentation/screens/add_contact_screen.dart';
-import 'package:hisabet/features/contacts/presentation/providers/contacts_providers.dart';
 import 'package:hisabet/features/home/presentation/providers/dashboard_providers.dart';
 import 'package:hisabet/features/home/presentation/screens/merchant_modules_screen.dart';
-import 'package:hisabet/core/l10n/language_provider.dart';
 import 'package:hisabet/features/transactions/data/models/transaction_model.dart';
+import 'package:hisabet/core/l10n/language_provider.dart';
+
+// Navigation targets
+import 'package:hisabet/features/sales/presentation/screens/pos_cart_screen.dart';
+import 'package:hisabet/features/expenses/presentation/screens/expense_upsert_screen.dart';
+import 'package:hisabet/features/reports/presentation/screens/reports_screen.dart';
+
 import 'package:intl/intl.dart';
 
 class MainScaffold extends ConsumerStatefulWidget {
@@ -19,7 +26,7 @@ class MainScaffold extends ConsumerStatefulWidget {
 
 class _MainScaffoldState extends ConsumerState<MainScaffold> {
   int _currentIndex = 0;
-  late PageController _pageController;
+  late final PageController _pageController;
 
   @override
   void initState() {
@@ -49,23 +56,23 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: PageView(
         controller: _pageController,
         onPageChanged: _onPageChanged,
         physics: const BouncingScrollPhysics(),
         children: const [
           _HomeDashboard(),
-          ContactsListScreen(),
-          MerchantModulesScreen(),
-          _MenuTab(),
+          ContactsListScreen(), // Will be renamed to Ledger in future phases
+          MerchantModulesScreen(), // The Business Hub
+          _ProfileTab(), // Replaced Menu Tab
         ],
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: AppColors.shadowMedium,
               blurRadius: 20,
               offset: const Offset(0, -5),
             ),
@@ -74,29 +81,26 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
         child: NavigationBar(
           selectedIndex: _currentIndex,
           onDestinationSelected: _onNavigate,
-          backgroundColor: Colors.white,
-          indicatorColor: AppColors.primaryLight.withOpacity(0.2),
-          elevation: 0,
           destinations: const [
             NavigationDestination(
-              icon: Icon(Icons.dashboard_outlined),
-              selectedIcon: Icon(Icons.dashboard, color: AppColors.primary),
+              icon: Icon(Icons.home_outlined),
+              selectedIcon: Icon(Icons.home_rounded),
               label: 'Home',
             ),
             NavigationDestination(
-              icon: Icon(Icons.people_outline),
-              selectedIcon: Icon(Icons.people, color: AppColors.primary),
-              label: 'Contacts',
+              icon: Icon(Icons.menu_book_outlined),
+              selectedIcon: Icon(Icons.menu_book_rounded),
+              label: 'Ledger',
             ),
             NavigationDestination(
-              icon: Icon(Icons.inventory_2_outlined),
-              selectedIcon: Icon(Icons.inventory_2, color: AppColors.primary),
-              label: 'Store',
+              icon: Icon(Icons.business_center_outlined),
+              selectedIcon: Icon(Icons.business_center_rounded),
+              label: 'Business',
             ),
             NavigationDestination(
-              icon: Icon(Icons.menu),
-              selectedIcon: Icon(Icons.menu, color: AppColors.primary),
-              label: 'Menu',
+              icon: Icon(Icons.person_outline),
+              selectedIcon: Icon(Icons.person_rounded),
+              label: 'Profile',
             ),
           ],
         ),
@@ -105,7 +109,10 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
   }
 }
 
-// ... (imports remain the same)
+// ─────────────────────────────────────────────────────────────────────────────
+// HOME DASHBOARD
+// ─────────────────────────────────────────────────────────────────────────────
+
 class _HomeDashboard extends ConsumerWidget {
   const _HomeDashboard();
 
@@ -118,24 +125,37 @@ class _HomeDashboard extends ConsumerWidget {
       child: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
-          // 1. Header Section
           const SliverToBoxAdapter(
             child: Padding(
-              padding: EdgeInsets.fromLTRB(20, 20, 20, 10),
+              padding: EdgeInsets.fromLTRB(
+                  AppDimensions.lg, AppDimensions.lg, AppDimensions.lg, AppDimensions.sm),
               child: _DashboardHeader(),
             ),
           ),
 
-          // 2. Premium Stats Card
+          // Premium gradient hero card
           SliverToBoxAdapter(
             child: statsAsync.when(
-              data: (stats) => _PremiumStatsCard(stats: stats),
+              data: (stats) => AppGradientCard(
+                label: 'TOTAL NET BALANCE',
+                value: 'ETB ${stats.netBalance}',
+                backgroundIcon: Icons.account_balance_wallet,
+                children: [
+                  AppGradientCardStatRow(
+                    leftLabel: 'To Collect',
+                    leftValue: 'ETB ${stats.totalReceivable}',
+                    rightLabel: 'To Pay',
+                    rightValue: 'ETB ${stats.totalPayable.abs()}',
+                  ),
+                ],
+              ),
               loading: () => Container(
                 height: 180,
-                margin: const EdgeInsets.symmetric(horizontal: 20),
+                margin: const EdgeInsets.symmetric(
+                    horizontal: AppDimensions.pagePaddingH, vertical: AppDimensions.md),
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade200,
-                  borderRadius: BorderRadius.circular(24),
+                  color: AppColors.neutral200,
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusXxl),
                 ),
                 child: const Center(child: CircularProgressIndicator()),
               ),
@@ -143,58 +163,40 @@ class _HomeDashboard extends ConsumerWidget {
             ),
           ),
 
-          // 3. Quick Actions Grid
+          // Quick Actions
           const SliverToBoxAdapter(child: _PremiumQuickActions()),
 
-          // 4. Recent Activity Header
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 16, 24, 12),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    "RECENT ACTIVITY",
-                    style: TextStyle(
-                      color: Colors.grey.shade600,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                  GestureDetector(
-                    child: Text(
-                      "See All",
-                      style: TextStyle(
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+          // Recent Activity Header
+          const SliverToBoxAdapter(
+            child: AppSectionHeader(
+              title: 'Recent Activity',
+              actionLabel: 'See All',
             ),
           ),
 
-          // 5. Activity List
+          // Activity List
           activityAsync.when(
             data: (transactions) {
               if (transactions.isEmpty) {
                 return const SliverFillRemaining(
                   hasScrollBody: false,
-                  child: _EmptyActivityState(),
+                  child: AppEmptyState(
+                    icon: Icons.receipt_long_outlined,
+                    title: 'No Recent Activity',
+                  ),
                 );
               }
               return SliverList(
                 delegate: SliverChildBuilderDelegate((context, index) {
                   final tx = transactions[index];
-                  return _PremiumTransactionTile(transaction: tx);
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: AppDimensions.pagePaddingH),
+                    child: _PremiumTransactionTile(transaction: tx),
+                  );
                 }, childCount: transactions.length),
               );
             },
-            loading: () =>
-                const SliverToBoxAdapter(child: LinearProgressIndicator()),
+            loading: () => const SliverToBoxAdapter(child: LinearProgressIndicator()),
             error: (e, s) => SliverToBoxAdapter(child: Text('Error: $e')),
           ),
 
@@ -218,161 +220,28 @@ class _DashboardHeader extends StatelessWidget {
           children: [
             Text(
               DateFormat('EEEE, MMM d').format(DateTime.now()).toUpperCase(),
-              style: TextStyle(
-                color: Colors.grey.shade500,
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1,
-              ),
+              style: AppTextStyles.sectionLabel,
             ),
             const SizedBox(height: 4),
-            const Text(
-              "Hello, Merchant",
-              style: TextStyle(
-                fontSize: 26,
-                fontWeight: FontWeight.w800,
-                color: AppColors.textPrimary,
-              ),
-            ),
+            Text("Hello, Merchant", style: AppTextStyles.headlineSmall),
           ],
         ),
         Container(
-          height: 48,
-          width: 48,
+          width: AppDimensions.avatarMd,
+          height: AppDimensions.avatarMd,
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: AppColors.surface,
             shape: BoxShape.circle,
-            border: Border.all(color: Colors.grey.shade100, width: 2),
-            boxShadow: [
+            border: Border.all(color: AppColors.border),
+            boxShadow: const [
               BoxShadow(
-                color: Colors.black.withOpacity(0.05),
+                color: AppColors.shadowLight,
                 blurRadius: 10,
-                offset: const Offset(0, 4),
+                offset: Offset(0, 4),
               ),
             ],
           ),
           child: const Icon(Icons.person, color: AppColors.primary),
-        ),
-      ],
-    );
-  }
-}
-
-class _PremiumStatsCard extends StatelessWidget {
-  final DashboardStats stats;
-  const _PremiumStatsCard({required this.stats});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      height: 180,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-        gradient: const LinearGradient(
-          colors: [Color(0xFF00251A), Color(0xFF004D40)], // Deep Luxury Teal
-          begin: Alignment.bottomLeft,
-          end: Alignment.topRight,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.primary.withOpacity(0.4),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Stack(
-        children: [
-          // Background Pattern
-          Positioned(
-            right: -20,
-            top: -20,
-            child: Icon(
-              Icons.account_balance_wallet,
-              size: 200,
-              color: Colors.white.withOpacity(0.03),
-            ),
-          ),
-
-          Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  "TOTAL NET BALANCE",
-                  style: TextStyle(
-                    color: Colors.white54,
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1.5,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  "ETB ${stats.netBalance}",
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 32,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const Spacer(),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.white.withOpacity(0.1)),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: _buildMiniStat(
-                          "To Collect",
-                          stats.totalReceivable,
-                          Colors.greenAccent,
-                        ),
-                      ),
-                      Container(
-                        width: 1,
-                        height: 24,
-                        color: Colors.white.withOpacity(0.2),
-                      ),
-                      Expanded(
-                        child: _buildMiniStat(
-                          "To Pay",
-                          stats.totalPayable.abs(),
-                          Colors.redAccent.shade100,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMiniStat(String label, dynamic amount, Color color) {
-    return Column(
-      children: [
-        Text(
-          label,
-          style: const TextStyle(color: Colors.white70, fontSize: 10),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          "ETB $amount",
-          style: TextStyle(
-            color: color,
-            fontWeight: FontWeight.bold,
-            fontSize: 14,
-          ),
         ),
       ],
     );
@@ -385,99 +254,78 @@ class _PremiumQuickActions extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppDimensions.pagePaddingH, vertical: AppDimensions.sm),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           _buildActionItem(
-            context,
-            ref,
-            Icons.person_add,
-            "Add Contact",
-            const Color(0xFFE3F2FD),
-            Colors.blue,
-            0,
+            context: context,
+            icon: Icons.person_add,
+            label: "Add Contact",
+            bg: AppColors.infoLight,
+            iconColor: AppColors.info,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AddContactScreen()),
+              );
+            },
           ),
           _buildActionItem(
-            context,
-            ref,
-            Icons.qr_code_scanner,
-            "Scan",
-            const Color(0xFFF3E5F5),
-            Colors.purple,
-            1,
+            context: context,
+            icon: Icons.point_of_sale,
+            label: "New Sale",
+            bg: AppColors.positiveLight,
+            iconColor: AppColors.positive,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const PosCartScreen()),
+              );
+            },
           ),
           _buildActionItem(
-            context,
-            ref,
-            Icons.bar_chart,
-            "Analytics",
-            const Color(0xFFFFF3E0),
-            Colors.orange,
-            2,
+            context: context,
+            icon: Icons.receipt_long,
+            label: "Add Expense",
+            bg: AppColors.negativeLight,
+            iconColor: AppColors.negative,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ExpenseUpsertScreen()),
+              );
+            },
           ),
           _buildActionItem(
-            context,
-            ref,
-            Icons.settings_outlined,
-            "Settings",
-            const Color(0xFFF5F5F5),
-            Colors.grey.shade700,
-            3,
+            context: context,
+            icon: Icons.bar_chart,
+            label: "Reports",
+            bg: AppColors.warningLight,
+            iconColor: AppColors.warning,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ReportsScreen()),
+              );
+            },
           ),
         ],
       ),
     );
   }
 
-  Widget _buildActionItem(
-    BuildContext context,
-    WidgetRef ref,
-    IconData icon,
-    String label,
-    Color bg,
-    Color iconColor,
-    int index,
-  ) {
+  Widget _buildActionItem({
+    required BuildContext context,
+    required IconData icon,
+    required String label,
+    required Color bg,
+    required Color iconColor,
+    required VoidCallback onTap,
+  }) {
     return GestureDetector(
-      onTap: () async {
-        if (index == 0) {
-          await Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const AddContactScreen()),
-          );
-          // Refresh contacts list after adding
-          ref.invalidate(allContactsProvider);
-          ref.invalidate(dashboardStatsProvider);
-          ref.invalidate(recentActivityProvider);
-          return;
-        }
-
-        if (index == 1) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('QR/Barcode scanning module will be added next.'),
-            ),
-          );
-          return;
-        }
-
-        if (index == 2) {
-          await Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const _AnalyticsScreen()),
-          );
-          return;
-        }
-
-        if (index == 3) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Use Menu tab for full settings and tools.'),
-            ),
-          );
-        }
-      },
+      onTap: onTap,
       child: Column(
         children: [
           Container(
@@ -485,7 +333,7 @@ class _PremiumQuickActions extends ConsumerWidget {
             width: 64,
             decoration: BoxDecoration(
               color: bg,
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
               boxShadow: [
                 BoxShadow(
                   color: bg.withOpacity(0.5),
@@ -499,10 +347,9 @@ class _PremiumQuickActions extends ConsumerWidget {
           const SizedBox(height: 8),
           Text(
             label,
-            style: const TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 12,
+            style: AppTextStyles.badgeLabel.copyWith(
               color: AppColors.textPrimary,
+              fontSize: 12,
             ),
           ),
         ],
@@ -519,167 +366,85 @@ class _PremiumTransactionTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final isPositive = transaction.balanceEffect.toDouble() >= 0;
 
-    return Container(
-      margin: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.08),
-            blurRadius: 15,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () {},
-          borderRadius: BorderRadius.circular(20),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                // Icon Box
-                Container(
-                  height: 48,
-                  width: 48,
-                  decoration: BoxDecoration(
-                    color: (isPositive ? Colors.green : Colors.red).withOpacity(
-                      0.08,
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Icon(
-                    isPositive ? Icons.arrow_downward : Icons.arrow_upward,
-                    color: isPositive ? Colors.green : Colors.red,
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(width: 16),
-
-                // Info
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        transaction.description ?? "Untitled",
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        DateFormat('MMM d • h:mm a').format(transaction.date),
-                        style: TextStyle(
-                          color: Colors.grey.shade400,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Amount
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      "${isPositive ? '+' : ''} ${transaction.amount}",
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                        color: isPositive ? AppColors.give : AppColors.take,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade100,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: const Text(
-                        "Completed",
-                        style: TextStyle(fontSize: 10, color: Colors.grey),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _EmptyActivityState extends StatelessWidget {
-  const _EmptyActivityState();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
+    return AppListTile(
+      leadingIcon: isPositive ? Icons.arrow_downward : Icons.arrow_upward,
+      leadingColor: isPositive ? AppColors.positive : AppColors.negative,
+      title: transaction.description ?? "Untitled",
+      subtitle: DateFormat('MMM d • h:mm a').format(transaction.date),
+      trailing: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.receipt_long_outlined,
-            size: 60,
-            color: Colors.grey.shade300,
+          AppAmountText(
+            amount: transaction.amount.toString(),
+            isPositive: isPositive,
+            showSign: true,
           ),
-          const SizedBox(height: 16),
-          Text(
-            "No Recent Activity",
-            style: TextStyle(
-              color: Colors.grey.shade400,
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
+          const SizedBox(height: 4),
+          AppStatusBadge.success(label: 'Completed', small: true),
         ],
       ),
+      onTap: () {},
     );
   }
 }
 
-// ... (_MenuTab remains largely same but we can keep it as is or include it if specific style needed, but for now we focus on Dashboard)
-class _MenuTab extends ConsumerWidget {
-  const _MenuTab();
+// ─────────────────────────────────────────────────────────────────────────────
+// PROFILE TAB
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ProfileTab extends ConsumerWidget {
+  const _ProfileTab();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(24.0),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(AppDimensions.xxl),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              "Settings & Tools",
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+            Text("Settings & Tools", style: AppTextStyles.headlineLarge),
+            const SizedBox(height: AppDimensions.xxxl),
+            
+            AppFormSection(
+              title: "General",
+              icon: Icons.tune,
+              children: [
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.language, color: AppColors.primary),
+                  title: const Text("Language / ቋንቋ"),
+                  subtitle: const Text("English / አማርኛ"),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _showLanguageSheet(context, ref),
+                ),
+                const Divider(),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.security, color: AppColors.primary),
+                  title: const Text("Permissions"),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {},
+                ),
+              ],
             ),
-            const SizedBox(height: 32),
-            _buildMenuOption(
-              icon: Icons.language,
-              title: "Language / ቋንቋ",
-              subtitle: "English / አማርኛ",
-              onTap: () => _showLanguageSheet(context, ref),
-            ),
-            _buildMenuOption(
-              icon: Icons.bug_report_outlined,
-              title: "Debug Tools",
-              subtitle: "Reconciliation & Logs",
-              onTap: () {},
+            
+            const SizedBox(height: AppDimensions.xl),
+            
+            AppFormSection(
+              title: "Developer",
+              icon: Icons.bug_report,
+              children: [
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.terminal, color: AppColors.primary),
+                  title: const Text("Debug Tools"),
+                  subtitle: const Text("Reconciliation & Logs"),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {},
+                ),
+              ],
             ),
           ],
         ),
@@ -690,40 +455,28 @@ class _MenuTab extends ConsumerWidget {
   void _showLanguageSheet(BuildContext context, WidgetRef ref) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
       builder: (context) => Padding(
-        padding: const EdgeInsets.all(32.0),
+        padding: const EdgeInsets.all(AppDimensions.xxxl),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              "Select Application Language",
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 24),
+            Text("Select Language", style: AppTextStyles.titleLarge),
+            const SizedBox(height: AppDimensions.xxl),
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
+                  color: AppColors.infoLight,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Text("🇺🇸", style: TextStyle(fontSize: 24)),
               ),
-              title: const Text(
-                "English",
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              subtitle: const Text("Default system language"),
+              title: const Text("English", style: TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: const Text("Default"),
               onTap: () {
-                ref
-                    .read(languageProvider.notifier)
-                    .setLanguage(const Locale('en'));
+                ref.read(languageProvider.notifier).setLanguage(const Locale('en'));
                 Navigator.pop(context);
               },
             ),
@@ -733,176 +486,20 @@ class _MenuTab extends ConsumerWidget {
               leading: Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.orange.shade50,
+                  color: AppColors.warningLight,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Text("🇪🇹", style: TextStyle(fontSize: 24)),
               ),
-              title: const Text(
-                "Amharic",
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ), // Corrected to just Amharic for cleaner UI
+              title: const Text("Amharic", style: TextStyle(fontWeight: FontWeight.bold)),
               subtitle: const Text("አማርኛ"),
               onTap: () {
-                ref
-                    .read(languageProvider.notifier)
-                    .setLanguage(const Locale('am'));
+                ref.read(languageProvider.notifier).setLanguage(const Locale('am'));
                 Navigator.pop(context);
               },
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildMenuOption({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-  }) {
-    return Card(
-      elevation: 0,
-      margin: const EdgeInsets.only(bottom: 16),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: BorderSide(color: Colors.grey.shade200),
-      ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-        leading: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: AppColors.primary.withOpacity(0.08),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Icon(icon, color: AppColors.primary),
-        ),
-        title: Text(
-          title,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-        ),
-        subtitle: Text(subtitle, style: TextStyle(color: Colors.grey.shade500)),
-        trailing: Icon(Icons.chevron_right, color: Colors.grey.shade400),
-        onTap: onTap,
-      ),
-    );
-  }
-}
-
-class _AnalyticsScreen extends ConsumerWidget {
-  const _AnalyticsScreen();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final statsAsync = ref.watch(dashboardStatsProvider);
-
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text('Analytics'),
-        backgroundColor: AppColors.background,
-        elevation: 0,
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(20),
-        child: statsAsync.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, s) => Center(child: Text('Failed to load analytics: $e')),
-          data: (stats) {
-            return ListView(
-              children: [
-                _analyticsCard(
-                  title: 'Net Balance',
-                  value: 'ETB ${stats.netBalance}',
-                  icon: Icons.account_balance_wallet,
-                  color: AppColors.primary,
-                ),
-                const SizedBox(height: 12),
-                _analyticsCard(
-                  title: 'Receivable',
-                  value: 'ETB ${stats.totalReceivable}',
-                  icon: Icons.trending_up,
-                  color: AppColors.give,
-                ),
-                const SizedBox(height: 12),
-                _analyticsCard(
-                  title: 'Payable',
-                  value: 'ETB ${stats.totalPayable.abs()}',
-                  icon: Icons.trending_down,
-                  color: AppColors.take,
-                ),
-                const SizedBox(height: 20),
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.grey.shade200),
-                  ),
-                  child: const Text(
-                    'This analytics area is reserved for analytics activities only. Detailed charts and reports will be expanded here next.',
-                    style: TextStyle(color: AppColors.textSecondary),
-                  ),
-                ),
-              ],
-            );
-          },
-        ),
-      ),
-    );
-  }
-
-  Widget _analyticsCard({
-    required String title,
-    required String value,
-    required IconData icon,
-    required Color color,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            backgroundColor: color.withOpacity(0.12),
-            child: Icon(icon, color: color),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }

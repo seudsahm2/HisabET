@@ -2,23 +2,11 @@ import 'package:decimal/decimal.dart';
 import 'package:drift/drift.dart' as drift;
 import 'package:hisabet/core/database/app_database.dart';
 
-enum ContactRole {
-  merchant,
-  supplier,
-  both,
-}
+enum ContactRole { merchant, supplier, both }
 
-enum ContactVerificationStatus {
-  unverified,
-  pending,
-  verified,
-  expired,
-}
+enum ContactVerificationStatus { unverified, pending, verified, expired }
 
-enum VerificationTimeoutPolicy {
-  autoConfirm,
-  autoExpire,
-}
+enum VerificationTimeoutPolicy { autoConfirm, autoExpire }
 
 /// Model class for Contact, maps between DB and Domain
 class ContactModel {
@@ -32,6 +20,8 @@ class ContactModel {
   final String? phoneNumber;
   final String? shopNumber;
   final Decimal netBalance;
+  final Decimal creditLimit;
+  final int loyaltyPoints;
   final DateTime lastTransactionDate;
   final String? linkedUserUid;
 
@@ -46,9 +36,11 @@ class ContactModel {
     this.phoneNumber,
     this.shopNumber,
     required this.netBalance,
+    Decimal? creditLimit,
+    this.loyaltyPoints = 0,
     required this.lastTransactionDate,
     this.linkedUserUid,
-  });
+  }) : creditLimit = creditLimit ?? Decimal.zero;
 
   /// From database row (Drift generated class)
   factory ContactModel.fromDb(Contact dbContact) {
@@ -56,15 +48,17 @@ class ContactModel {
       id: dbContact.id,
       name: dbContact.name,
       role: ContactRole.values[dbContact.role],
-        verificationStatus:
+      verificationStatus:
           ContactVerificationStatus.values[dbContact.verificationStatus],
-        verificationRequestedAt: dbContact.verificationRequestedAt,
-        verificationDeadlineAt: dbContact.verificationDeadlineAt,
-        verificationTimeoutPolicy:
+      verificationRequestedAt: dbContact.verificationRequestedAt,
+      verificationDeadlineAt: dbContact.verificationDeadlineAt,
+      verificationTimeoutPolicy:
           VerificationTimeoutPolicy.values[dbContact.verificationTimeoutPolicy],
       phoneNumber: dbContact.phoneNumber,
       shopNumber: dbContact.shopNumber,
       netBalance: Decimal.parse(dbContact.netBalance),
+      creditLimit: Decimal.parse(dbContact.creditLimit),
+      loyaltyPoints: dbContact.loyaltyPoints,
       lastTransactionDate: dbContact.lastTransactionDate,
       linkedUserUid: dbContact.linkedUserUid,
     );
@@ -83,14 +77,19 @@ class ContactModel {
       phoneNumber: drift.Value(phoneNumber),
       shopNumber: drift.Value(shopNumber),
       netBalance: drift.Value(netBalance.toString()),
+      creditLimit: drift.Value(creditLimit.toString()),
+      loyaltyPoints: drift.Value(loyaltyPoints),
       lastTransactionDate: lastTransactionDate,
       linkedUserUid: drift.Value(linkedUserUid),
     );
   }
 
-  bool get isVerified => verificationStatus == ContactVerificationStatus.verified;
-  bool get isPendingVerification => verificationStatus == ContactVerificationStatus.pending;
-  bool get isUnverified => verificationStatus == ContactVerificationStatus.unverified;
+  bool get isVerified =>
+      verificationStatus == ContactVerificationStatus.verified;
+  bool get isPendingVerification =>
+      verificationStatus == ContactVerificationStatus.pending;
+  bool get isUnverified =>
+      verificationStatus == ContactVerificationStatus.unverified;
   bool get isVerificationExpired =>
       verificationStatus == ContactVerificationStatus.expired;
 }

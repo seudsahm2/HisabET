@@ -2,10 +2,13 @@ import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:hisabet/core/theme/app_colors.dart';
+import 'package:hisabet/core/presentation/widgets/widgets.dart';
+import 'package:hisabet/core/theme/theme.dart';
 import 'package:hisabet/features/inventory/data/models/product_model.dart';
 import 'package:hisabet/features/inventory/presentation/providers/products_providers.dart';
 import 'package:hisabet/features/inventory/presentation/screens/stock_adjustment_screen.dart';
+import 'package:hisabet/features/team/data/models/team_member_model.dart';
+import 'package:hisabet/features/team/presentation/providers/team_providers.dart';
 
 class ProductUpsertScreen extends ConsumerStatefulWidget {
   final ProductModel? productToEdit;
@@ -74,6 +77,14 @@ class _ProductUpsertScreenState extends ConsumerState<ProductUpsertScreen> {
   }
 
   Future<void> _saveProduct() async {
+    final allowed = await _ensureManageInventoryPermission(
+      context,
+      ref,
+      attemptedAction: _isEditing ? 'update_product' : 'create_product',
+      entityId: widget.productToEdit?.id,
+    );
+    if (!allowed) return;
+
     if (!_formKey.currentState!.validate()) {
       return;
     }
@@ -90,7 +101,7 @@ class _ProductUpsertScreenState extends ConsumerState<ProductUpsertScreen> {
       final unit = _unitController.text.trim().isEmpty
           ? 'pcs'
           : _unitController.text.trim();
-        final itemsPerCarton = int.tryParse(_itemsPerCartonController.text.trim());
+      final itemsPerCarton = int.tryParse(_itemsPerCartonController.text.trim());
       final costPrice = Decimal.tryParse(_costPriceController.text.trim()) ??
           Decimal.zero;
       final sellingPrice =
@@ -99,6 +110,7 @@ class _ProductUpsertScreenState extends ConsumerState<ProductUpsertScreen> {
           0;
       final reorderLevel =
           int.tryParse(_reorderLevelController.text.trim()) ?? 0;
+      final actorRole = ref.read(currentRoleProvider);
 
       if (_isEditing) {
         await repo.updateProduct(
@@ -117,6 +129,13 @@ class _ProductUpsertScreenState extends ConsumerState<ProductUpsertScreen> {
             isActive: _isActive,
           ),
         );
+        await ref.read(auditRepositoryProvider).logAction(
+          actorRole: actorRole,
+          action: 'product_updated',
+          entityType: 'product',
+          entityId: widget.productToEdit!.id,
+          message: 'Product "$name" was updated.',
+        );
       } else {
         await repo.addProduct(
           name: name,
@@ -132,10 +151,17 @@ class _ProductUpsertScreenState extends ConsumerState<ProductUpsertScreen> {
           reorderLevel: reorderLevel,
           isActive: _isActive,
         );
+        await ref.read(auditRepositoryProvider).logAction(
+          actorRole: actorRole,
+          action: 'product_created',
+          entityType: 'product',
+          message: 'Product "$name" was created.',
+        );
       }
 
       ref.invalidate(allProductsProvider);
       ref.invalidate(lowStockProductsProvider);
+      ref.invalidate(recentAuditLogsProvider);
 
       if (mounted) {
         Navigator.of(context).pop();
@@ -143,7 +169,7 @@ class _ProductUpsertScreenState extends ConsumerState<ProductUpsertScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
+          SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.negative),
         );
       }
     } finally {
@@ -156,6 +182,14 @@ class _ProductUpsertScreenState extends ConsumerState<ProductUpsertScreen> {
     if (product == null) {
       return;
     }
+
+    final allowed = await _ensureManageInventoryPermission(
+      context,
+      ref,
+      attemptedAction: 'delete_product',
+      entityId: product.id,
+    );
+    if (!allowed) return;
 
     final shouldDelete = await showDialog<bool>(
       context: context,
@@ -189,13 +223,22 @@ class _ProductUpsertScreenState extends ConsumerState<ProductUpsertScreen> {
     try {
       final repo = ref.read(productsRepositoryProvider);
       await repo.deleteProduct(product.id);
+      final actorRole = ref.read(currentRoleProvider);
+      await ref.read(auditRepositoryProvider).logAction(
+        actorRole: actorRole,
+        action: 'product_deleted',
+        entityType: 'product',
+        entityId: product.id,
+        message: 'Product "${product.name}" was deleted.',
+      );
       ref.invalidate(allProductsProvider);
       ref.invalidate(lowStockProductsProvider);
+      ref.invalidate(recentAuditLogsProvider);
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Delete failed: $e')),
+          SnackBar(content: Text('Delete failed: $e'), backgroundColor: AppColors.negative),
         );
       }
     } finally {
@@ -206,10 +249,8 @@ class _ProductUpsertScreenState extends ConsumerState<ProductUpsertScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: AppColors.background,
-        elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.close),
           onPressed: () => Navigator.of(context).pop(),
@@ -220,13 +261,13 @@ class _ProductUpsertScreenState extends ConsumerState<ProductUpsertScreen> {
             IconButton(
               tooltip: 'Delete product',
               onPressed: _isLoading ? null : _deleteProduct,
-              icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+              icon: const Icon(Icons.delete_outline, color: AppColors.negative),
             ),
         ],
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(AppDimensions.pagePaddingH),
           child: Form(
             key: _formKey,
             child: Column(
@@ -247,255 +288,164 @@ class _ProductUpsertScreenState extends ConsumerState<ProductUpsertScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 32),
-                _buildInputCard(
-                  label: 'Product Name',
-                  icon: Icons.label_outline,
-                  child: TextFormField(
-                    controller: _nameController,
-                    decoration: const InputDecoration(
-                      hintText: 'Rice 25kg',
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.zero,
-                    ),
-                    validator: (value) =>
-                        value == null || value.trim().isEmpty
-                            ? 'Product name is required'
-                            : null,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                _buildInputCard(
-                  label: 'SKU',
-                  icon: Icons.qr_code_2,
-                  child: TextFormField(
-                    controller: _skuController,
-                    decoration: const InputDecoration(
-                      hintText: 'SKU-001',
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.zero,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                _buildInputCard(
-                  label: 'Barcode',
-                  icon: Icons.barcode_reader,
-                  child: TextFormField(
-                    controller: _barcodeController,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      hintText: '1234567890123',
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.zero,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(
+                const SizedBox(height: AppDimensions.xxxl),
+
+                // ─────────────────────────────────────────────────────────
+                // Basic Information
+                // ─────────────────────────────────────────────────────────
+                AppFormSection(
+                  title: 'Basic Information',
+                  icon: Icons.info_outline,
                   children: [
-                    Expanded(
-                      child: _buildInputCard(
-                        label: 'Category',
-                        icon: Icons.category_outlined,
-                        child: TextFormField(
-                          controller: _categoryController,
-                          decoration: const InputDecoration(
-                            hintText: 'Groceries',
-                            border: InputBorder.none,
-                            contentPadding: EdgeInsets.zero,
-                          ),
-                        ),
-                      ),
+                    _buildTextFormField(
+                      controller: _nameController,
+                      label: 'Product Name',
+                      hintText: 'e.g. Rice 25kg',
+                      validator: (value) => value == null || value.trim().isEmpty
+                          ? 'Product name is required'
+                          : null,
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildInputCard(
-                        label: 'Brand',
-                        icon: Icons.business_outlined,
-                        child: TextFormField(
-                          controller: _brandController,
-                          decoration: const InputDecoration(
-                            hintText: 'Brand name',
-                            border: InputBorder.none,
-                            contentPadding: EdgeInsets.zero,
-                          ),
-                        ),
-                      ),
+                    const Divider(height: 1),
+                    _buildTextFormField(
+                      controller: _categoryController,
+                      label: 'Category',
+                      hintText: 'e.g. Groceries',
                     ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildInputCard(
-                        label: 'Unit',
-                        icon: Icons.straighten,
-                        child: TextFormField(
-                          controller: _unitController,
-                          onChanged: (_) => setState(() {}),
-                          decoration: const InputDecoration(
-                            hintText: 'pcs',
-                            border: InputBorder.none,
-                            contentPadding: EdgeInsets.zero,
-                          ),
-                          validator: (value) =>
-                              value == null || value.trim().isEmpty
-                                  ? 'Unit is required'
-                                  : null,
-                        ),
-                      ),
+                    const Divider(height: 1),
+                    _buildTextFormField(
+                      controller: _brandController,
+                      label: 'Brand',
+                      hintText: 'e.g. BestBrand',
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildInputCard(
-                        label: 'Stock Qty',
-                        icon: Icons.inventory,
-                        child: TextFormField(
-                          controller: _stockQuantityController,
-                          keyboardType: TextInputType.number,
-                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                          decoration: const InputDecoration(
-                            hintText: '0',
-                            border: InputBorder.none,
-                            contentPadding: EdgeInsets.zero,
-                          ),
-                        ),
-                      ),
+                    const Divider(height: 1),
+                    _buildTextFormField(
+                      controller: _skuController,
+                      label: 'SKU (Optional)',
+                      hintText: 'e.g. SKU-001',
                     ),
-                  ],
-                ),
-                if (_unitController.text.trim().toLowerCase() == 'carton') ...[
-                  const SizedBox(height: 16),
-                  _buildInputCard(
-                    label: 'Items per Carton',
-                    icon: Icons.view_module_outlined,
-                    child: TextFormField(
-                      controller: _itemsPerCartonController,
+                    const Divider(height: 1),
+                    _buildTextFormField(
+                      controller: _barcodeController,
+                      label: 'Barcode (Optional)',
+                      hintText: 'e.g. 1234567890123',
                       keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      decoration: const InputDecoration(
-                        hintText: '12',
-                        border: InputBorder.none,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                      validator: (value) {
-                        if (_unitController.text.trim().toLowerCase() != 'carton') {
-                          return null;
-                        }
-                        final count = int.tryParse(value?.trim() ?? '');
-                        if (count == null || count <= 0) {
-                          return 'Items per carton required';
-                        }
-                        return null;
-                      },
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildInputCard(
-                        label: 'Cost Price',
-                        icon: Icons.payments_outlined,
-                        child: TextFormField(
-                          controller: _costPriceController,
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                          ),
-                          inputFormatters: [
-                            FilteringTextInputFormatter.allow(
-                              RegExp(r'[0-9.]'),
-                            ),
-                          ],
-                          decoration: const InputDecoration(
-                            hintText: '0.00',
-                            border: InputBorder.none,
-                            contentPadding: EdgeInsets.zero,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildInputCard(
-                        label: 'Selling Price',
-                        icon: Icons.sell_outlined,
-                        child: TextFormField(
-                          controller: _sellingPriceController,
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                          ),
-                          inputFormatters: [
-                            FilteringTextInputFormatter.allow(
-                              RegExp(r'[0-9.]'),
-                            ),
-                          ],
-                          decoration: const InputDecoration(
-                            hintText: '0.00',
-                            border: InputBorder.none,
-                            contentPadding: EdgeInsets.zero,
-                          ),
-                        ),
-                      ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
-                _buildInputCard(
-                  label: 'Reorder Level',
-                  icon: Icons.notification_important_outlined,
-                  child: TextFormField(
-                    controller: _reorderLevelController,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    decoration: const InputDecoration(
-                      hintText: '0',
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.zero,
+                const SizedBox(height: AppDimensions.xl),
+
+                // ─────────────────────────────────────────────────────────
+                // Inventory Rules
+                // ─────────────────────────────────────────────────────────
+                AppFormSection(
+                  title: 'Inventory & Stock',
+                  icon: Icons.inventory_2_outlined,
+                  children: [
+                    _buildTextFormField(
+                      controller: _unitController,
+                      label: 'Unit of Measurement',
+                      hintText: 'pcs, kg, carton, box...',
+                      onChanged: (_) => setState(() {}), // Trigger carton reveal
+                      validator: (value) => value == null || value.trim().isEmpty
+                          ? 'Unit is required'
+                          : null,
                     ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.03),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
+                    if (_unitController.text.trim().toLowerCase() == 'carton') ...[
+                      const Divider(height: 1),
+                      _buildTextFormField(
+                        controller: _itemsPerCartonController,
+                        label: 'Items per Carton',
+                        hintText: 'e.g. 12',
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                        validator: (value) {
+                          if (_unitController.text.trim().toLowerCase() != 'carton') return null;
+                          final count = int.tryParse(value?.trim() ?? '');
+                          if (count == null || count <= 0) return 'Required for carton';
+                          return null;
+                        },
                       ),
                     ],
-                    border: Border.all(color: Colors.grey.shade100),
-                  ),
-                  child: Material(
-                    color: Colors.transparent,
-                    child: SwitchListTile.adaptive(
-                      contentPadding: EdgeInsets.zero,
+                    const Divider(height: 1),
+                    _buildTextFormField(
+                      controller: _stockQuantityController,
+                      label: 'Current Stock Quantity',
+                      hintText: '0',
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    ),
+                    const Divider(height: 1),
+                    _buildTextFormField(
+                      controller: _reorderLevelController,
+                      label: 'Low Stock Alert Level',
+                      hintText: '0',
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppDimensions.xl),
+
+                // ─────────────────────────────────────────────────────────
+                // Pricing
+                // ─────────────────────────────────────────────────────────
+                AppFormSection(
+                  title: 'Pricing',
+                  icon: Icons.sell_outlined,
+                  children: [
+                    _buildTextFormField(
+                      controller: _costPriceController,
+                      label: 'Cost Price (Optional)',
+                      hintText: '0.00',
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
+                    ),
+                    const Divider(height: 1),
+                    _buildTextFormField(
+                      controller: _sellingPriceController,
+                      label: 'Selling Price (ETB)',
+                      hintText: '0.00',
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppDimensions.xl),
+
+                // ─────────────────────────────────────────────────────────
+                // Visibility
+                // ─────────────────────────────────────────────────────────
+                AppFormSection(
+                  title: 'Visibility',
+                  icon: Icons.visibility_outlined,
+                  children: [
+                    SwitchListTile.adaptive(
+                      activeColor: AppColors.primary,
                       title: const Text('Active Product'),
-                      subtitle: const Text(
-                        'Show this product in inventory lists',
-                      ),
+                      subtitle: const Text('Visible in POS and Inventory lists'),
                       value: _isActive,
                       onChanged: (value) => setState(() => _isActive = value),
                     ),
-                  ),
+                  ],
                 ),
+
                 if (_isEditing) ...[
-                  const SizedBox(height: 16),
+                  const SizedBox(height: AppDimensions.xl),
                   SizedBox(
                     width: double.infinity,
-                    height: 52,
+                    height: 56,
                     child: OutlinedButton.icon(
                       onPressed: _isLoading
                           ? null
-                          : () {
+                          : () async {
+                              final allowed = await _ensureManageInventoryPermission(
+                                context,
+                                ref,
+                                attemptedAction: 'open_stock_adjustment',
+                                entityId: widget.productToEdit!.id,
+                              );
+                              if (!allowed) return;
+                              if (!context.mounted) return;
                               Navigator.of(context).push(
                                 MaterialPageRoute(
                                   builder: (_) => StockAdjustmentScreen(
@@ -504,15 +454,9 @@ class _ProductUpsertScreenState extends ConsumerState<ProductUpsertScreen> {
                                 ),
                               );
                             },
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: AppColors.primary),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
                       icon: const Icon(Icons.swap_vert, color: AppColors.primary),
                       label: const Text(
-                        'Adjust Stock',
+                        'Audit / Adjust Stock',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           color: AppColors.primary,
@@ -521,7 +465,8 @@ class _ProductUpsertScreenState extends ConsumerState<ProductUpsertScreen> {
                     ),
                   ),
                 ],
-                const SizedBox(height: 32),
+                const SizedBox(height: AppDimensions.xxxl),
+
                 SizedBox(
                   width: double.infinity,
                   height: 56,
@@ -530,10 +475,8 @@ class _ProductUpsertScreenState extends ConsumerState<ProductUpsertScreen> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
                       ),
-                      elevation: 8,
-                      shadowColor: AppColors.primary.withOpacity(0.4),
                     ),
                     child: _isLoading
                         ? const CircularProgressIndicator(color: Colors.white)
@@ -543,10 +486,12 @@ class _ProductUpsertScreenState extends ConsumerState<ProductUpsertScreen> {
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                               color: Colors.white,
+                              letterSpacing: 1.2,
                             ),
                           ),
                   ),
                 ),
+                const SizedBox(height: 50),
               ],
             ),
           ),
@@ -555,46 +500,65 @@ class _ProductUpsertScreenState extends ConsumerState<ProductUpsertScreen> {
     );
   }
 
-  Widget _buildInputCard({
+  Widget _buildTextFormField({
+    required TextEditingController controller,
     required String label,
-    required IconData icon,
-    required Widget child,
+    required String hintText,
+    TextInputType? keyboardType,
+    List<TextInputFormatter>? inputFormatters,
+    String? Function(String?)? validator,
+    void Function(String)? onChanged,
   }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-        border: Border.all(color: Colors.grey.shade100),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 18, color: Colors.grey.shade500),
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey.shade500,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          child,
-        ],
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppDimensions.lg, vertical: AppDimensions.sm),
+      child: TextFormField(
+        controller: controller,
+        keyboardType: keyboardType,
+        inputFormatters: inputFormatters,
+        validator: validator,
+        onChanged: onChanged,
+        decoration: InputDecoration(
+          labelText: label,
+          hintText: hintText,
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          errorBorder: InputBorder.none,
+          focusedErrorBorder: InputBorder.none,
+          alignLabelWithHint: true,
+          contentPadding: const EdgeInsets.symmetric(vertical: 4),
+        ),
       ),
     );
+  }
+
+  Future<bool> _ensureManageInventoryPermission(
+    BuildContext context,
+    WidgetRef ref, {
+    required String attemptedAction,
+    String? entityId,
+  }) async {
+    final allowed = ref.read(hasPermissionProvider(TeamPermission.manageInventory));
+    if (allowed) return true;
+
+    final actorRole = ref.read(currentRoleProvider);
+    await ref.read(auditRepositoryProvider).logAction(
+      actorRole: actorRole,
+      action: 'permission_denied',
+      entityType: 'product',
+      entityId: entityId,
+      message: 'Denied $attemptedAction for role ${actorRole.name}.',
+    );
+    ref.invalidate(recentAuditLogsProvider);
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('You do not have permission to manage inventory.'),
+          backgroundColor: AppColors.negative,
+        ),
+      );
+    }
+    return false;
   }
 }

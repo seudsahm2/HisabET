@@ -1,12 +1,17 @@
 import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:hisabet/core/theme/app_colors.dart';
+
+import 'package:hisabet/core/presentation/widgets/widgets.dart';
+import 'package:hisabet/core/theme/theme.dart';
+
 import 'package:hisabet/features/contacts/data/models/contact_model.dart';
 import 'package:hisabet/features/contacts/presentation/providers/contacts_providers.dart';
 import 'package:hisabet/features/purchases/data/models/purchase_order_model.dart';
 import 'package:hisabet/features/purchases/presentation/providers/purchase_orders_providers.dart';
 import 'package:hisabet/features/purchases/presentation/screens/purchase_order_upsert_screen.dart';
+import 'package:hisabet/features/team/data/models/team_member_model.dart';
+import 'package:hisabet/features/team/presentation/providers/team_providers.dart';
 
 class PurchaseOrdersScreen extends ConsumerWidget {
   const PurchaseOrdersScreen({super.key});
@@ -17,11 +22,9 @@ class PurchaseOrdersScreen extends ConsumerWidget {
     final contactsAsync = ref.watch(allContactsProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('Purchase Orders'),
-        backgroundColor: AppColors.background,
-        elevation: 0,
       ),
       body: ordersAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -32,11 +35,7 @@ class PurchaseOrdersScreen extends ConsumerWidget {
             error: (err, stack) => Center(child: Text('Error: $err')),
             data: (contacts) {
               final suppliers = contacts
-                  .where(
-                    (contact) =>
-                        contact.role == ContactRole.supplier ||
-                        contact.role == ContactRole.both,
-                  )
+                  .where((contact) => contact.role == ContactRole.supplier || contact.role == ContactRole.both)
                   .toList();
               final supplierNameById = {
                 for (final supplier in suppliers) supplier.id: supplier.name,
@@ -48,29 +47,47 @@ class PurchaseOrdersScreen extends ConsumerWidget {
                   ref.invalidate(allContactsProvider);
                 },
                 child: ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppDimensions.pagePaddingH,
+                    vertical: AppDimensions.lg,
+                  ),
                   children: [
                     _PurchaseOrdersSummary(orders: orders),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: AppDimensions.xl),
                     if (orders.isEmpty)
-                      const _EmptyPurchaseOrdersState()
+                      const AppEmptyState(
+                        icon: Icons.inventory_2_outlined,
+                        title: 'No purchase orders yet',
+                        subtitle: 'Create a supplier purchase order to track incoming inventory.',
+                      )
                     else
                       ...orders.map(
                         (order) => _PurchaseOrderTile(
                           order: order,
                           supplierName: supplierNameById[order.supplierId] ?? 'Unknown Supplier',
-                          onTap: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => PurchaseOrderUpsertScreen(orderToEdit: order),
-                              ),
-                            );
-                          },
+                          onTap: () => _openEditOrder(context, ref, order),
                           onStatusSelected: (status) async {
+                            final allowed = await _ensureManagePurchasesPermission(
+                              context,
+                              ref,
+                              attemptedAction: 'update_purchase_order_status',
+                              entityId: order.id,
+                            );
+                            if (!allowed) return;
+
                             await ref
                                 .read(purchaseOrdersRepositoryProvider)
                                 .updatePurchaseOrderStatus(order.id, status);
+                            final actorRole = ref.read(currentRoleProvider);
+                            await ref.read(auditRepositoryProvider).logAction(
+                              actorRole: actorRole,
+                              action: 'purchase_order_status_updated',
+                              entityType: 'purchase_order',
+                              entityId: order.id,
+                              message: 'Purchase order ${order.id} set to ${status.name}.',
+                            );
                             ref.invalidate(allPurchaseOrdersProvider);
+                            ref.invalidate(recentAuditLogsProvider);
                           },
                         ),
                       ),
@@ -82,19 +99,68 @@ class PurchaseOrdersScreen extends ConsumerWidget {
         },
       ),
       floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: AppColors.primary,
-        onPressed: () {
+        onPressed: () async {
+          final allowed = await _ensureManagePurchasesPermission(
+            context,
+            ref,
+            attemptedAction: 'open_new_purchase_order',
+          );
+          if (!allowed) return;
           Navigator.of(context).push(
             MaterialPageRoute(
               builder: (_) => const PurchaseOrderUpsertScreen(),
             ),
           );
         },
-        icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text('New Order', style: TextStyle(color: Colors.white)),
+        icon: const Icon(Icons.add),
+        label: const Text('New Order'),
       ),
     );
   }
+
+  Future<void> _openEditOrder(BuildContext context, WidgetRef ref, PurchaseOrderModel order) async {
+    final allowed = await _ensureManagePurchasesPermission(
+      context,
+      ref,
+      attemptedAction: 'open_edit_purchase_order',
+      entityId: order.id,
+    );
+    if (!allowed) return;
+
+    if (!context.mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => PurchaseOrderUpsertScreen(orderToEdit: order),
+      ),
+    );
+  }
+}
+
+Future<bool> _ensureManagePurchasesPermission(
+  BuildContext context,
+  WidgetRef ref, {
+  required String attemptedAction,
+  String? entityId,
+}) async {
+  final allowed = ref.read(hasPermissionProvider(TeamPermission.managePurchases));
+  if (allowed) return true;
+
+  final actorRole = ref.read(currentRoleProvider);
+  await ref.read(auditRepositoryProvider).logAction(
+    actorRole: actorRole,
+    action: 'permission_denied',
+    entityType: 'purchase_order',
+    entityId: entityId,
+    message: 'Denied $attemptedAction for role ${actorRole.name}.',
+  );
+  ref.invalidate(recentAuditLogsProvider);
+
+  if (context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Permission denied.')),
+    );
+  }
+  return false;
 }
 
 class _PurchaseOrdersSummary extends StatelessWidget {
@@ -116,24 +182,66 @@ class _PurchaseOrdersSummary extends StatelessWidget {
         .length;
     final totalValue = orders.fold<Decimal>(Decimal.zero, (sum, order) => sum + order.subtotal);
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
+    return AppCard(
+      padding: const EdgeInsets.all(AppDimensions.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Purchase Summary', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
-          const SizedBox(height: 12),
-          Text('Total orders: ${orders.length}'),
-          Text('Draft orders: $draftCount'),
-          Text('Overdue bills: $dueCount'),
-          Text('Purchase value: ETB $totalValue'),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryLight.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
+                ),
+                child: const Icon(Icons.analytics_outlined, color: AppColors.primary),
+              ),
+              const SizedBox(width: AppDimensions.md),
+              Text('Purchase Summary', style: AppTextStyles.cardTitle.copyWith(fontSize: 18)),
+            ],
+          ),
+          const SizedBox(height: AppDimensions.lg),
+          Row(
+            children: [
+              Expanded(
+                child: _buildStatItem('Total Orders', orders.length.toString(), Colors.blue),
+              ),
+              Expanded(
+                child: _buildStatItem('Drafts', draftCount.toString(), AppColors.textSecondary),
+              ),
+              Expanded(
+                child: _buildStatItem('Overdue', dueCount.toString(), AppColors.negative),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppDimensions.lg),
+          Container(
+            padding: const EdgeInsets.all(AppDimensions.sm),
+            decoration: BoxDecoration(
+              color: AppColors.background,
+              borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Total Value Held', style: AppTextStyles.cardSubtitle),
+                Text('ETB $totalValue', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              ],
+            ),
+          )
         ],
       ),
+    );
+  }
+
+  Widget _buildStatItem(String label, String value, Color color) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(value, style: AppTextStyles.headlineSmall.copyWith(color: color)),
+        Text(label, style: AppTextStyles.badgeLabel.copyWith(color: AppColors.textSecondary)),
+      ],
     );
   }
 }
@@ -153,97 +261,45 @@ class _PurchaseOrderTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final statusLabel = switch (order.status) {
-      PurchaseOrderStatus.draft => 'Draft',
-      PurchaseOrderStatus.ordered => 'Ordered',
-      PurchaseOrderStatus.received => 'Received',
-      PurchaseOrderStatus.cancelled => 'Cancelled',
-    };
-    final isOverdue =
-        order.dueDate != null &&
+    final isOverdue = order.dueDate != null &&
         order.dueDate!.isBefore(DateTime.now()) &&
         order.status != PurchaseOrderStatus.received &&
         order.status != PurchaseOrderStatus.cancelled;
-    final dueLabel = order.dueDate?.toLocal().toString().split(' ').first ?? '-';
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Material(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(20),
-          child: ListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            leading: CircleAvatar(
-              backgroundColor: AppColors.primary.withValues(alpha: 0.12),
-              child: const Icon(Icons.shopping_cart_outlined, color: AppColors.primary),
-            ),
-            title: Text('ETB ${order.subtotal}', style: const TextStyle(fontWeight: FontWeight.w700)),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(supplierName),
-                  Text(
-                    'Status: $statusLabel • Due: $dueLabel',
-                    style: TextStyle(
-                      color: isOverdue ? Colors.redAccent : AppColors.textSecondary,
-                      fontWeight: isOverdue ? FontWeight.w600 : FontWeight.w400,
-                    ),
-                  ),
-                ],
-              ),
-              trailing: PopupMenuButton<PurchaseOrderStatus>(
-                icon: const Icon(Icons.more_vert),
-                onSelected: (value) {
-                  onStatusSelected(value);
-                },
-                itemBuilder: (context) => const [
-                  PopupMenuItem(
-                    value: PurchaseOrderStatus.ordered,
-                    child: Text('Mark Ordered'),
-                  ),
-                  PopupMenuItem(
-                    value: PurchaseOrderStatus.received,
-                    child: Text('Mark Received (Goods Receipt)'),
-                  ),
-                  PopupMenuItem(
-                    value: PurchaseOrderStatus.cancelled,
-                    child: Text('Cancel Order'),
-                  ),
-                  PopupMenuItem(
-                    value: PurchaseOrderStatus.draft,
-                    child: Text('Set Draft'),
-                  ),
-                ],
-              ),
-          ),
-        ),
-      ),
-    );
-  }
-}
+    final dueLabel = order.dueDate?.toLocal().toString().split(' ').first ?? 'No date';
 
-class _EmptyPurchaseOrdersState extends StatelessWidget {
-  const _EmptyPurchaseOrdersState();
+    Widget statusBadge = switch (order.status) {
+      PurchaseOrderStatus.draft => AppStatusBadge.neutral(label: 'DRAFT', small: true),
+      PurchaseOrderStatus.ordered => AppStatusBadge.warning(label: 'ORDERED', small: true),
+      PurchaseOrderStatus.received => AppStatusBadge.success(label: 'RECEIVED', small: true),
+      PurchaseOrderStatus.cancelled => AppStatusBadge.danger(label: 'CANCELLED', small: true),
+    };
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Column(
+    if (isOverdue && order.status != PurchaseOrderStatus.draft) {
+      statusBadge = AppStatusBadge.danger(label: 'OVERDUE', small: true);
+    }
+
+    return AppListTile(
+      leadingIcon: Icons.receipt_long_rounded,
+      leadingColor: AppColors.primary,
+      title: 'ETB ${order.subtotal}',
+      subtitle: '$supplierName\nDue: $dueLabel',
+      onTap: onTap,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.shopping_cart_outlined, size: 56, color: Colors.grey.shade300),
-          const SizedBox(height: 12),
-          const Text('No purchase orders yet.', style: TextStyle(fontWeight: FontWeight.w700)),
-          const SizedBox(height: 6),
-          const Text('Create a supplier purchase order to begin the buying flow.'),
+          statusBadge,
+          PopupMenuButton<PurchaseOrderStatus>(
+            icon: const Icon(Icons.more_vert_rounded, color: AppColors.textHint),
+            onSelected: onStatusSelected,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppDimensions.radiusMd)),
+            itemBuilder: (context) => const [
+              PopupMenuItem(value: PurchaseOrderStatus.ordered, child: Text('Mark Ordered')),
+              PopupMenuItem(value: PurchaseOrderStatus.received, child: Text('Mark Received')),
+              PopupMenuItem(value: PurchaseOrderStatus.draft, child: Text('Revert to Draft')),
+              PopupMenuItem(value: PurchaseOrderStatus.cancelled, child: Text('Cancel Order', style: TextStyle(color: AppColors.negative))),
+            ],
+          ),
         ],
       ),
     );

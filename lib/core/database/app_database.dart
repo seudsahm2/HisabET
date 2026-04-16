@@ -5,32 +5,40 @@ import 'package:drift/native.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 
+import 'package:hisabet/core/database/tables/audit_logs.dart';
 import 'package:hisabet/core/database/tables/contacts.dart';
 import 'package:hisabet/core/database/tables/expense_categories.dart';
 import 'package:hisabet/core/database/tables/expenses.dart';
 import 'package:hisabet/core/database/tables/products.dart';
+import 'package:hisabet/core/database/tables/promotion_redemptions.dart';
+import 'package:hisabet/core/database/tables/promotions.dart';
 import 'package:hisabet/core/database/tables/purchase_order_line_items.dart';
 import 'package:hisabet/core/database/tables/purchase_orders.dart';
 import 'package:hisabet/core/database/tables/suppliers.dart';
 import 'package:hisabet/core/database/tables/sale_line_items.dart';
 import 'package:hisabet/core/database/tables/sales.dart';
 import 'package:hisabet/core/database/tables/stock_movements.dart';
+import 'package:hisabet/core/database/tables/team_members.dart';
 import 'package:hisabet/core/database/tables/transactions.dart';
 
 part 'app_database.g.dart';
 
 @DriftDatabase(
   tables: [
+    AuditLogs,
     Contacts,
     ExpenseCategories,
     Expenses,
     Products,
+    Promotions,
+    PromotionRedemptions,
     PurchaseOrderLineItems,
     PurchaseOrders,
     Suppliers,
     Sales,
     SaleLineItems,
     StockMovements,
+    TeamMembers,
     Transactions,
   ],
 )
@@ -49,7 +57,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 16;
+  int get schemaVersion => 20;
 
   @override
   MigrationStrategy get migration {
@@ -138,6 +146,24 @@ class AppDatabase extends _$AppDatabase {
         if (from < 16) {
           await m.createTable(expenseCategories);
           await m.createTable(expenses);
+        }
+        if (from < 17) {
+          await m.createTable(teamMembers);
+        }
+        if (from < 18) {
+          await m.createTable(auditLogs);
+        }
+        if (from < 19) {
+          if (!await _hasColumn('contacts', 'credit_limit')) {
+            await m.addColumn(contacts, contacts.creditLimit);
+          }
+          if (!await _hasColumn('contacts', 'loyalty_points')) {
+            await m.addColumn(contacts, contacts.loyaltyPoints);
+          }
+        }
+        if (from < 20) {
+          await m.createTable(promotions);
+          await m.createTable(promotionRedemptions);
         }
       },
       beforeOpen: (details) async {

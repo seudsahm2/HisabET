@@ -1,16 +1,21 @@
 import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:hisabet/core/theme/app_colors.dart';
+import 'package:intl/intl.dart';
+
+import 'package:hisabet/core/presentation/widgets/widgets.dart';
+import 'package:hisabet/core/theme/theme.dart';
+
 import 'package:hisabet/features/contacts/data/models/contact_model.dart';
 import 'package:hisabet/features/contacts/presentation/providers/contacts_providers.dart';
 import 'package:hisabet/features/purchases/data/models/purchase_order_model.dart';
 import 'package:hisabet/features/purchases/presentation/providers/purchase_orders_providers.dart';
 import 'package:hisabet/features/suppliers/presentation/providers/suppliers_providers.dart';
 import 'package:hisabet/features/suppliers/presentation/screens/supplier_upsert_screen.dart';
+import 'package:hisabet/features/team/data/models/team_member_model.dart';
+import 'package:hisabet/features/team/presentation/providers/team_providers.dart';
 import 'package:hisabet/features/transactions/data/models/transaction_model.dart';
 import 'package:hisabet/features/transactions/presentation/providers/transactions_providers.dart';
-import 'package:intl/intl.dart';
 
 class SupplierDetailScreen extends ConsumerWidget {
   final String supplierId;
@@ -25,11 +30,9 @@ class SupplierDetailScreen extends ConsumerWidget {
     final ordersAsync = ref.watch(allPurchaseOrdersProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: AppColors.background,
-        elevation: 0,
-        title: const Text('Supplier Statement'),
+        title: const Text('B2B Profile / Tender History'),
         actions: [
           supplierAsync.when(
             loading: () => const SizedBox.shrink(),
@@ -37,13 +40,12 @@ class SupplierDetailScreen extends ConsumerWidget {
             data: (supplier) {
               if (supplier == null) return const SizedBox.shrink();
               return IconButton(
-                icon: const Icon(Icons.edit_outlined),
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => SupplierUpsertScreen(supplierToEdit: supplier),
-                    ),
-                  );
+                icon: const Icon(Icons.edit_rounded),
+                onPressed: () async {
+                  final allowed = await _ensureManagePurchasesPermission(context, ref, attemptedAction: 'open_edit_supplier_from_detail', entityId: supplier.id);
+                  if (!allowed) return;
+                  if (!context.mounted) return;
+                  Navigator.of(context).push(MaterialPageRoute(builder: (_) => SupplierUpsertScreen(supplierToEdit: supplier)));
                 },
               );
             },
@@ -56,14 +58,12 @@ class SupplierDetailScreen extends ConsumerWidget {
         data: (orders) {
           final supplierOrders = orders.where((order) => order.supplierId == supplierId).toList();
           final dueOrders = supplierOrders.where((order) {
-            final isOpen = order.status != PurchaseOrderStatus.received &&
-                order.status != PurchaseOrderStatus.cancelled;
+            final isOpen = order.status != PurchaseOrderStatus.received && order.status != PurchaseOrderStatus.cancelled;
             final dueDate = order.dueDate;
             return isOpen && dueDate != null && dueDate.isBefore(DateTime.now());
           }).toList();
           final dueSoonOrders = supplierOrders.where((order) {
-            final isOpen = order.status != PurchaseOrderStatus.received &&
-                order.status != PurchaseOrderStatus.cancelled;
+            final isOpen = order.status != PurchaseOrderStatus.received && order.status != PurchaseOrderStatus.cancelled;
             final dueDate = order.dueDate;
             if (!isOpen || dueDate == null) return false;
             final diff = dueDate.difference(DateTime.now()).inDays;
@@ -78,36 +78,32 @@ class SupplierDetailScreen extends ConsumerWidget {
               ref.invalidate(allPurchaseOrdersProvider);
             },
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+              padding: const EdgeInsets.symmetric(horizontal: AppDimensions.pagePaddingH, vertical: AppDimensions.lg),
               children: [
                 contactAsync.when(
                   loading: () => const SizedBox.shrink(),
                   error: (_, __) => const SizedBox.shrink(),
                   data: (contact) {
                     if (contact == null) return const SizedBox.shrink();
-                    return _SupplierHeaderCard(contact: contact);
+                    return _buildHeaderCard(contact);
                   },
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: AppDimensions.xl),
                 supplierAsync.when(
                   loading: () => const SizedBox.shrink(),
                   error: (_, __) => const SizedBox.shrink(),
                   data: (supplier) {
                     if (supplier == null) return const SizedBox.shrink();
-                    final totalDue = supplier.currentBalance;
-                    return _BalanceSummaryCard(
-                      payableBalance: totalDue,
-                      dueOrders: dueOrders,
-                      dueSoonOrders: dueSoonOrders,
-                    );
+                    return _buildBalanceCard(supplier.currentBalance, dueOrders, dueSoonOrders);
                   },
                 ),
-                const SizedBox(height: 12),
-                _ReminderCard(dueOrders: dueOrders, dueSoonOrders: dueSoonOrders),
-                const SizedBox(height: 12),
-                _StatementSection(transactionsAsync: transactionsAsync),
-                const SizedBox(height: 12),
-                _PurchaseOrdersSection(orders: supplierOrders),
+                const SizedBox(height: AppDimensions.xl),
+                _buildReminderCard(dueOrders, dueSoonOrders),
+                const SizedBox(height: AppDimensions.xl),
+                _buildStatementCard(transactionsAsync),
+                const SizedBox(height: AppDimensions.xl),
+                _buildTendersCard(supplierOrders),
+                const SizedBox(height: 100),
               ],
             ),
           );
@@ -115,80 +111,27 @@ class SupplierDetailScreen extends ConsumerWidget {
       ),
     );
   }
-}
 
-class _SupplierHeaderCard extends StatelessWidget {
-  final ContactModel contact;
-
-  const _SupplierHeaderCard({required this.contact});
-
-  @override
-  Widget build(BuildContext context) {
-    final status = switch (contact.verificationStatus) {
-      ContactVerificationStatus.verified => ('Verified', AppColors.give, Icons.verified),
-      ContactVerificationStatus.pending => (
-        'Pending',
-        const Color(0xFFB26A00),
-        Icons.schedule
-      ),
-      ContactVerificationStatus.expired => ('Expired', AppColors.take, Icons.cancel_outlined),
-      ContactVerificationStatus.unverified => (
-        'Unverified',
-        AppColors.textSecondary,
-        Icons.circle_outlined
-      ),
-    };
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
+  Widget _buildHeaderCard(ContactModel contact) {
+    final isVerified = contact.verificationStatus == ContactVerificationStatus.verified;
+    return AppCard(
+      padding: const EdgeInsets.all(AppDimensions.lg),
       child: Row(
         children: [
           CircleAvatar(
-            radius: 28,
-            backgroundColor: AppColors.primary.withValues(alpha: 0.12),
-            child: Text(
-              contact.name.isNotEmpty ? contact.name[0].toUpperCase() : '?',
-              style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary),
-            ),
+            radius: 30,
+            backgroundColor: AppColors.moduleSuppliers.withOpacity(0.15),
+            child: Text(contact.name.isNotEmpty ? contact.name[0].toUpperCase() : '?', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 24, color: AppColors.moduleSuppliers)),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: AppDimensions.md),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  contact.name,
-                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
-                ),
-                const SizedBox(height: 4),
-                if (contact.phoneNumber != null)
-                  Text(contact.phoneNumber!, style: TextStyle(color: AppColors.textSecondary)),
-                const SizedBox(height: 6),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: status.$2.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: status.$1 == 'Unverified'
-                        ? Text(
-                            status.$1,
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              color: status.$2,
-                            ),
-                          )
-                        : Icon(status.$3, size: 14, color: status.$2),
-                  ),
-                ),
+                Text(contact.name, style: AppTextStyles.cardTitle.copyWith(fontSize: 20)),
+                if (contact.phoneNumber != null) Text(contact.phoneNumber!, style: const TextStyle(color: AppColors.textSecondary)),
+                const SizedBox(height: 8),
+                if (isVerified) AppStatusBadge.success(label: 'Verified Corporate Entity', small: true) else AppStatusBadge.warning(label: 'Unverified Entity', small: true),
               ],
             ),
           ),
@@ -196,122 +139,81 @@ class _SupplierHeaderCard extends StatelessWidget {
       ),
     );
   }
-}
 
-class _BalanceSummaryCard extends StatelessWidget {
-  final Decimal payableBalance;
-  final List<PurchaseOrderModel> dueOrders;
-  final List<PurchaseOrderModel> dueSoonOrders;
-
-  const _BalanceSummaryCard({
-    required this.payableBalance,
-    required this.dueOrders,
-    required this.dueSoonOrders,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
+  Widget _buildBalanceCard(Decimal currentBalance, List<PurchaseOrderModel> dueOrders, List<PurchaseOrderModel> dueSoonOrders) {
+    return AppCard(
+      padding: const EdgeInsets.all(AppDimensions.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Payable Summary', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
-          const SizedBox(height: 12),
-          Text('Current balance: ETB $payableBalance'),
-          Text('Overdue orders: ${dueOrders.length}'),
-          Text('Due within 7 days: ${dueSoonOrders.length}'),
+          Text('Trade Balance', style: AppTextStyles.cardTitle),
+          const SizedBox(height: AppDimensions.md),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('ETB $currentBalance', style: AppTextStyles.headlineSmall.copyWith(color: AppColors.negative)),
+                    Text('Owed Receivable', style: AppTextStyles.badgeLabel),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('${dueOrders.length}', style: AppTextStyles.headlineSmall.copyWith(color: AppColors.negative)),
+                    Text('Delayed Payments', style: AppTextStyles.badgeLabel),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
   }
-}
 
-class _ReminderCard extends StatelessWidget {
-  final List<PurchaseOrderModel> dueOrders;
-  final List<PurchaseOrderModel> dueSoonOrders;
+  Widget _buildReminderCard(List<PurchaseOrderModel> dueOrders, List<PurchaseOrderModel> dueSoonOrders) {
+    if (dueOrders.isEmpty && dueSoonOrders.isEmpty) return const SizedBox.shrink();
 
-  const _ReminderCard({required this.dueOrders, required this.dueSoonOrders});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
+    return AppCard(
+      padding: const EdgeInsets.all(AppDimensions.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Due Reminders', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
-          const SizedBox(height: 12),
-          if (dueOrders.isEmpty && dueSoonOrders.isEmpty)
-            const Text('No upcoming supplier due reminders.'),
+          Text('Active Alerts', style: AppTextStyles.cardTitle),
+          const SizedBox(height: AppDimensions.md),
           if (dueOrders.isNotEmpty) ...[
-            const Text('Overdue', style: TextStyle(fontWeight: FontWeight.w600, color: Colors.redAccent)),
+            const Text('Overdue Tenders', style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.negative)),
             const SizedBox(height: 8),
-            ...dueOrders.map(
-              (order) => _ReminderRow(
-                title: 'ETB ${order.subtotal}',
-                subtitle: 'Due ${DateFormat('MMM d, yyyy').format(order.dueDate!)}',
-                isOverdue: true,
-              ),
-            ),
+            ...dueOrders.map((o) => _buildAlertRow('Tender Value: ETB ${o.subtotal}', 'Due: ${DateFormat('MMM d').format(o.dueDate!)}', true)),
           ],
           if (dueSoonOrders.isNotEmpty) ...[
-            if (dueOrders.isNotEmpty) const SizedBox(height: 12),
-            const Text('Due Soon', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFFB26A00))),
+            const SizedBox(height: AppDimensions.md),
+            const Text('Pending Execution', style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.warning)),
             const SizedBox(height: 8),
-            ...dueSoonOrders.map(
-              (order) => _ReminderRow(
-                title: 'ETB ${order.subtotal}',
-                subtitle: 'Due ${DateFormat('MMM d, yyyy').format(order.dueDate!)}',
-                isOverdue: false,
-              ),
-            ),
+            ...dueSoonOrders.map((o) => _buildAlertRow('Tender Value: ETB ${o.subtotal}', 'Due: ${DateFormat('MMM d').format(o.dueDate!)}', false)),
           ],
         ],
       ),
     );
   }
-}
 
-class _ReminderRow extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final bool isOverdue;
-
-  const _ReminderRow({
-    required this.title,
-    required this.subtitle,
-    required this.isOverdue,
-  });
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildAlertRow(String title, String subtitle, bool isError) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: 8.0),
       child: Row(
         children: [
-          Icon(
-            isOverdue ? Icons.warning_amber_rounded : Icons.schedule,
-            color: isOverdue ? Colors.redAccent : const Color(0xFFB26A00),
-            size: 18,
-          ),
-          const SizedBox(width: 8),
+          Icon(isError ? Icons.warning_rounded : Icons.schedule_rounded, color: isError ? AppColors.negative : AppColors.warning, size: 20),
+          const SizedBox(width: AppDimensions.sm),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-                Text(subtitle, style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+                Text(subtitle, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
               ],
             ),
           ),
@@ -319,71 +221,44 @@ class _ReminderRow extends StatelessWidget {
       ),
     );
   }
-}
 
-class _StatementSection extends StatelessWidget {
-  final AsyncValue<List<TransactionModel>> transactionsAsync;
-
-  const _StatementSection({required this.transactionsAsync});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: transactionsAsync.when(
+  Widget _buildStatementCard(AsyncValue<List<TransactionModel>> txAsync) {
+    return AppCard(
+      padding: const EdgeInsets.all(AppDimensions.lg),
+      child: txAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, stack) => Text('Error: $err'),
         data: (transactions) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Statement / Ledger', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
-              const SizedBox(height: 12),
+              Text('Market Ledger', style: AppTextStyles.cardTitle),
+              const SizedBox(height: AppDimensions.md),
               if (transactions.isEmpty)
-                const Text('No ledger entries yet.')
+                const Text('No transactions mapped to this vendor.', style: TextStyle(color: AppColors.textSecondary))
               else
-                ...transactions.take(8).map(
-                  (tx) => Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
+                ...transactions.take(8).map((tx) {
+                  final confirmed = tx.status == TransactionStatus.confirmed;
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8.0),
                     child: Row(
                       children: [
-                        Icon(
-                          tx.status == TransactionStatus.confirmed
-                              ? Icons.verified
-                              : tx.status == TransactionStatus.pending
-                                  ? Icons.schedule
-                                  : Icons.circle_outlined,
-                          size: 16,
-                          color: tx.status == TransactionStatus.confirmed
-                              ? AppColors.give
-                              : const Color(0xFFB26A00),
-                        ),
-                        const SizedBox(width: 8),
+                        Icon(confirmed ? Icons.verified_rounded : Icons.pending_rounded, size: 18, color: confirmed ? AppColors.positive : AppColors.warning),
+                        const SizedBox(width: AppDimensions.sm),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                _labelFor(tx),
-                                style: const TextStyle(fontWeight: FontWeight.w600),
-                              ),
-                              Text(
-                                DateFormat('MMM d, yyyy').format(tx.date),
-                                style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
-                              ),
+                              Text(tx.description ?? tx.type.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
+                              Text(DateFormat('MMM d, yyyy').format(tx.date), style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
                             ],
                           ),
                         ),
-                        Text('${tx.amount}'),
+                        Text('ETB ${tx.amount}', style: const TextStyle(fontWeight: FontWeight.bold)),
                       ],
                     ),
-                  ),
-                ),
+                  );
+                }),
             ],
           );
         },
@@ -391,77 +266,51 @@ class _StatementSection extends StatelessWidget {
     );
   }
 
-  String _labelFor(TransactionModel tx) {
-    switch (tx.type) {
-      case TransactionType.goodsGiven:
-        return 'Goods given';
-      case TransactionType.goodsTaken:
-        return 'Goods taken';
-      case TransactionType.paymentGiven:
-        return 'Payment given';
-      case TransactionType.paymentReceived:
-        return 'Payment received';
-    }
-  }
-}
-
-class _PurchaseOrdersSection extends StatelessWidget {
-  final List<PurchaseOrderModel> orders;
-
-  const _PurchaseOrdersSection({required this.orders});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
+  Widget _buildTendersCard(List<PurchaseOrderModel> orders) {
+    return AppCard(
+      padding: const EdgeInsets.all(AppDimensions.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Purchase Orders', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
-          const SizedBox(height: 12),
+          Text('B2B Tenders', style: AppTextStyles.cardTitle),
+          const SizedBox(height: AppDimensions.md),
           if (orders.isEmpty)
-            const Text('No purchase orders recorded for this supplier.')
+            const Text('No tenders or orders tied to this vendor.', style: TextStyle(color: AppColors.textSecondary))
           else
-            ...orders.take(8).map(
-              (order) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
+            ...orders.take(8).map((o) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8.0),
                 child: Row(
                   children: [
-                    Icon(
-                      order.status == PurchaseOrderStatus.received
-                          ? Icons.check_circle_outline
-                          : order.status == PurchaseOrderStatus.draft
-                              ? Icons.edit_note
-                              : Icons.local_shipping_outlined,
-                      size: 16,
-                      color: order.status == PurchaseOrderStatus.received
-                          ? AppColors.give
-                          : const Color(0xFFB26A00),
-                    ),
-                    const SizedBox(width: 8),
+                    const Icon(Icons.assignment_rounded, size: 18, color: AppColors.moduleOrders),
+                    const SizedBox(width: AppDimensions.sm),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('ETB ${order.subtotal}', style: const TextStyle(fontWeight: FontWeight.w600)),
-                          Text(
-                            '${DateFormat('MMM d, yyyy').format(order.orderDate)} • ${order.status.name}',
-                            style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
-                          ),
+                          Text('ETB ${o.subtotal}', style: const TextStyle(fontWeight: FontWeight.w600)),
+                          Text('${DateFormat('MMM d, yyyy').format(o.orderDate)} • ${o.status.name.toUpperCase()}', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
                         ],
                       ),
                     ),
                   ],
                 ),
-              ),
-            ),
+              );
+            }),
         ],
       ),
     );
+  }
+
+  Future<bool> _ensureManagePurchasesPermission(BuildContext context, WidgetRef ref, {required String attemptedAction, String? entityId}) async {
+    final allowed = ref.read(hasPermissionProvider(TeamPermission.managePurchases));
+    if (allowed) return true;
+
+    final actorRole = ref.read(currentRoleProvider);
+    await ref.read(auditRepositoryProvider).logAction(actorRole: actorRole, action: 'permission_denied', entityType: 'supplier', entityId: entityId, message: 'Denied $attemptedAction for role ${actorRole.name}.');
+    ref.invalidate(recentAuditLogsProvider);
+
+    if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Permission denied.')));
+    return false;
   }
 }

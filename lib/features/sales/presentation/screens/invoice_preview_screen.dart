@@ -1,12 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:hisabet/core/theme/app_colors.dart';
+import 'package:printing/printing.dart';
+import 'package:decimal/decimal.dart';
+import 'package:intl/intl.dart';
+
+import 'package:hisabet/core/presentation/widgets/widgets.dart';
+import 'package:hisabet/core/theme/theme.dart';
+
 import 'package:hisabet/features/sales/data/models/sale_line_item_model.dart';
 import 'package:hisabet/features/sales/data/models/sale_model.dart';
 import 'package:hisabet/features/sales/data/services/invoice_pdf_service.dart';
 import 'package:hisabet/features/sales/presentation/providers/sales_providers.dart';
-import 'package:printing/printing.dart';
+import 'package:hisabet/features/settings/data/models/app_settings_model.dart';
+import 'package:hisabet/features/settings/presentation/providers/settings_providers.dart';
 
 class InvoicePreviewScreen extends ConsumerWidget {
   final String saleId;
@@ -16,41 +23,28 @@ class InvoicePreviewScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final invoiceAsync = ref.watch(saleInvoiceProvider(saleId));
+    final settings = ref.watch(appSettingsProvider).valueOrNull ?? AppSettingsModel.defaults();
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text('Invoice Preview'),
-        backgroundColor: AppColors.background,
-        elevation: 0,
+        title: const Text('Invoice Details'),
         actions: [
           invoiceAsync.when(
             loading: () => const SizedBox.shrink(),
-            error: (_, __) => const SizedBox.shrink(),
+            error: (error, stackTrace) => const SizedBox.shrink(),
             data: (invoiceData) {
               return IconButton(
                 icon: const Icon(Icons.print_outlined),
                 onPressed: () async {
                   try {
                     await Printing.layoutPdf(
-                      onLayout: (format) => InvoicePdfService.buildInvoicePdf(invoiceData),
+                      onLayout: (format) => InvoicePdfService.buildInvoicePdf(invoiceData, settings: settings),
                     );
                   } on MissingPluginException {
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Printing is not registered in the current running app. Stop and run the app again to load the plugin.',
-                          ),
-                        ),
-                      );
-                    }
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Plugin not registered.')));
                   } catch (e) {
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Print failed: $e')),
-                      );
-                    }
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Print failed: $e')));
                   }
                 },
               );
@@ -71,7 +65,7 @@ class InvoicePreviewScreen extends ConsumerWidget {
             children: [
               Expanded(
                 child: ListView(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(AppDimensions.pagePaddingH),
                   children: [
                     _InvoicePreviewCard(
                       saleId: sale.id,
@@ -80,6 +74,7 @@ class InvoicePreviewScreen extends ConsumerWidget {
                       bundleLines: bundleLines,
                       singleLines: singleLines,
                       sale: sale,
+                      settings: settings,
                     ),
                   ],
                 ),
@@ -87,42 +82,27 @@ class InvoicePreviewScreen extends ConsumerWidget {
               SafeArea(
                 top: false,
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                  padding: const EdgeInsets.all(AppDimensions.pagePaddingH),
                   child: SizedBox(
                     width: double.infinity,
-                    height: 52,
+                    height: 56,
                     child: ElevatedButton.icon(
                       onPressed: () async {
                         try {
-                          final pdfBytes = await InvoicePdfService.buildInvoicePdf(invoiceData);
+                          final pdfBytes = await InvoicePdfService.buildInvoicePdf(invoiceData, settings: settings);
                           await Printing.sharePdf(
                             bytes: pdfBytes,
-                            filename: 'invoice_${sale.id.substring(0, 8)}.pdf',
+                            filename: '${settings.invoicePrefix.toLowerCase()}_${sale.id.substring(0, 8)}.pdf',
                           );
                         } on MissingPluginException {
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Sharing is not registered in the current running app. Stop and run the app again to load the plugin.',
-                                ),
-                              ),
-                            );
-                          }
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Plugin not registered.')));
                         } catch (e) {
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Share failed: $e')),
-                            );
-                          }
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Share failed: $e')));
                         }
                       },
-                      icon: const Icon(Icons.share),
-                      label: const Text('Share PDF Invoice'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.white,
-                      ),
+                      icon: const Icon(Icons.share, color: Colors.white),
+                      label: const Text('SHARE RECEIPT', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
                     ),
                   ),
                 ),
@@ -133,7 +113,6 @@ class InvoicePreviewScreen extends ConsumerWidget {
       ),
     );
   }
-
 }
 
 class _InvoicePreviewCard extends StatelessWidget {
@@ -143,6 +122,7 @@ class _InvoicePreviewCard extends StatelessWidget {
   final List<SaleLineItemModel> bundleLines;
   final List<SaleLineItemModel> singleLines;
   final SaleModel sale;
+  final AppSettingsModel settings;
 
   const _InvoicePreviewCard({
     required this.saleId,
@@ -151,117 +131,193 @@ class _InvoicePreviewCard extends StatelessWidget {
     required this.bundleLines,
     required this.singleLines,
     required this.sale,
+    required this.settings,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
+    return AppCard(
+      padding: const EdgeInsets.all(AppDimensions.xl),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'HisabET Invoice',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-          Text('Invoice #: ${saleId.substring(0, 8).toUpperCase()}'),
-          Text('Date: $saleDate'),
-          if (customerName != null && customerName!.trim().isNotEmpty)
-            Text('Customer: $customerName'),
-          const SizedBox(height: 14),
-
-          if (bundleLines.isNotEmpty) ...[
-            const Text(
-              'Bundle Products',
-              style: TextStyle(fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 8),
-            ...bundleLines.map(
-              (line) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(line.productName, style: const TextStyle(fontWeight: FontWeight.w600)),
-                    Text(
-                      '${line.quantity} carton(s) x ETB ${line.pricePerCarton} /carton = ETB ${line.lineTotal}',
-                      style: const TextStyle(color: AppColors.textSecondary),
-                    ),
+                    Text(settings.businessName.toUpperCase(), style: AppTextStyles.headlineSmall.copyWith(letterSpacing: 1.2)),
+                    const SizedBox(height: 4),
+                    Text('INVOICE #${settings.invoicePrefix}-${saleId.substring(0, 8).toUpperCase()}', style: AppTextStyles.mono.copyWith(color: AppColors.textSecondary)),
+                    const SizedBox(height: AppDimensions.sm),
+                    Text(DateFormat('MMM dd, yyyy • hh:mm a').format(saleDate), style: AppTextStyles.cardSubtitle),
                   ],
                 ),
               ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: (sale.total - sale.paidAmount <= Decimal.zero) ? AppColors.positiveLight : AppColors.warningLight,
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
+                ),
+                child: Text(
+                  (sale.total - sale.paidAmount <= Decimal.zero) ? 'PAID' : 'DUE',
+                  style: TextStyle(
+                    color: (sale.total - sale.paidAmount <= Decimal.zero) ? AppColors.positive : AppColors.warning,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              )
+            ],
+          ),
+          const SizedBox(height: AppDimensions.xl),
+          const Divider(height: 1),
+          const SizedBox(height: AppDimensions.md),
+
+          if (settings.businessPhone?.trim().isNotEmpty == true || settings.businessAddress?.trim().isNotEmpty == true || (customerName != null && customerName!.trim().isNotEmpty)) ...[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (settings.businessPhone?.trim().isNotEmpty == true || settings.businessAddress?.trim().isNotEmpty == true)
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('FROM:', style: AppTextStyles.sectionLabel),
+                        const SizedBox(height: 4),
+                        if (settings.businessPhone?.trim().isNotEmpty == true) Text(settings.businessPhone!, style: AppTextStyles.cardSubtitle),
+                        if (settings.businessAddress?.trim().isNotEmpty == true) Text(settings.businessAddress!, style: AppTextStyles.cardSubtitle),
+                      ],
+                    ),
+                  ),
+                if (customerName != null && customerName!.trim().isNotEmpty)
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('BILLED TO:', style: AppTextStyles.sectionLabel),
+                        const SizedBox(height: 4),
+                        Text(customerName!, style: AppTextStyles.cardTitle),
+                      ],
+                    ),
+                  ),
+              ],
             ),
-            const Divider(),
+            const SizedBox(height: AppDimensions.md),
+            const Divider(height: 1),
+            const SizedBox(height: AppDimensions.xl),
+          ],
+
+          if (bundleLines.isNotEmpty) ...[
+            Text('BUNDLE PURCHASES', style: AppTextStyles.sectionLabel),
+            const SizedBox(height: AppDimensions.sm),
+            ...bundleLines.map((line) => _InvoiceItemRow(
+                  name: line.productName,
+                  quantity: '${line.quantity} CTN',
+                  price: '${settings.currencySymbol} ${line.pricePerCarton}',
+                  total: '${settings.currencySymbol} ${line.lineTotal}',
+                )),
+            const SizedBox(height: AppDimensions.md),
           ],
 
           if (singleLines.isNotEmpty) ...[
-            const Text(
-              'Single Products',
-              style: TextStyle(fontWeight: FontWeight.w700),
+            Text('SINGLE PURCHASES', style: AppTextStyles.sectionLabel),
+            const SizedBox(height: AppDimensions.sm),
+            ...singleLines.map((line) => _InvoiceItemRow(
+                  name: line.productName,
+                  quantity: line.quantity.toString(),
+                  price: '${settings.currencySymbol} ${line.unitPrice}',
+                  total: '${settings.currencySymbol} ${line.lineTotal}',
+                )),
+            const SizedBox(height: AppDimensions.md),
+          ],
+          
+          const Divider(height: 1),
+          const SizedBox(height: AppDimensions.xl),
+          
+          _summaryRow('Subtotal', sale.subtotal.toString(), settings.currencySymbol),
+          if (sale.discount > Decimal.zero) _summaryRow('Discount', sale.discount.toString(), settings.currencySymbol, isNegative: true),
+          if (sale.tax > Decimal.zero) _summaryRow('Tax', sale.tax.toString(), settings.currencySymbol),
+          
+          const SizedBox(height: AppDimensions.md),
+          Container(
+            padding: const EdgeInsets.all(AppDimensions.md),
+            decoration: BoxDecoration(
+              color: AppColors.background,
+              borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
             ),
-            const SizedBox(height: 8),
-            ...singleLines.map(
-              (line) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        line.productName,
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                    Text('${line.quantity} x ${line.unitPrice}'),
-                    const SizedBox(width: 8),
-                    Text('ETB ${line.lineTotal}'),
-                  ],
-                ),
+            child: Column(
+              children: [
+                _summaryRow('GRAND TOTAL', sale.total.toString(), settings.currencySymbol, isBold: true),
+                const Divider(height: AppDimensions.lg),
+                _summaryRow('Amount Paid', sale.paidAmount.toString(), settings.currencySymbol),
+                _summaryRow('Amount Due', (sale.total - sale.paidAmount).toString(), settings.currencySymbol, isBold: true, color: (sale.total - sale.paidAmount > Decimal.zero) ? AppColors.negative : null),
+              ],
+            ),
+          ),
+
+          if (settings.invoiceFooter.trim().isNotEmpty) ...[
+            const SizedBox(height: AppDimensions.xxl),
+            Center(
+              child: Text(
+                settings.invoiceFooter,
+                style: AppTextStyles.cardSubtitle.copyWith(fontStyle: FontStyle.italic),
+                textAlign: TextAlign.center,
               ),
             ),
-            const Divider(),
           ],
+        ],
+      ),
+    );
+  }
 
-          const SizedBox(height: 8),
-          _summaryRow('Subtotal', sale.subtotal.toString()),
-          _summaryRow('Discount', sale.discount.toString()),
-          _summaryRow('Tax', sale.tax.toString()),
-          const SizedBox(height: 6),
-          _summaryRow('Total', sale.total.toString(), bold: true),
-          _summaryRow('Paid', sale.paidAmount.toString()),
-          _summaryRow('Due', (sale.total - sale.paidAmount).toString(), bold: true),
+  Widget _summaryRow(String label, String value, String currency, {bool isBold = false, bool isNegative = false, Color? color}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: AppTextStyles.cardSubtitle.copyWith(fontWeight: isBold ? FontWeight.bold : FontWeight.normal, color: color)),
+          Text('${isNegative ? '-' : ''}$currency $value', style: AppTextStyles.cardTitle.copyWith(fontWeight: isBold ? FontWeight.bold : FontWeight.w600, color: color)),
         ],
       ),
     );
   }
 }
 
-Widget _summaryRow(String label, String value, {bool bold = false}) {
-  return Padding(
-    padding: const EdgeInsets.symmetric(vertical: 2),
-    child: Row(
-      children: [
-        Expanded(
-          child: Text(
-            label,
-            style: TextStyle(
-              color: AppColors.textSecondary,
-              fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
+class _InvoiceItemRow extends StatelessWidget {
+  final String name;
+  final String quantity;
+  final String price;
+  final String total;
+
+  const _InvoiceItemRow({required this.name, required this.quantity, required this.price, required this.total});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppDimensions.sm),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            flex: 3,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name, style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w600)),
+                Text('$quantity x $price', style: AppTextStyles.cardSubtitle),
+              ],
             ),
           ),
-        ),
-        Text(
-          'ETB $value',
-          style: TextStyle(
-            fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
+          Expanded(
+            flex: 1,
+            child: Text(total, textAlign: TextAlign.right, style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w600)),
           ),
-        ),
-      ],
-    ),
-  );
+        ],
+      ),
+    );
+  }
 }

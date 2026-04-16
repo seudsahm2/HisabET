@@ -15,11 +15,14 @@ abstract class SalesRepository {
     Decimal paidAmount,
     required String paymentMethod,
     String? note,
+    String? promotionId,
+    String? promotionCode,
   });
 
   Future<List<SaleModel>> getRecentSales({int limit = 30});
   Future<SaleModel?> getSaleById(String saleId);
   Future<List<SaleLineItemModel>> getSaleLineItems(String saleId);
+  Future<void> updateSaleStatus(String saleId, String status);
 }
 
 class SalesRepositoryImpl implements SalesRepository {
@@ -36,6 +39,8 @@ class SalesRepositoryImpl implements SalesRepository {
     Decimal? paidAmount,
     required String paymentMethod,
     String? note,
+    String? promotionId,
+    String? promotionCode,
   }) async {
     if (cartItems.isEmpty) {
       throw Exception('Cart is empty.');
@@ -59,9 +64,9 @@ class SalesRepositoryImpl implements SalesRepository {
 
     await _db.transaction(() async {
       for (final item in cartItems) {
-        final product = await (_db.select(_db.products)
-              ..where((tbl) => tbl.id.equals(item.product.id)))
-            .getSingleOrNull();
+        final product = await (_db.select(
+          _db.products,
+        )..where((tbl) => tbl.id.equals(item.product.id))).getSingleOrNull();
 
         if (product == null) {
           throw Exception('Product not found: ${item.product.name}');
@@ -74,7 +79,9 @@ class SalesRepositoryImpl implements SalesRepository {
         }
       }
 
-      await _db.into(_db.sales).insert(
+      await _db
+          .into(_db.sales)
+          .insert(
             SalesCompanion.insert(
               id: saleId,
               customerName: Value(customerName),
@@ -89,10 +96,42 @@ class SalesRepositoryImpl implements SalesRepository {
             ),
           );
 
+      if (promotionId != null && discountValue > Decimal.zero) {
+        await _db
+            .into(_db.promotionRedemptions)
+            .insert(
+              PromotionRedemptionsCompanion.insert(
+                id: const Uuid().v4(),
+                promotionId: promotionId,
+                saleId: saleId,
+                codeSnapshot: promotionCode ?? '',
+                discountApplied: discountValue.toString(),
+                subtotal: subtotal.toString(),
+                createdAt: now,
+              ),
+            );
+
+        final promoRow = await (_db.select(
+          _db.promotions,
+        )..where((tbl) => tbl.id.equals(promotionId))).getSingleOrNull();
+        if (promoRow != null) {
+          await (_db.update(
+            _db.promotions,
+          )..where((tbl) => tbl.id.equals(promotionId))).write(
+            PromotionsCompanion(
+              usedCount: Value(promoRow.usedCount + 1),
+              updatedAt: Value(now),
+            ),
+          );
+        }
+      }
+
       for (final item in cartItems) {
         final lineItemId = const Uuid().v4();
 
-        await _db.into(_db.saleLineItems).insert(
+        await _db
+            .into(_db.saleLineItems)
+            .insert(
               SaleLineItemsCompanion.insert(
                 id: lineItemId,
                 saleId: saleId,
@@ -109,16 +148,18 @@ class SalesRepositoryImpl implements SalesRepository {
 
         final updatedStock = item.product.stockQuantity - item.quantity;
 
-        await (_db.update(_db.products)
-              ..where((tbl) => tbl.id.equals(item.product.id)))
-            .write(
+        await (_db.update(
+          _db.products,
+        )..where((tbl) => tbl.id.equals(item.product.id))).write(
           ProductsCompanion(
             stockQuantity: Value(updatedStock),
             updatedAt: Value(now),
           ),
         );
 
-        await _db.into(_db.stockMovements).insert(
+        await _db
+            .into(_db.stockMovements)
+            .insert(
               StockMovementsCompanion.insert(
                 id: const Uuid().v4(),
                 productId: item.product.id,
@@ -134,27 +175,37 @@ class SalesRepositoryImpl implements SalesRepository {
 
   @override
   Future<List<SaleModel>> getRecentSales({int limit = 30}) async {
-    final rows = await (_db.select(_db.sales)
-          ..orderBy([(tbl) => OrderingTerm.desc(tbl.createdAt)])
-          ..limit(limit))
-        .get();
+    final rows =
+        await (_db.select(_db.sales)
+              ..orderBy([(tbl) => OrderingTerm.desc(tbl.createdAt)])
+              ..limit(limit))
+            .get();
 
     return rows.map(SaleModel.fromDb).toList();
   }
 
   @override
   Future<SaleModel?> getSaleById(String saleId) async {
-    final row = await (_db.select(_db.sales)..where((tbl) => tbl.id.equals(saleId)))
-        .getSingleOrNull();
+    final row = await (_db.select(
+      _db.sales,
+    )..where((tbl) => tbl.id.equals(saleId))).getSingleOrNull();
     return row == null ? null : SaleModel.fromDb(row);
   }
 
   @override
   Future<List<SaleLineItemModel>> getSaleLineItems(String saleId) async {
-    final rows = await (_db.select(_db.saleLineItems)
-          ..where((tbl) => tbl.saleId.equals(saleId))
-          ..orderBy([(tbl) => OrderingTerm.asc(tbl.productName)]))
-        .get();
+    final rows =
+        await (_db.select(_db.saleLineItems)
+              ..where((tbl) => tbl.saleId.equals(saleId))
+              ..orderBy([(tbl) => OrderingTerm.asc(tbl.productName)]))
+            .get();
     return rows.map(SaleLineItemModel.fromDb).toList();
+  }
+
+  @override
+  Future<void> updateSaleStatus(String saleId, String status) async {
+    await (_db.update(_db.sales)..where((tbl) => tbl.id.equals(saleId))).write(
+      SalesCompanion(status: Value(status)),
+    );
   }
 }

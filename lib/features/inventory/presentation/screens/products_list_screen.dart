@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:decimal/decimal.dart';
-import 'package:hisabet/core/theme/app_colors.dart';
+
+import 'package:hisabet/core/presentation/widgets/widgets.dart';
+import 'package:hisabet/core/theme/theme.dart';
+
 import 'package:hisabet/features/inventory/data/models/product_model.dart';
 import 'package:hisabet/features/inventory/presentation/providers/products_providers.dart';
 import 'package:hisabet/features/inventory/presentation/screens/product_upsert_screen.dart';
+import 'package:hisabet/features/team/data/models/team_member_model.dart';
+import 'package:hisabet/features/team/presentation/providers/team_providers.dart';
 
 class ProductsListScreen extends ConsumerWidget {
   const ProductsListScreen({super.key});
@@ -17,124 +22,141 @@ class ProductsListScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final productsAsync = ref.watch(allProductsProvider);
 
-    return DefaultTabController(
-      length: 2,
-      child: Scaffold(
-        backgroundColor: AppColors.background,
-        appBar: AppBar(
-          title: const Text('Inventory Products'),
-          backgroundColor: AppColors.background,
-          elevation: 0,
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.search),
-              onPressed: () {},
-            ),
-          ],
-          bottom: const TabBar(
-            tabs: [
-              Tab(text: 'Single Items'),
-              Tab(text: 'Bundle Items'),
-            ],
-          ),
-        ),
-        body: productsAsync.when(
+    return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      appBar: AppBar(
+        title: const Text('Inventory Library'),
+      ),
+      body: productsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, stack) => Center(child: Text('Error: $err')),
         data: (products) {
           final singleItems = products.where((product) => !_isBundle(product)).toList();
           final bundleItems = products.where(_isBundle).toList();
 
-          return TabBarView(
-            children: [
-              _InventoryTypeList(
-                products: singleItems,
-                emptyMessage: 'No single items yet.',
-                onRefresh: () async {
-                  ref.invalidate(allProductsProvider);
-                  ref.invalidate(lowStockProductsProvider);
-                },
-              ),
-              _InventoryTypeList(
-                products: bundleItems,
-                emptyMessage: 'No bundle items yet.',
-                onRefresh: () async {
-                  ref.invalidate(allProductsProvider);
-                  ref.invalidate(lowStockProductsProvider);
-                },
-              ),
-            ],
+          return DefaultTabController(
+            length: 2,
+            child: Column(
+              children: [
+                const TabBar(
+                  tabs: [
+                    Tab(text: 'Single Items'),
+                    Tab(text: 'Bundle Items'),
+                  ],
+                ),
+                Expanded(
+                  child: TabBarView(
+                    children: [
+                      _InventoryTypeList(
+                        products: singleItems,
+                        emptyMessage: 'No single products in your inventory.',
+                        onCreateProduct: () => _handleCreateProduct(context, ref),
+                        onRefresh: () async {
+                          ref.invalidate(allProductsProvider);
+                          ref.invalidate(lowStockProductsProvider);
+                        },
+                      ),
+                      _InventoryTypeList(
+                        products: bundleItems,
+                        emptyMessage: 'No bundles or complex units yet.',
+                        onCreateProduct: () => _handleCreateProduct(context, ref),
+                        onRefresh: () async {
+                          ref.invalidate(allProductsProvider);
+                          ref.invalidate(lowStockProductsProvider);
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           );
         },
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        backgroundColor: AppColors.primary,
+        onPressed: () => _handleCreateProduct(context, ref),
+        icon: const Icon(Icons.add, color: Colors.white),
+        label: const Text(
+          'Add Product',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
-        floatingActionButton: FloatingActionButton.extended(
-          backgroundColor: AppColors.primary,
-          onPressed: () {
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => const ProductUpsertScreen(),
-              ),
-            );
-          },
-          icon: const Icon(Icons.add, color: Colors.white),
-          label: const Text(
-            'Add Product',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-          ),
-        ),
+      ),
+    );
+  }
+
+  Future<void> _handleCreateProduct(BuildContext context, WidgetRef ref) async {
+    final allowed = await _ensureManageInventoryPermission(
+      context,
+      ref,
+      attemptedAction: 'open_create_product',
+    );
+    if (!allowed) return;
+    if (!context.mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const ProductUpsertScreen(),
       ),
     );
   }
 }
 
-class _InventoryTypeList extends StatelessWidget {
+class _InventoryTypeList extends ConsumerWidget {
   final List<ProductModel> products;
   final String emptyMessage;
   final Future<void> Function() onRefresh;
+  final Future<void> Function() onCreateProduct;
 
   const _InventoryTypeList({
     required this.products,
     required this.emptyMessage,
     required this.onRefresh,
+    required this.onCreateProduct,
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     if (products.isEmpty) {
-      return _EmptyProductsState(
-        message: emptyMessage,
-        onCreateProduct: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => const ProductUpsertScreen(),
-            ),
-          );
-        },
+      return AppEmptyState(
+        icon: Icons.inventory_2_outlined,
+        title: 'Empty Inventory',
+        subtitle: emptyMessage,
+        actionLabel: 'Create Product',
+        onAction: () => onCreateProduct(),
       );
     }
 
     return RefreshIndicator(
       onRefresh: onRefresh,
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
-        children: [
-          _InventorySummary(products: products),
-          const SizedBox(height: 12),
-          ...products.map(
-            (product) => _ProductTile(
-              product: product,
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => ProductUpsertScreen(
-                      productToEdit: product,
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
+      child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.symmetric(
+            horizontal: AppDimensions.pagePaddingH, vertical: AppDimensions.lg),
+        itemCount: products.length + 1, // +1 for the summary header
+        itemBuilder: (context, index) {
+          if (index == 0) {
+            return _InventorySummary(products: products);
+          }
+          final product = products[index - 1];
+          return _ProductTile(
+            product: product,
+            onTap: () async {
+              final allowed = await _ensureManageInventoryPermission(
+                context,
+                ref,
+                attemptedAction: 'open_edit_product',
+                entityId: product.id,
+              );
+              if (!allowed) return;
+              if (!context.mounted) return;
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => ProductUpsertScreen(productToEdit: product),
+                ),
+              );
+            },
+          );
+        },
       ),
     );
   }
@@ -151,103 +173,43 @@ class _ProductTile extends StatelessWidget {
     final isLowStock = product.isLowStock;
     final isBundle = product.unit.toLowerCase() == 'carton' || product.itemsPerCarton != null;
     final itemsPerCarton = product.itemsPerCarton ?? 0;
-    final individualPrice = product.sellingPrice;
-    final cartonPrice = itemsPerCarton > 0
-        ? individualPrice * Decimal.fromInt(itemsPerCarton)
-        : Decimal.zero;
-    final allCartonsTotal = cartonPrice * Decimal.fromInt(product.stockQuantity);
+    
+    // Format subtitle appropriately based on bundle type
+    final String subtitleContent;
+    if (isBundle) {
+      subtitleContent = 'Cartons: ${product.stockQuantity} • Qty/Carton: ${itemsPerCarton > 0 ? itemsPerCarton : '-'}';
+    } else {
+      final parts = <String>[];
+      if (product.category != null && product.category!.isNotEmpty) {
+        parts.add(product.category!);
+      }
+      parts.add('Stock: ${product.stockQuantity} ${product.unit}');
+      subtitleContent = parts.join(' • ');
+    }
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Material(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        elevation: 0,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(20),
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.03),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
+      padding: const EdgeInsets.only(bottom: AppDimensions.sm),
+      child: AppListTile(
+        leadingIcon: Icons.inventory_2_rounded,
+        leadingColor: isLowStock ? AppColors.negative : AppColors.primary,
+        title: product.name,
+        subtitle: subtitleContent,
+        onTap: onTap,
+        trailing: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            AppAmountText(
+              amount: product.sellingPrice.toString(),
+              isPositive: true,
+              showSign: false,
             ),
-            child: ListTile(
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 10,
-              ),
-              leading: CircleAvatar(
-                backgroundColor: isLowStock
-                    ? Colors.redAccent.withValues(alpha: 0.12)
-                    : AppColors.primary.withValues(alpha: 0.12),
-                child: Icon(
-                  Icons.inventory_2,
-                  color: isLowStock ? Colors.redAccent : AppColors.primary,
-                ),
-              ),
-              title: Text(
-                product.name,
-                style: const TextStyle(fontWeight: FontWeight.w700),
-              ),
-              subtitle: isBundle
-                  ? Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Cartons: ${product.stockQuantity}'),
-                        Text('Qty/Carton: ${itemsPerCarton > 0 ? itemsPerCarton : '-'}'),
-                        Text('Individual Price: ETB $individualPrice'),
-                        Text('One Carton Price: ETB $cartonPrice'),
-                        Text('All Cartons Total: ETB $allCartonsTotal'),
-                      ],
-                    )
-                  : Text(
-                      [
-                        if (product.sku != null && product.sku!.isNotEmpty)
-                          'SKU: ${product.sku}',
-                        if (product.category != null && product.category!.isNotEmpty)
-                          product.category!,
-                        'Stock: ${product.stockQuantity} ${product.unit}',
-                      ].join(' • '),
-                    ),
-              trailing: isBundle
-                  ? Text(
-                      isLowStock ? 'Low stock' : 'In stock',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: isLowStock ? Colors.redAccent : Colors.green,
-                      ),
-                    )
-                  : Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          'ETB ${product.sellingPrice}',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          isLowStock ? 'Low stock' : 'In stock',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: isLowStock ? Colors.redAccent : Colors.green,
-                          ),
-                        ),
-                      ],
-                    ),
-            ),
-          ),
+            const SizedBox(height: 4),
+            isLowStock
+                ? AppStatusBadge.danger(label: 'Low Stock', small: true)
+                : AppStatusBadge.success(label: 'In Stock', small: true)
+          ],
         ),
       ),
     );
@@ -263,81 +225,21 @@ class _InventorySummary extends StatelessWidget {
   Widget build(BuildContext context) {
     final lowStockCount = products.where((product) => product.isLowStock).length;
 
-    return Row(
-      children: [
-        Expanded(
-          child: _SummaryCard(
-            label: 'Products',
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppDimensions.xl),
+      child: AppStatRow(
+        children: [
+          AppStatTile(
+            icon: Icons.inventory_2,
+            label: 'Total Products',
             value: products.length.toString(),
             color: AppColors.primary,
-            icon: Icons.inventory_2,
           ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _SummaryCard(
-            label: 'Low stock',
-            value: lowStockCount.toString(),
-            color: lowStockCount > 0 ? Colors.redAccent : Colors.green,
+          AppStatTile(
             icon: Icons.warning_amber_rounded,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _SummaryCard extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color color;
-  final IconData icon;
-
-  const _SummaryCard({
-    required this.label,
-    required this.value,
-    required this.color,
-    required this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 18,
-            backgroundColor: color.withValues(alpha: 0.12),
-            child: Icon(icon, size: 18, color: color),
-          ),
-          const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              Text(
-                label,
-                style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-              ),
-            ],
+            label: 'Low Stock Alerts',
+            value: lowStockCount.toString(),
+            color: lowStockCount > 0 ? AppColors.negative : AppColors.positive,
           ),
         ],
       ),
@@ -345,56 +247,32 @@ class _SummaryCard extends StatelessWidget {
   }
 }
 
-class _EmptyProductsState extends StatelessWidget {
-  final VoidCallback onCreateProduct;
-  final String message;
+Future<bool> _ensureManageInventoryPermission(
+  BuildContext context,
+  WidgetRef ref, {
+  required String attemptedAction,
+  String? entityId,
+}) async {
+  final allowed = ref.read(hasPermissionProvider(TeamPermission.manageInventory));
+  if (allowed) return true;
 
-  const _EmptyProductsState({required this.onCreateProduct, required this.message});
+  final actorRole = ref.read(currentRoleProvider);
+  await ref.read(auditRepositoryProvider).logAction(
+    actorRole: actorRole,
+    action: 'permission_denied',
+    entityType: 'product',
+    entityId: entityId,
+    message: 'Denied $attemptedAction for role ${actorRole.name}.',
+  );
+  ref.invalidate(recentAuditLogsProvider);
 
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(24),
-      children: [
-        const SizedBox(height: 96),
-        const Icon(Icons.inventory_2_outlined, size: 84, color: Colors.grey),
-        const SizedBox(height: 16),
-        const Center(
-          child: Text(
-            'No products yet',
-            style: TextStyle(fontSize: 18, color: Colors.grey),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Center(
-          child: Text(
-            message,
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.grey),
-          ),
-        ),
-        const SizedBox(height: 24),
-        SizedBox(
-          height: 52,
-          child: ElevatedButton.icon(
-            onPressed: onCreateProduct,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-            ),
-            icon: const Icon(Icons.add, color: Colors.white),
-            label: const Text(
-              'Create Product',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-          ),
-        ),
-      ],
+  if (context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('You do not have permission to manage inventory.'),
+        backgroundColor: AppColors.negative,
+      ),
     );
   }
+  return false;
 }

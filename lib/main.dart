@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter/foundation.dart';
-import 'package:hisabet/core/theme/app_theme.dart';
+import 'package:hisabet/core/theme/theme.dart';
 import 'package:hisabet/core/l10n/generated/app_localizations.dart';
 import 'package:hisabet/core/l10n/language_provider.dart'; // Added
 import 'package:hisabet/core/auth/auth_gate.dart';
+import 'package:hisabet/features/settings/data/repositories/app_settings_repository.dart';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -18,7 +19,17 @@ Future<void> main() async {
 
   _configurePhoneAuthTesting();
 
-  runApp(const ProviderScope(child: MyApp()));
+  final initialLanguageCode =
+      await AppSettingsRepository.readInitialLanguageCode();
+
+  runApp(
+    ProviderScope(
+      overrides: [
+        initialLanguageCodeProvider.overrideWithValue(initialLanguageCode),
+      ],
+      child: const MyApp(),
+    ),
+  );
 }
 
 void _configurePhoneAuthTesting() {
@@ -55,9 +66,9 @@ class MyApp extends ConsumerWidget {
       title: 'HisabET',
 
       // Theme Configuration
-      theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
-      themeMode: ThemeMode.system,
+      theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
+      themeMode: ThemeMode.light, // Locked to Light Theme until Dark Mode design tokens are fully finalized.
 
       // Localization Configuration
       locale: language, // Reactive Locale

@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:hisabet/core/theme/app_colors.dart';
+
+import 'package:hisabet/core/presentation/widgets/widgets.dart';
+import 'package:hisabet/core/theme/theme.dart';
+
 import 'package:hisabet/features/inventory/data/models/product_model.dart';
 import 'package:hisabet/features/inventory/presentation/providers/products_providers.dart';
+import 'package:hisabet/features/team/data/models/team_member_model.dart';
+import 'package:hisabet/features/team/presentation/providers/team_providers.dart';
 
 class StockAdjustmentScreen extends ConsumerStatefulWidget {
   final ProductModel product;
@@ -31,6 +36,14 @@ class _StockAdjustmentScreenState extends ConsumerState<StockAdjustmentScreen> {
   }
 
   Future<void> _saveAdjustment() async {
+    final allowed = await _ensureManageInventoryPermission(
+      context,
+      ref,
+      attemptedAction: 'adjust_stock',
+      entityId: widget.product.id,
+    );
+    if (!allowed) return;
+
     if (!_formKey.currentState!.validate()) {
       return;
     }
@@ -52,20 +65,63 @@ class _StockAdjustmentScreenState extends ConsumerState<StockAdjustmentScreen> {
         note: note,
       );
 
+      final actorRole = ref.read(currentRoleProvider);
+      await ref.read(auditRepositoryProvider).logAction(
+        actorRole: actorRole,
+        action: 'stock_adjusted',
+        entityType: 'product',
+        entityId: widget.product.id,
+        message: 'Stock ${_isIncrease ? 'increased' : 'decreased'} by $quantity for ${widget.product.name}.',
+      );
+
       ref.invalidate(allProductsProvider);
       ref.invalidate(lowStockProductsProvider);
       ref.invalidate(productStockMovementsProvider(widget.product.id));
+      ref.invalidate(recentAuditLogsProvider);
 
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Adjustment failed: $e')),
+          SnackBar(
+            content: Text('Adjustment failed: $e'),
+            backgroundColor: AppColors.negative,
+          ),
         );
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  Future<bool> _ensureManageInventoryPermission(
+    BuildContext context,
+    WidgetRef ref, {
+    required String attemptedAction,
+    String? entityId,
+  }) async {
+    final allowed = ref.read(hasPermissionProvider(TeamPermission.manageInventory));
+    if (allowed) return true;
+
+    final actorRole = ref.read(currentRoleProvider);
+    await ref.read(auditRepositoryProvider).logAction(
+      actorRole: actorRole,
+      action: 'permission_denied',
+      entityType: 'product',
+      entityId: entityId,
+      message: 'Denied $attemptedAction for role ${actorRole.name}.',
+    );
+    ref.invalidate(recentAuditLogsProvider);
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('You do not have permission to adjust stock.'),
+          backgroundColor: AppColors.negative,
+        ),
+      );
+    }
+    return false;
   }
 
   @override
@@ -75,113 +131,120 @@ class _StockAdjustmentScreenState extends ConsumerState<StockAdjustmentScreen> {
     );
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: AppColors.background,
-        elevation: 0,
         title: Text('Adjust Stock - ${widget.product.name}'),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(18),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.03),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(AppDimensions.pagePaddingH),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ─────────────────────────────────────────────────────────
+              // Active Product Status Card
+              // ─────────────────────────────────────────────────────────
+              AppCard(
+                padding: const EdgeInsets.all(AppDimensions.xl),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: AppDimensions.avatarMd / 2,
+                      backgroundColor: AppColors.primaryLight.withOpacity(0.15),
+                      child: const Icon(Icons.inventory_2, color: AppColors.primary),
+                    ),
+                    const SizedBox(width: AppDimensions.lg),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(widget.product.name, style: AppTextStyles.cardTitle),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Current Stock: ${widget.product.stockQuantity} ${widget.product.unit}',
+                            style: AppTextStyles.bodyMedium.copyWith(
+                                color: widget.product.isLowStock
+                                    ? AppColors.negative
+                                    : AppColors.textSecondary),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              const SizedBox(height: AppDimensions.xxxl),
+
+              // ─────────────────────────────────────────────────────────
+              // Adjustment Form
+              // ─────────────────────────────────────────────────────────
+              AppFormSection(
+                title: 'Record Adjustment',
+                icon: Icons.sync_alt,
                 children: [
-                  Text(
-                    widget.product.name,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: AppDimensions.xl, vertical: AppDimensions.md),
+                    child: SegmentedButton<bool>(
+                      segments: const [
+                        ButtonSegment(
+                          value: true,
+                          label: Text('Increase Stock'),
+                          icon: Icon(Icons.add),
+                        ),
+                        ButtonSegment(
+                          value: false,
+                          label: Text('Reduce Stock'),
+                          icon: Icon(Icons.remove),
+                        ),
+                      ],
+                      selected: {_isIncrease},
+                      onSelectionChanged: (selection) {
+                        setState(() => _isIncrease = selection.first);
+                      },
+                      style: SegmentedButton.styleFrom(
+                        backgroundColor: _isIncrease ? AppColors.positiveLight : AppColors.negativeLight,
+                        foregroundColor: AppColors.textPrimary,
+                        selectedForegroundColor: _isIncrease ? AppColors.positive : AppColors.negative,
+                        selectedBackgroundColor: (_isIncrease ? AppColors.positive : AppColors.negative).withOpacity(0.2),
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 6),
-                  Text('Current stock: ${widget.product.stockQuantity} ${widget.product.unit}'),
-                  const SizedBox(height: 14),
-                  SegmentedButton<bool>(
-                    segments: const [
-                      ButtonSegment(
-                        value: true,
-                        label: Text('Increase'),
-                        icon: Icon(Icons.arrow_upward),
-                      ),
-                      ButtonSegment(
-                        value: false,
-                        label: Text('Decrease'),
-                        icon: Icon(Icons.arrow_downward),
-                      ),
-                    ],
-                    selected: {_isIncrease},
-                    onSelectionChanged: (selection) {
-                      setState(() => _isIncrease = selection.first);
-                    },
-                  ),
-                  const SizedBox(height: 16),
+                  const Divider(height: 1),
                   Form(
                     key: _formKey,
                     child: Column(
                       children: [
-                        TextFormField(
-                          controller: _quantityController,
-                          keyboardType: TextInputType.number,
-                          inputFormatters: [
-                            FilteringTextInputFormatter.digitsOnly,
-                          ],
-                          decoration: const InputDecoration(
-                            labelText: 'Quantity',
-                            border: OutlineInputBorder(),
-                          ),
-                          validator: (value) {
-                            final quantity = int.tryParse(value ?? '');
-                            if (quantity == null || quantity <= 0) {
-                              return 'Enter a valid quantity';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: _noteController,
-                          maxLines: 2,
-                          decoration: const InputDecoration(
-                            labelText: 'Note (optional)',
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
-                        const SizedBox(height: 18),
-                        SizedBox(
-                          width: double.infinity,
-                          height: 52,
-                          child: ElevatedButton.icon(
-                            onPressed: _isLoading ? null : _saveAdjustment,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.primary,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
-                              ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: AppDimensions.xl, vertical: AppDimensions.sm),
+                          child: TextFormField(
+                            controller: _quantityController,
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                            style: AppTextStyles.headlineSmall,
+                            decoration: const InputDecoration(
+                              labelText: 'Adjustment Quantity',
+                              hintText: '0',
+                              border: InputBorder.none,
                             ),
-                            icon: const Icon(Icons.save, color: Colors.white),
-                            label: Text(
-                              _isIncrease ? 'Add Stock' : 'Reduce Stock',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
+                            validator: (value) {
+                              final quantity = int.tryParse(value ?? '');
+                              if (quantity == null || quantity <= 0) {
+                                return 'Enter a valid quantity';
+                              }
+                              return null;
+                            },
+                          ),
+                        ),
+                        const Divider(height: 1),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: AppDimensions.xl, vertical: AppDimensions.sm),
+                          child: TextFormField(
+                            controller: _noteController,
+                            maxLines: 2,
+                            decoration: const InputDecoration(
+                              labelText: 'Note or Reason (optional)',
+                              hintText: 'e.g. Damaged during shipping',
+                              border: InputBorder.none,
                             ),
                           ),
                         ),
@@ -190,99 +253,85 @@ class _StockAdjustmentScreenState extends ConsumerState<StockAdjustmentScreen> {
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: 18),
-            const Text(
-              'Recent Movements',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 10),
-            movementsAsync.when(
-              loading: () => const Center(child: Padding(
-                padding: EdgeInsets.all(24),
-                child: CircularProgressIndicator(),
-              )),
-              error: (error, stack) => Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text('Error loading movements: $error'),
-              ),
-              data: (movements) {
-                if (movements.isEmpty) {
-                  return const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 24),
-                    child: Text('No stock movements recorded yet.'),
-                  );
-                }
+              const SizedBox(height: AppDimensions.xxl),
 
-                return Column(
-                  children: movements.map((movement) {
-                    final isPositive = movement.quantityChange >= 0;
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 10),
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.03),
-                            blurRadius: 8,
-                            offset: const Offset(0, 3),
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: ElevatedButton.icon(
+                  onPressed: _isLoading ? null : _saveAdjustment,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _isIncrease ? AppColors.positive : AppColors.negative,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
+                    ),
+                  ),
+                  icon: const Icon(Icons.check, color: Colors.white),
+                  label: _isLoading
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : Text(
+                          _isIncrease ? 'CONFIRM INCREASE' : 'CONFIRM REDUCTION',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1.2,
                           ),
-                        ],
-                      ),
-                      child: Row(
-                        children: [
-                          CircleAvatar(
-                            backgroundColor: (isPositive
-                                    ? Colors.green
-                                    : Colors.redAccent)
-                                .withOpacity(0.12),
-                            child: Icon(
-                              isPositive ? Icons.add : Icons.remove,
-                              color: isPositive
-                                  ? Colors.green
-                                  : Colors.redAccent,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  movement.movementLabel,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  movement.note ?? 'No note provided',
-                                  style: TextStyle(
-                                    color: Colors.grey.shade600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Text(
-                            '${movement.quantityChange >= 0 ? '+' : ''}${movement.quantityChange}',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: isPositive
-                                  ? Colors.green
-                                  : Colors.redAccent,
-                            ),
-                          ),
-                        ],
-                      ),
+                        ),
+                ),
+              ),
+              const SizedBox(height: AppDimensions.xxxl),
+
+              // ─────────────────────────────────────────────────────────
+              // Audit Log (Recent Movements)
+              // ─────────────────────────────────────────────────────────
+              const AppSectionHeader(
+                title: 'Audit Log (Movements)',
+                uppercase: true,
+              ),
+              movementsAsync.when(
+                loading: () => const Center(child: Padding(
+                  padding: EdgeInsets.all(AppDimensions.xxl),
+                  child: CircularProgressIndicator(),
+                )),
+                error: (error, stack) => Padding(
+                  padding: const EdgeInsets.all(AppDimensions.xl),
+                  child: Text('Error loading movements: $error'),
+                ),
+                data: (movements) {
+                  if (movements.isEmpty) {
+                    return const AppEmptyState(
+                      icon: Icons.history,
+                      title: 'No stock movements recorded yet.',
+                      compact: true,
                     );
-                  }).toList(),
-                );
-              },
-            ),
-          ],
+                  }
+
+                  return Column(
+                    children: movements.map((movement) {
+                      final isPositive = movement.quantityChange >= 0;
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: AppDimensions.sm),
+                        child: AppListTile(
+                          leadingIcon: isPositive ? Icons.add : Icons.remove,
+                          leadingColor: isPositive ? AppColors.positive : AppColors.negative,
+                          title: movement.movementLabel,
+                          subtitle: movement.note ?? 'No note provided',
+                          trailing: Text(
+                            '${isPositive ? '+' : ''}${movement.quantityChange}',
+                            style: AppTextStyles.badgeLabel.copyWith(
+                              fontSize: 16,
+                              color: isPositive ? AppColors.positive : AppColors.negative,
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  );
+                },
+              ),
+              const SizedBox(height: 50),
+            ],
+          ),
         ),
       ),
     );

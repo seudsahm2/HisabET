@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+final initialLanguageCodeProvider = Provider<String?>((ref) => null);
+
 // Simple provider to manage locale state
 final languageProvider = StateNotifierProvider<LanguageNotifier, Locale>((ref) {
-  return LanguageNotifier();
+  final initialLanguageCode = ref.watch(initialLanguageCodeProvider);
+  return LanguageNotifier(initialLanguageCode: initialLanguageCode);
 });
 
 class LanguageNotifier extends StateNotifier<Locale> {
-  // Default to English, but could load from SharedPreferences/Hive
-  LanguageNotifier() : super(const Locale('en'));
+  LanguageNotifier({String? initialLanguageCode})
+    : super(Locale((initialLanguageCode == 'am') ? 'am' : 'en'));
 
   void toggleLanguage() {
     if (state.languageCode == 'en') {

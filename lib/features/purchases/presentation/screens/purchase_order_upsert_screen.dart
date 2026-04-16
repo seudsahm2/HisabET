@@ -2,7 +2,11 @@ import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:hisabet/core/theme/app_colors.dart';
+import 'package:intl/intl.dart';
+
+import 'package:hisabet/core/presentation/widgets/widgets.dart';
+import 'package:hisabet/core/theme/theme.dart';
+
 import 'package:hisabet/features/contacts/data/models/contact_model.dart';
 import 'package:hisabet/features/contacts/presentation/providers/contacts_providers.dart';
 import 'package:hisabet/features/inventory/data/models/product_model.dart';
@@ -11,6 +15,8 @@ import 'package:hisabet/features/purchases/data/models/purchase_order_model.dart
 import 'package:hisabet/features/purchases/data/models/purchase_order_line_item_model.dart';
 import 'package:hisabet/features/purchases/presentation/providers/purchase_orders_providers.dart';
 import 'package:hisabet/features/suppliers/presentation/providers/suppliers_providers.dart';
+import 'package:hisabet/features/team/data/models/team_member_model.dart';
+import 'package:hisabet/features/team/presentation/providers/team_providers.dart';
 
 class PurchaseOrderUpsertScreen extends ConsumerStatefulWidget {
   final PurchaseOrderModel? orderToEdit;
@@ -115,6 +121,14 @@ class _PurchaseOrderUpsertScreenState extends ConsumerState<PurchaseOrderUpsertS
   }
 
   Future<void> _saveOrder() async {
+    final allowed = await _ensureManagePurchasesPermission(
+      context,
+      ref,
+      attemptedAction: _isEditing ? 'update_purchase_order' : 'create_purchase_order',
+      entityId: widget.orderToEdit?.id,
+    );
+    if (!allowed) return;
+
     if (!_formKey.currentState!.validate()) return;
     if (_supplierId == null) return;
     if (_lineItems.isEmpty) {
@@ -132,6 +146,7 @@ class _PurchaseOrderUpsertScreenState extends ConsumerState<PurchaseOrderUpsertS
       final notes = _notesController.text.trim();
       final subtotal = _subtotal;
       final lineItems = _lineItems.map((line) => line.toInput()).toList();
+      final actorRole = ref.read(currentRoleProvider);
 
       final contacts = await ref.read(allContactsProvider.future);
       ContactModel? selectedSupplier;
@@ -147,7 +162,6 @@ class _PurchaseOrderUpsertScreenState extends ConsumerState<PurchaseOrderUpsertS
       }
 
       // Keep compatibility with purchase_orders foreign key to suppliers table.
-      // Suppliers are now managed from contacts, so we mirror the selected contact.
       await suppliersRepo.upsertSupplierProfile(
         id: selectedSupplier.id,
         name: selectedSupplier.name,
@@ -170,6 +184,13 @@ class _PurchaseOrderUpsertScreenState extends ConsumerState<PurchaseOrderUpsertS
           ),
           lineItems: lineItems,
         );
+        await ref.read(auditRepositoryProvider).logAction(
+          actorRole: actorRole,
+          action: 'purchase_order_updated',
+          entityType: 'purchase_order',
+          entityId: widget.orderToEdit!.id,
+          message: 'Purchase order ${widget.orderToEdit!.id} was updated.',
+        );
       } else {
         await repo.addPurchaseOrder(
           supplierId: _supplierId!,
@@ -179,20 +200,48 @@ class _PurchaseOrderUpsertScreenState extends ConsumerState<PurchaseOrderUpsertS
           notes: notes.isEmpty ? null : notes,
           lineItems: lineItems,
         );
+        await ref.read(auditRepositoryProvider).logAction(
+          actorRole: actorRole,
+          action: 'purchase_order_created',
+          entityType: 'purchase_order',
+          message: 'A new purchase order was created for supplier $_supplierId.',
+        );
       }
 
       ref.invalidate(allPurchaseOrdersProvider);
+      ref.invalidate(recentAuditLogsProvider);
 
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  Future<bool> _ensureManagePurchasesPermission(
+    BuildContext context,
+    WidgetRef ref, {
+    required String attemptedAction,
+    String? entityId,
+  }) async {
+    final allowed = ref.read(hasPermissionProvider(TeamPermission.managePurchases));
+    if (allowed) return true;
+
+    final actorRole = ref.read(currentRoleProvider);
+    await ref.read(auditRepositoryProvider).logAction(
+      actorRole: actorRole,
+      action: 'permission_denied',
+      entityType: 'purchase_order',
+      entityId: entityId,
+      message: 'Denied $attemptedAction for role ${actorRole.name}.',
+    );
+    ref.invalidate(recentAuditLogsProvider);
+
+    if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Permission denied.')));
+    return false;
   }
 
   @override
@@ -201,194 +250,159 @@ class _PurchaseOrderUpsertScreenState extends ConsumerState<PurchaseOrderUpsertS
     final productsAsync = ref.watch(allProductsProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: AppColors.background,
-        elevation: 0,
         title: Text(_isEditing ? 'Edit Purchase Order' : 'New Purchase Order'),
+      ),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(AppDimensions.pagePaddingH),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AppCard(
+                padding: const EdgeInsets.symmetric(horizontal: AppDimensions.lg, vertical: AppDimensions.md),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Order Subtotal', style: AppTextStyles.cardSubtitle),
+                    Text('ETB $_subtotal', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppDimensions.sm),
+              ElevatedButton(
+                onPressed: _isLoading ? null : _saveOrder,
+                child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : Text(_isEditing ? 'UPDATE ORDER' : 'SAVE ORDER'),
+              ),
+            ],
+          ),
+        ),
       ),
       body: contactsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, stack) => Center(child: Text('Error: $err')),
         data: (contacts) {
-          final suppliers = contacts
-              .where(
-                (contact) =>
-                    contact.role == ContactRole.supplier ||
-                    contact.role == ContactRole.both,
-              )
-              .toList();
+          final suppliers = contacts.where((contact) => contact.role == ContactRole.supplier || contact.role == ContactRole.both).toList();
 
           if (suppliers.isEmpty) {
-            return const Center(child: Text('Create a supplier contact first.'));
+            return const AppEmptyState(icon: Icons.person_off_outlined, title: 'No Suppliers Found', subtitle: 'You need to create a supplier contact before generating an order.');
           }
 
           _supplierId ??= suppliers.first.id;
 
-          return SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: Form(
-                key: _formKey,
-                child: Column(
+          return Form(
+            key: _formKey,
+            child: ListView(
+              padding: const EdgeInsets.symmetric(horizontal: AppDimensions.pagePaddingH, vertical: AppDimensions.lg),
+              children: [
+                AppFormSection(
+                  title: 'Order Setup',
+                  icon: Icons.receipt_long_rounded,
                   children: [
-                    DropdownButtonFormField<String>(
-                      value: _supplierId,
-                      items: suppliers
-                          .map(
-                            (supplier) => DropdownMenuItem(
-                              value: supplier.id,
-                              child: Text(supplier.name),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (value) => setState(() => _supplierId = value),
-                      decoration: const InputDecoration(labelText: 'Supplier'),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: InkWell(
-                            onTap: () async {
-                              final date = await showDatePicker(
-                                context: context,
-                                initialDate: _orderDate,
-                                firstDate: DateTime(2020),
-                                lastDate: DateTime(2100),
-                              );
-                              if (date != null) setState(() => _orderDate = date);
-                            },
-                            child: InputDecorator(
-                              decoration: const InputDecoration(labelText: 'Order Date'),
-                              child: Text(_orderDate.toString().split(' ').first),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: InkWell(
-                            onTap: () async {
-                              final date = await showDatePicker(
-                                context: context,
-                                initialDate: _dueDate ?? _orderDate,
-                                firstDate: DateTime(2020),
-                                lastDate: DateTime(2100),
-                              );
-                              if (date != null) setState(() => _dueDate = date);
-                            },
-                            child: InputDecorator(
-                              decoration: const InputDecoration(labelText: 'Due Date'),
-                              child: Text(_dueDate?.toString().split(' ').first ?? '-'),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        'Line Items',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: AppDimensions.xl, vertical: AppDimensions.sm),
+                      child: DropdownButtonFormField<String>(
+                        value: _supplierId,
+                        items: suppliers.map((supplier) => DropdownMenuItem(value: supplier.id, child: Text(supplier.name))).toList(),
+                        onChanged: (value) => setState(() => _supplierId = value),
+                        decoration: const InputDecoration(labelText: 'Supplier', border: InputBorder.none),
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    productsAsync.when(
-                      loading: () => const Center(child: CircularProgressIndicator()),
-                      error: (err, stack) => Text('Error: $err'),
-                      data: (products) {
-                        final availableProducts = products.where((product) => product.isActive).toList();
-                        for (final line in _lineItems) {
-                          if (availableProducts.every((product) => product.id != line.product.id)) {
-                            availableProducts.insert(0, line.product);
-                          }
-                        }
-
-                        if (!_lineItemsLoaded && _isEditing) {
-                          return const SizedBox.shrink();
-                        }
-
-                        if (_lineItems.isEmpty) {
-                          return Column(
-                            children: [
-                              const Text('No line items yet.'),
-                              const SizedBox(height: 8),
-                              SizedBox(
-                                width: double.infinity,
-                                child: OutlinedButton.icon(
-                                  onPressed: availableProducts.isEmpty
-                                      ? null
-                                      : () => _addLineItem(availableProducts.first),
-                                  icon: const Icon(Icons.add),
-                                  label: const Text('Add Line Item'),
-                                ),
-                              ),
-                            ],
-                          );
-                        }
-
-                        return Column(
-                          children: [
-                            ..._lineItems.asMap().entries.map(
-                              (entry) => Padding(
-                                padding: const EdgeInsets.only(bottom: 12),
-                                child: _PurchaseOrderLineItemCard(
-                                  draft: entry.value,
-                                  products: availableProducts,
-                                  onChanged: () => setState(() {}),
-                                  onRemove: () => _removeLineItem(entry.key),
-                                ),
+                    const Divider(height: 1),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: AppDimensions.xl, vertical: AppDimensions.sm),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: InkWell(
+                              onTap: () async {
+                                final date = await showDatePicker(context: context, initialDate: _orderDate, firstDate: DateTime(2020), lastDate: DateTime(2100));
+                                if (date != null) setState(() => _orderDate = date);
+                              },
+                              child: InputDecorator(
+                                decoration: const InputDecoration(labelText: 'Order Date', border: InputBorder.none),
+                                child: Text(DateFormat('MMM d, yyyy').format(_orderDate)),
                               ),
                             ),
-                            SizedBox(
-                              width: double.infinity,
-                              child: OutlinedButton.icon(
-                                onPressed: availableProducts.isEmpty
-                                    ? null
-                                    : () => _addLineItem(availableProducts.first),
-                                icon: const Icon(Icons.add),
-                                label: const Text('Add Line Item'),
+                          ),
+                          Container(width: 1, height: 40, color: AppColors.divider),
+                          Expanded(
+                            child: InkWell(
+                              onTap: () async {
+                                final date = await showDatePicker(context: context, initialDate: _dueDate ?? _orderDate, firstDate: DateTime(2020), lastDate: DateTime(2100));
+                                if (date != null) setState(() => _dueDate = date);
+                              },
+                              child: InputDecorator(
+                                decoration: const InputDecoration(labelText: 'Due Date', border: InputBorder.none),
+                                child: Text(_dueDate == null ? 'Optional' : DateFormat('MMM d, yyyy').format(_dueDate!)),
                               ),
                             ),
-                          ],
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _notesController,
-                      maxLines: 3,
-                      decoration: const InputDecoration(labelText: 'Notes'),
-                    ),
-                    const SizedBox(height: 16),
-                    InputDecorator(
-                      decoration: const InputDecoration(labelText: 'Subtotal'),
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text('ETB $_subtotal'),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 54,
-                      child: ElevatedButton(
-                        onPressed: _isLoading ? null : _saveOrder,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          foregroundColor: Colors.white,
-                        ),
-                        child: _isLoading
-                            ? const CircularProgressIndicator(color: Colors.white)
-                            : Text(_isEditing ? 'UPDATE ORDER' : 'SAVE ORDER'),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
-              ),
+                
+                const SizedBox(height: AppDimensions.xl),
+                productsAsync.when(
+                  loading: () => const Center(child: CircularProgressIndicator()),
+                  error: (err, stack) => Text('Error: $err'),
+                  data: (products) {
+                    final availableProducts = products.where((product) => product.isActive).toList();
+                    for (final line in _lineItems) {
+                      if (availableProducts.every((product) => product.id != line.product.id)) availableProducts.insert(0, line.product);
+                    }
+
+                    if (!_lineItemsLoaded && _isEditing) return const SizedBox.shrink();
+
+                    return AppFormSection(
+                      title: 'Order Line Items',
+                      icon: Icons.list_alt_rounded,
+                      children: [
+                        if (_lineItems.isEmpty)
+                           const Padding(
+                             padding: EdgeInsets.all(AppDimensions.xl),
+                             child: AppEmptyState(icon: Icons.inventory_2_outlined, title: 'No items in order', subtitle: 'Tap below to add products.'),
+                           )
+                        else
+                          ..._lineItems.asMap().entries.map((entry) => _PurchaseOrderLineItemTile(
+                                draft: entry.value,
+                                products: availableProducts,
+                                onChanged: () => setState(() {}),
+                                onRemove: () => _removeLineItem(entry.key),
+                              )),
+                        
+                        Padding(
+                          padding: const EdgeInsets.all(AppDimensions.md),
+                          child: OutlinedButton.icon(
+                            onPressed: availableProducts.isEmpty ? null : () => _addLineItem(availableProducts.first),
+                            icon: const Icon(Icons.add),
+                            label: const Text('Add Product to Order'),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+
+                const SizedBox(height: AppDimensions.xl),
+                AppFormSection(
+                  title: 'Order Notes',
+                  icon: Icons.edit_note_rounded,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: AppDimensions.xl, vertical: AppDimensions.sm),
+                      child: TextFormField(
+                        controller: _notesController,
+                        maxLines: 3,
+                        decoration: const InputDecoration(labelText: 'Internal notes or supplier instructions...', border: InputBorder.none),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           );
         },
@@ -402,32 +416,18 @@ class _PurchaseOrderLineDraft {
   final TextEditingController quantityController;
   final TextEditingController unitCostController;
 
-  _PurchaseOrderLineDraft._(
-    this.product,
-    this.quantityController,
-    this.unitCostController,
-  );
+  _PurchaseOrderLineDraft._(this.product, this.quantityController, this.unitCostController);
 
   factory _PurchaseOrderLineDraft.fromProduct(ProductModel product) {
-    return _PurchaseOrderLineDraft._(
-      product,
-      TextEditingController(text: '1'),
-      TextEditingController(text: product.costPrice.toString()),
-    );
+    return _PurchaseOrderLineDraft._(product, TextEditingController(text: '1'), TextEditingController(text: product.costPrice.toString()));
   }
 
   factory _PurchaseOrderLineDraft.fromExisting(ProductModel product, PurchaseOrderLineItemModel item) {
-    return _PurchaseOrderLineDraft._(
-      product,
-      TextEditingController(text: item.quantity.toString()),
-      TextEditingController(text: item.unitCost.toString()),
-    );
+    return _PurchaseOrderLineDraft._(product, TextEditingController(text: item.quantity.toString()), TextEditingController(text: item.unitCost.toString()));
   }
 
   int get quantity => int.tryParse(quantityController.text.trim()) ?? 0;
-
   Decimal get unitCost => Decimal.tryParse(unitCostController.text.trim()) ?? Decimal.zero;
-
   Decimal get lineTotal => unitCost * Decimal.fromInt(quantity);
 
   PurchaseOrderLineInput toInput() {
@@ -449,88 +449,81 @@ class _PurchaseOrderLineDraft {
   }
 }
 
-class _PurchaseOrderLineItemCard extends StatelessWidget {
+class _PurchaseOrderLineItemTile extends StatelessWidget {
   final _PurchaseOrderLineDraft draft;
   final List<ProductModel> products;
   final VoidCallback onChanged;
   final VoidCallback onRemove;
 
-  const _PurchaseOrderLineItemCard({
-    required this.draft,
-    required this.products,
-    required this.onChanged,
-    required this.onRemove,
-  });
+  const _PurchaseOrderLineItemTile({required this.draft, required this.products, required this.onChanged, required this.onRemove});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: AppColors.background)),
       ),
       child: Column(
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: DropdownButtonFormField<ProductModel>(
-                  value: draft.product,
-                  decoration: const InputDecoration(labelText: 'Product'),
-                  items: products
-                      .map(
-                        (product) => DropdownMenuItem(
-                          value: product,
-                          child: Text(product.name),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) {
-                    if (value == null) return;
-                    draft.product = value;
-                    draft.unitCostController.text = value.costPrice.toString();
-                    onChanged();
-                  },
+          Padding(
+            padding: const EdgeInsets.fromLTRB(AppDimensions.xl, AppDimensions.sm, AppDimensions.md, 0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: DropdownButtonFormField<ProductModel>(
+                    value: draft.product,
+                    decoration: const InputDecoration(labelText: 'Select Product', border: InputBorder.none),
+                    items: products.map((product) => DropdownMenuItem(value: product, child: Text(product.name))).toList(),
+                    onChanged: (value) {
+                      if (value == null) return;
+                      draft.product = value;
+                      draft.unitCostController.text = value.costPrice.toString();
+                      onChanged();
+                    },
+                  ),
                 ),
-              ),
-              IconButton(
-                onPressed: onRemove,
-                icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
-              ),
-            ],
+                IconButton(
+                  onPressed: onRemove,
+                  icon: const Icon(Icons.close_rounded, color: AppColors.textHint),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: TextFormField(
-                  controller: draft.quantityController,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  decoration: const InputDecoration(labelText: 'Qty'),
-                  onChanged: (_) => onChanged(),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(AppDimensions.xl, 0, AppDimensions.xl, AppDimensions.sm),
+            child: Row(
+              children: [
+                Expanded(
+                  flex: 2,
+                  child: TextFormField(
+                    controller: draft.quantityController,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    decoration: const InputDecoration(labelText: 'Quantity', border: InputBorder.none),
+                    onChanged: (_) => onChanged(),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: TextFormField(
-                  controller: draft.unitCostController,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
-                  decoration: const InputDecoration(labelText: 'Unit Cost'),
-                  onChanged: (_) => onChanged(),
+                Container(width: 1, height: 30, color: AppColors.divider),
+                Expanded(
+                  flex: 3,
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: AppDimensions.md),
+                    child: TextFormField(
+                      controller: draft.unitCostController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
+                      decoration: const InputDecoration(labelText: 'Unit Cost', border: InputBorder.none),
+                      onChanged: (_) => onChanged(),
+                    ),
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Align(
-            alignment: Alignment.centerRight,
-            child: Text(
-              'Line total: ETB ${draft.lineTotal}',
-              style: const TextStyle(fontWeight: FontWeight.w600),
+                const SizedBox(width: AppDimensions.md),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(AppDimensions.radiusSm)),
+                  child: Text('ETB ${draft.lineTotal}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ],
             ),
           ),
         ],

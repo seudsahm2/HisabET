@@ -2,14 +2,18 @@ import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:hisabet/core/theme/app_colors.dart';
+import 'package:intl/intl.dart';
+
+import 'package:hisabet/core/presentation/widgets/widgets.dart';
+import 'package:hisabet/core/theme/theme.dart';
 import 'package:hisabet/features/contacts/data/models/contact_model.dart';
 import 'package:hisabet/features/contacts/presentation/providers/contacts_providers.dart';
 import 'package:hisabet/features/inventory/data/models/product_model.dart';
 import 'package:hisabet/features/inventory/presentation/providers/products_providers.dart';
+import 'package:hisabet/features/team/data/models/team_member_model.dart';
+import 'package:hisabet/features/team/presentation/providers/team_providers.dart';
 import 'package:hisabet/features/transactions/data/models/transaction_model.dart';
 import 'package:hisabet/features/transactions/presentation/providers/transactions_providers.dart';
-import 'package:intl/intl.dart';
 
 class AddTransactionScreen extends ConsumerStatefulWidget {
   final String contactId;
@@ -24,8 +28,7 @@ class AddTransactionScreen extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<AddTransactionScreen> createState() =>
-      _AddTransactionScreenState();
+  ConsumerState<AddTransactionScreen> createState() => _AddTransactionScreenState();
 }
 
 class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
@@ -58,24 +61,15 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
       _descriptionController.text = tx.description ?? '';
       _referenceController.text = tx.referenceId ?? '';
       _cartonsController.text = (tx.cartons ?? _metadataInt(tx.metadata, 'cartons'))?.toString() ?? '';
-      _qtyPerCartonController.text =
-          (tx.qtyPerCarton ?? _metadataInt(tx.metadata, 'qtyPerCarton'))?.toString() ?? '';
-      _unitPriceController.text =
-          (tx.unitPrice ?? _metadataDecimal(tx.metadata, 'unitPrice'))?.toString() ?? '';
+      _qtyPerCartonController.text = (tx.qtyPerCarton ?? _metadataInt(tx.metadata, 'qtyPerCarton'))?.toString() ?? '';
+      _unitPriceController.text = (tx.unitPrice ?? _metadataDecimal(tx.metadata, 'unitPrice'))?.toString() ?? '';
       _selectedPaymentMethod = tx.metadata?['paymentMethod']?.toString() ?? 'Cash';
     }
   }
 
-  bool get _isGoods =>
-      _currentType == TransactionType.goodsGiven ||
-      _currentType == TransactionType.goodsTaken;
-
-  bool get _isGive =>
-      _currentType == TransactionType.goodsGiven ||
-      _currentType == TransactionType.paymentGiven;
-
+  bool get _isGoods => _currentType == TransactionType.goodsGiven || _currentType == TransactionType.goodsTaken;
+  bool get _isGive => _currentType == TransactionType.goodsGiven || _currentType == TransactionType.paymentGiven;
   bool get _isGoodsGive => _isGoods && _isGive;
-
   Color get _activeColor => _isGive ? AppColors.give : AppColors.take;
 
   static int? _metadataInt(Map<String, dynamic>? metadata, String key) {
@@ -160,12 +154,9 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
     }
 
     matched ??= products.cast<ProductModel?>().firstWhere(
-          (product) =>
-              product != null &&
-              desc.isNotEmpty &&
-              product.name.trim().toLowerCase() == desc,
-          orElse: () => null,
-        );
+      (product) => product != null && desc.isNotEmpty && product.name.trim().toLowerCase() == desc,
+      orElse: () => null,
+    );
 
     if (matched != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -177,10 +168,10 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
 
   void _recalculateGoodsTotal() {
     if (!_isGoods) return;
-
     final cartons = int.tryParse(_cartonsController.text.trim()) ?? 0;
     final qtyPerCarton = int.tryParse(_qtyPerCartonController.text.trim()) ?? 0;
     final unitPrice = Decimal.tryParse(_unitPriceController.text.trim()) ?? Decimal.zero;
+
     if (cartons <= 0 || qtyPerCarton <= 0 || unitPrice <= Decimal.zero) {
       _amountController.text = '';
       return;
@@ -209,29 +200,23 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
   }
 
   Future<void> _saveTransaction() async {
+    final allowed = await _ensureProcessSalesPermission(
+      context, ref,
+      attemptedAction: widget.transactionToEdit != null ? 'update_transaction' : 'create_transaction',
+      entityId: widget.transactionToEdit?.id,
+    );
+    if (!allowed) return;
+
     if (!_formKey.currentState!.validate()) return;
 
     if (_isGoodsGive) {
       if (_selectedInventoryProduct == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Select an inventory item to give.'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Select an inventory item to give.'), backgroundColor: AppColors.negative));
         return;
       }
-
       final cartons = _currentCartons();
       if (cartons <= 0 || cartons > _selectedInventoryProduct!.stockQuantity) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Cartons must be between 1 and ${_selectedInventoryProduct!.stockQuantity}.',
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Cartons must be between 1 and ${_selectedInventoryProduct!.stockQuantity}.'), backgroundColor: AppColors.negative));
         return;
       }
     }
@@ -240,13 +225,10 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
     try {
       final amount = Decimal.parse(_amountController.text.trim());
       final repo = ref.read(transactionsRepositoryProvider);
+      final actorRole = ref.read(currentRoleProvider);
       final metadata = _buildMetadata();
-      final description = _descriptionController.text.trim().isEmpty
-          ? null
-          : _descriptionController.text.trim();
-      final referenceId = _referenceController.text.trim().isEmpty
-          ? null
-          : _referenceController.text.trim();
+      final description = _descriptionController.text.trim().isEmpty ? null : _descriptionController.text.trim();
+      final referenceId = _referenceController.text.trim().isEmpty ? null : _referenceController.text.trim();
 
       if (widget.transactionToEdit != null) {
         await repo.updateTransaction(
@@ -262,79 +244,43 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
             unitPrice: _isGoods ? Decimal.tryParse(_unitPriceController.text.trim()) : null,
           ),
         );
+        await ref.read(auditRepositoryProvider).logAction(actorRole: actorRole, action: 'transaction_updated', entityType: 'transaction', entityId: widget.transactionToEdit!.id, message: 'Transaction ${widget.transactionToEdit!.id} was updated.');
       } else {
-        await repo.addTransaction(
-          contactId: widget.contactId,
-          type: _currentType,
-          amount: amount,
-          date: _selectedDate,
-          description: description,
-          metadata: metadata,
-          referenceId: referenceId,
-        );
+        await repo.addTransaction(contactId: widget.contactId, type: _currentType, amount: amount, date: _selectedDate, description: description, metadata: metadata, referenceId: referenceId);
+        await ref.read(auditRepositoryProvider).logAction(actorRole: actorRole, action: 'transaction_created', entityType: 'transaction', entityId: widget.contactId, message: 'A new ${_currentType.name} transaction was created.');
       }
 
       ref.invalidate(allProductsProvider);
       ref.invalidate(lowStockProductsProvider);
+      ref.invalidate(recentAuditLogsProvider);
 
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.negative));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  Widget _buildTypeSegment() {
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade200,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          _buildSegmentButton('Goods / Item', _isGoods, () => _updateType(isGoods: true)),
-          _buildSegmentButton('Cash / Payment', !_isGoods, () => _updateType(isGoods: false)),
-        ],
-      ),
-    );
-  }
+  Future<bool> _ensureProcessSalesPermission(
+    BuildContext context,
+    WidgetRef ref, {
+    required String attemptedAction,
+    String? entityId,
+  }) async {
+    final allowed = ref.read(hasPermissionProvider(TeamPermission.processSales));
+    if (allowed) return true;
 
-  Widget _buildSegmentButton(String label, bool isActive, VoidCallback onTap) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            color: isActive ? Colors.white : Colors.transparent,
-            borderRadius: BorderRadius.circular(10),
-            boxShadow: isActive
-                ? [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
-                      blurRadius: 4,
-                    ),
-                  ]
-                : [],
-          ),
-          child: Text(
-            label,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
-              color: isActive ? Colors.black : Colors.grey.shade600,
-            ),
-          ),
-        ),
-      ),
-    );
+    final actorRole = ref.read(currentRoleProvider);
+    await ref.read(auditRepositoryProvider).logAction(actorRole: actorRole, action: 'permission_denied', entityType: 'transaction', entityId: entityId, message: 'Denied $attemptedAction for role ${actorRole.name}.');
+    ref.invalidate(recentAuditLogsProvider);
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('You do not have permission to process sales transactions.')));
+    }
+    return false;
   }
 
   Widget _buildDirectionToggle() {
@@ -342,17 +288,17 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
       children: [
         Expanded(
           child: _buildBigButton(
-            label: _isGoods ? 'I GAVE' : 'PAID',
+            label: _isGoods ? 'I GAVE' : 'I PAID',
             icon: Icons.arrow_upward_rounded,
             color: AppColors.give,
             isActive: _isGive,
             onTap: () => _updateType(isGive: true),
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: AppDimensions.md),
         Expanded(
           child: _buildBigButton(
-            label: _isGoods ? 'I TOOK' : 'RECEIVED',
+            label: _isGoods ? 'I TOOK' : 'I RECEIVED',
             icon: Icons.arrow_downward_rounded,
             color: AppColors.take,
             isActive: !_isGive,
@@ -363,47 +309,44 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
     );
   }
 
-  Widget _buildBigButton({
-    required String label,
-    required IconData icon,
-    required Color color,
-    required bool isActive,
-    required VoidCallback onTap,
-  }) {
+  Widget _buildBigButton({required String label, required IconData icon, required Color color, required bool isActive, required VoidCallback onTap}) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: () {
+        HapticFeedback.lightImpact();
+        onTap();
+      },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        height: 80,
+        height: 72,
         decoration: BoxDecoration(
           color: isActive ? color : Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isActive ? color : Colors.grey.shade300,
-            width: 2,
-          ),
+          borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
+          boxShadow: isActive ? [BoxShadow(color: color.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4))] : [],
+          border: Border.all(color: isActive ? color : AppColors.divider, width: 2),
         ),
-        child: Column(
+        child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              icon,
-              color: isActive ? Colors.white : Colors.grey.shade400,
-              size: 28,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                color: isActive ? Colors.white : Colors.grey.shade600,
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
-            ),
+            Icon(icon, color: isActive ? Colors.white : AppColors.textSecondary, size: 24),
+            const SizedBox(width: AppDimensions.sm),
+            Text(label, style: TextStyle(color: isActive ? Colors.white : AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 16)),
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildContactVerificationBadge(ContactVerificationStatus status) {
+    switch (status) {
+      case ContactVerificationStatus.verified:
+        return AppStatusBadge.success(label: 'Verified', small: true);
+      case ContactVerificationStatus.pending:
+        return AppStatusBadge.warning(label: 'Pending', small: true);
+      case ContactVerificationStatus.expired:
+        return AppStatusBadge.danger(label: 'Expired', small: true);
+      case ContactVerificationStatus.unverified:
+        return AppStatusBadge.neutral(label: 'Unverified', small: true);
+    }
   }
 
   @override
@@ -422,428 +365,190 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
     final inventoryProductsAsync = ref.watch(allProductsProvider);
     final contactAsync = ref.watch(contactProvider(widget.contactId));
     final currentContact = contactAsync.valueOrNull;
-    final inventoryProducts = inventoryProductsAsync.maybeWhen(
-      data: (products) => products.where((p) => p.stockQuantity > 0).toList(),
-      orElse: () => <ProductModel>[],
-    );
+    final inventoryProducts = inventoryProductsAsync.maybeWhen(data: (products) => products.where((p) => p.stockQuantity > 0).toList(), orElse: () => <ProductModel>[]);
     _tryAutoSelectInventoryProduct(inventoryProducts);
 
+    final String typeTitle = _isGive
+        ? (_isGoods ? 'You gave items to them' : 'You paid them money')
+        : (_isGoods ? 'You took items from them' : 'They paid you money');
+
     return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.close, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text('Add Transaction', style: TextStyle(color: Colors.black)),
-        backgroundColor: Colors.white,
-        elevation: 0,
-      ),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      appBar: AppBar(title: Text(widget.transactionToEdit == null ? 'Record Transaction' : 'Edit Transaction')),
       body: SafeArea(
         child: Column(
           children: [
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.all(AppDimensions.pagePaddingH),
                 child: Form(
                   key: _formKey,
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildTypeSegment(),
-                      const SizedBox(height: 20),
+                      Center(
+                        child: AppFilterChips<bool>(
+                          options: const [true, false],
+                          selected: _isGoods,
+                          labelBuilder: (isG) => isG ? 'Goods / Items' : 'Cash / Payment',
+                          onSelected: (val) => _updateType(isGoods: val),
+                        ),
+                      ),
+                      const SizedBox(height: AppDimensions.xl),
                       _buildDirectionToggle(),
-                      const SizedBox(height: 24),
-                      if (currentContact != null) ...[
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                currentContact.name,
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            _buildContactVerificationBadge(currentContact.verificationStatus),
-                          ],
-                        ),
-                        if (currentContact.phoneNumber != null) ...[
-                          const SizedBox(height: 4),
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              currentContact.phoneNumber!,
-                              style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
-                            ),
-                          ),
-                        ],
-                      ],
-                      const SizedBox(height: 8),
-                      Text(
-                        _isGive
-                            ? (_isGoods ? 'You gave items to them' : 'You paid them money')
-                            : (_isGoods ? 'You took items from them' : 'They paid you money'),
-                        style: TextStyle(
-                          color: _activeColor,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: _descriptionController,
-                        readOnly: _isGoodsGive,
-                        decoration: InputDecoration(
-                          labelText: _isGoods ? 'Description' : 'Description (Optional)',
-                          prefixIcon: const Icon(Icons.notes_outlined, color: Colors.grey),
-                          filled: true,
-                          fillColor: Colors.grey.shade50,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: _referenceController,
-                        readOnly: _isGoodsGive,
-                        decoration: const InputDecoration(
-                          labelText: 'Ref #',
-                          prefixIcon: Icon(Icons.tag, color: Colors.grey),
-                          filled: true,
-                          fillColor: Color(0xFFFAFAFA),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: InkWell(
-                              onTap: () async {
-                                final date = await showDatePicker(
-                                  context: context,
-                                  initialDate: _selectedDate,
-                                  firstDate: DateTime(2020),
-                                  lastDate: DateTime.now(),
-                                );
-                                if (date != null) {
-                                  setState(() => _selectedDate = date);
-                                }
-                              },
-                              child: InputDecorator(
-                                decoration: const InputDecoration(
-                                  labelText: 'Date',
-                                  prefixIcon: Icon(Icons.calendar_today_outlined, color: Colors.grey),
-                                  filled: true,
-                                  fillColor: Color(0xFFFAFAFA),
-                                ),
-                                child: Text(DateFormat('MMM dd, yyyy').format(_selectedDate)),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 250),
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: _isGoods ? const Color(0xFFF8FAFC) : Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: Colors.grey.shade200),
-                        ),
-                        child: Column(
-                          children: [
-                            if (_isGoods) ...[
-                              if (_isGoodsGive) ...[
-                                DropdownButtonFormField<String>(
-                                  initialValue: _selectedInventoryProductId,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Select from inventory',
-                                    prefixIcon: Icon(Icons.inventory_2_outlined),
-                                  ),
-                                  items: inventoryProducts
-                                      .map(
-                                        (p) => DropdownMenuItem<String>(
-                                          value: p.id,
-                                          child: Text(
-                                            '${p.name} (${p.stockQuantity} cartons)',
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                      )
-                                      .toList(),
-                                  onChanged: (value) {
-                                    if (value == null) return;
-                                    final found = inventoryProducts.firstWhere(
-                                      (p) => p.id == value,
-                                    );
-                                    setState(() => _selectInventoryProduct(found));
-                                  },
-                                  validator: (value) {
-                                    if (!_isGoodsGive) return null;
-                                    if (value == null || value.trim().isEmpty) {
-                                      return 'Please select an inventory item';
-                                    }
-                                    return null;
-                                  },
-                                ),
-                                const SizedBox(height: 14),
-                              ],
-                              Row(
+                      const SizedBox(height: AppDimensions.xl),
+                      
+                      if (currentContact != null)
+                        AppCard(
+                          padding: const EdgeInsets.all(AppDimensions.md),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Expanded(
-                                    child: _isGoodsGive
-                                        ? Column(
-                                            mainAxisSize: MainAxisSize.min,
-                                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                                            children: [
-                                              InputDecorator(
-                                                decoration: const InputDecoration(
-                                                  labelText: 'Cartons',
-                                                  isDense: true,
-                                                  contentPadding: EdgeInsets.symmetric(
-                                                    horizontal: 8,
-                                                    vertical: 6,
-                                                  ),
-                                                ),
-                                                child: FittedBox(
-                                                  fit: BoxFit.scaleDown,
-                                                  alignment: Alignment.centerLeft,
-                                                  child: Row(
-                                                    mainAxisSize: MainAxisSize.min,
-                                                    children: [
-                                                      IconButton(
-                                                        onPressed: (_selectedInventoryProduct == null ||
-                                                                _currentCartons() <= 0)
-                                                            ? null
-                                                            : () => _setCartons(_currentCartons() - 1),
-                                                        padding: EdgeInsets.zero,
-                                                        constraints: const BoxConstraints.tightFor(
-                                                          width: 20,
-                                                          height: 20,
-                                                        ),
-                                                        visualDensity: VisualDensity.compact,
-                                                        iconSize: 16,
-                                                        icon: const Icon(Icons.remove_circle_outline),
-                                                      ),
-                                                      const SizedBox(width: 2),
-                                                      SizedBox(
-                                                        width: 18,
-                                                        child: Center(
-                                                          child: Text(
-                                                            '${_currentCartons()}',
-                                                            style: const TextStyle(
-                                                              fontSize: 13,
-                                                              fontWeight: FontWeight.bold,
-                                                            ),
-                                                          ),
-                                                        ),
-                                                      ),
-                                                      const SizedBox(width: 2),
-                                                      IconButton(
-                                                        onPressed: (_selectedInventoryProduct == null)
-                                                            ? null
-                                                            : () => _setCartons(
-                                                                  _currentCartons() + 1,
-                                                                  maxStock: _selectedInventoryProduct!.stockQuantity,
-                                                                ),
-                                                        padding: EdgeInsets.zero,
-                                                        constraints: const BoxConstraints.tightFor(
-                                                          width: 20,
-                                                          height: 20,
-                                                        ),
-                                                        visualDensity: VisualDensity.compact,
-                                                        iconSize: 16,
-                                                        icon: const Icon(Icons.add_circle_outline),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                              ),
-                                              if (_isGoodsGive && _selectedInventoryProduct != null)
-                                                Padding(
-                                                  padding: const EdgeInsets.only(top: 6),
-                                                  child: Align(
-                                                    alignment: Alignment.centerLeft,
-                                                    child: Text(
-                                                      'max ${_selectedInventoryProduct!.stockQuantity}',
-                                                      style: TextStyle(
-                                                        color: Colors.grey.shade600,
-                                                        fontSize: 12,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ),
-                                            ],
-                                          )
-                                        : TextFormField(
-                                            controller: _cartonsController,
-                                            keyboardType: TextInputType.number,
-                                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                                            onChanged: (_) => _recalculateGoodsTotal(),
-                                            decoration: const InputDecoration(
-                                              labelText: 'Cartons',
-                                              hintText: '5',
-                                              isDense: true,
-                                            ),
-                                            validator: (val) {
-                                              final value = int.tryParse((val ?? '').trim()) ?? 0;
-                                              if (value <= 0) return 'Required';
-                                              return null;
-                                            },
-                                          ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: TextFormField(
-                                      controller: _qtyPerCartonController,
-                                      readOnly: _isGoodsGive,
-                                      keyboardType: TextInputType.number,
-                                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                                      onChanged: (_) => _recalculateGoodsTotal(),
-                                      decoration: const InputDecoration(
-                                        labelText: 'Qty / Carton',
-                                        hintText: '12',
-                                        isDense: true,
-                                      ),
-                                      validator: (val) {
-                                        final value = int.tryParse((val ?? '').trim()) ?? 0;
-                                        if (value <= 0) return 'Required';
-                                        return null;
-                                      },
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: TextFormField(
-                                      controller: _unitPriceController,
-                                      readOnly: _isGoodsGive,
-                                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                      inputFormatters: [
-                                        FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
-                                      ],
-                                      onChanged: (_) => _recalculateGoodsTotal(),
-                                      decoration: const InputDecoration(
-                                        labelText: 'Individual Price',
-                                        hintText: 'Price per single item',
-                                        isDense: true,
-                                      ),
-                                      validator: (val) {
-                                        final price = Decimal.tryParse((val ?? '').trim()) ?? Decimal.zero;
-                                        if (price <= Decimal.zero) return 'Required';
-                                        return null;
-                                      },
-                                    ),
-                                  ),
+                                  Text(currentContact.name, style: AppTextStyles.cardTitle),
+                                  if (currentContact.phoneNumber != null)
+                                    Text(currentContact.phoneNumber!, style: AppTextStyles.cardSubtitle),
                                 ],
                               ),
-                              const SizedBox(height: 10),
-                              Align(
-                                alignment: Alignment.centerLeft,
-                                child: Text(
-                                  'Total items: ${int.tryParse(_cartonsController.text.trim()) == null || int.tryParse(_qtyPerCartonController.text.trim()) == null ? 0 : (int.parse(_cartonsController.text.trim()) * int.parse(_qtyPerCartonController.text.trim()))}',
-                                  style: TextStyle(color: Colors.grey.shade600),
-                                ),
+                              _buildContactVerificationBadge(currentContact.verificationStatus),
+                            ],
+                          ),
+                        ),
+
+                      const SizedBox(height: AppDimensions.lg),
+                      Text(typeTitle, style: TextStyle(color: _activeColor, fontWeight: FontWeight.w700, fontSize: 16)),
+                      const SizedBox(height: AppDimensions.md),
+
+                      AppFormSection(
+                        title: 'Log Metrics',
+                        children: [
+                          TextFormField(
+                            controller: _descriptionController,
+                            readOnly: _isGoodsGive,
+                            decoration: InputDecoration(labelText: _isGoods ? 'Description' : 'Description (Optional)', prefixIcon: const Icon(Icons.notes_rounded)),
+                          ),
+                          const SizedBox(height: AppDimensions.md),
+                          TextFormField(
+                            controller: _referenceController,
+                            readOnly: _isGoodsGive,
+                            decoration: const InputDecoration(labelText: 'Reference ID', prefixIcon: Icon(Icons.tag_rounded)),
+                          ),
+                          const SizedBox(height: AppDimensions.md),
+                          InkWell(
+                            onTap: () async {
+                              final date = await showDatePicker(context: context, initialDate: _selectedDate, firstDate: DateTime(2020), lastDate: DateTime.now());
+                              if (date != null) setState(() => _selectedDate = date);
+                            },
+                            child: InputDecorator(
+                              decoration: const InputDecoration(labelText: 'Logged Date', prefixIcon: Icon(Icons.calendar_today_rounded)),
+                              child: Text(DateFormat('MMM dd, yyyy').format(_selectedDate)),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: AppDimensions.xl),
+
+                      if (_isGoods) ...[
+                        AppFormSection(
+                          title: 'Item Breakdowns',
+                          children: [
+                            if (_isGoodsGive) ...[
+                              DropdownButtonFormField<String>(
+                                initialValue: _selectedInventoryProductId,
+                                decoration: const InputDecoration(labelText: 'Select from inventory', prefixIcon: Icon(Icons.inventory_2_rounded)),
+                                items: inventoryProducts.map((p) => DropdownMenuItem<String>(value: p.id, child: Text('${p.name} (${p.stockQuantity} cartons)'))).toList(),
+                                onChanged: (value) {
+                                  if (value == null) return;
+                                  final found = inventoryProducts.firstWhere((p) => p.id == value);
+                                  setState(() => _selectInventoryProduct(found));
+                                },
+                                validator: (val) {
+                                  if (!_isGoodsGive) return null;
+                                  if (val == null || val.trim().isEmpty) return 'Selection required';
+                                  return null;
+                                },
                               ),
-                              const SizedBox(height: 16),
+                              const SizedBox(height: AppDimensions.md),
                             ],
                             Row(
-                              crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
                                 Expanded(
+                                  flex: 2,
                                   child: TextFormField(
-                                    controller: _amountController,
-                                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                    style: TextStyle(
-                                      fontSize: _isGoods ? 30 : 32,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                    readOnly: _isGoods,
-                                    decoration: InputDecoration(
-                                      hintText: _isGoods ? 'Calculated total' : '0.00',
-                                      border: InputBorder.none,
-                                      focusedBorder: InputBorder.none,
-                                      enabledBorder: InputBorder.none,
-                                      filled: false,
-                                      prefixText: 'ETB ',
-                                      prefixStyle: TextStyle(
-                                        color: Colors.grey.shade400,
-                                        fontSize: 20,
-                                        fontWeight: FontWeight.w400,
-                                      ),
-                                    ),
-                                    validator: (val) {
-                                      final price = Decimal.tryParse((val ?? '').trim()) ?? Decimal.zero;
-                                      if (price <= Decimal.zero) {
-                                        return 'Amount must be greater than 0';
-                                      }
-                                      return null;
-                                    },
+                                    controller: _cartonsController,
+                                    readOnly: _isGoodsGive,
+                                    keyboardType: TextInputType.number,
+                                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                                    onChanged: (_) => _recalculateGoodsTotal(),
+                                    decoration: const InputDecoration(labelText: 'Cartons'),
+                                    validator: (val) => (int.tryParse((val ?? '').trim()) ?? 0) <= 0 ? 'Req.' : null,
                                   ),
                                 ),
-                                if (!_isGoods)
-                                  IconButton(
-                                    icon: const Icon(Icons.payments_outlined, color: Colors.grey, size: 30),
-                                    onPressed: null,
+                                const SizedBox(width: AppDimensions.sm),
+                                Expanded(
+                                  flex: 2,
+                                  child: TextFormField(
+                                    controller: _qtyPerCartonController,
+                                    readOnly: _isGoodsGive,
+                                    keyboardType: TextInputType.number,
+                                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                                    onChanged: (_) => _recalculateGoodsTotal(),
+                                    decoration: const InputDecoration(labelText: 'Qty / Ctn'),
+                                    validator: (val) => (int.tryParse((val ?? '').trim()) ?? 0) <= 0 ? 'Req.' : null,
                                   ),
+                                ),
+                                const SizedBox(width: AppDimensions.sm),
+                                Expanded(
+                                  flex: 3,
+                                  child: TextFormField(
+                                    controller: _unitPriceController,
+                                    readOnly: _isGoodsGive,
+                                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                    onChanged: (_) => _recalculateGoodsTotal(),
+                                    decoration: const InputDecoration(labelText: 'Unit Price'),
+                                    validator: (val) => (Decimal.tryParse((val ?? '').trim()) ?? Decimal.zero) <= Decimal.zero ? 'Req.' : null,
+                                  ),
+                                ),
                               ],
                             ),
-                            if (_isGoods)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 8),
-                                child: Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: Text(
-                                    'Calculated from cartons x qty/carton x individual price. Cash/payment entries stay amount-only.',
-                                    style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-                                  ),
-                                ),
-                              ),
                           ],
                         ),
-                      ),
-                      const SizedBox(height: 20),
-                      if (!_isGoods) ...[
-                        DropdownButtonFormField<String>(
-                          initialValue: _selectedPaymentMethod,
-                          icon: const Icon(Icons.keyboard_arrow_down),
-                          decoration: InputDecoration(
-                            labelText: 'Payment Method',
-                            prefixIcon: Icon(
-                              Icons.account_balance_wallet_outlined,
-                              color: _activeColor,
-                            ),
-                            filled: true,
-                            fillColor: Colors.grey.shade50,
-                          ),
-                          items: const [
-                            DropdownMenuItem(value: 'Cash', child: Text('Cash')),
-                            DropdownMenuItem(value: 'CBE', child: Text('CBE Transfer')),
-                            DropdownMenuItem(value: 'BOA', child: Text('Abyssinia (BOA)')),
-                            DropdownMenuItem(value: 'Telebirr', child: Text('Telebirr')),
-                            DropdownMenuItem(value: 'Other', child: Text('Other')),
-                          ],
-                          onChanged: (v) => setState(() => _selectedPaymentMethod = v),
-                        ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: AppDimensions.xl),
                       ],
+
+                      AppFormSection(
+                        title: 'Settlement Amount',
+                        children: [
+                          TextFormField(
+                            controller: _amountController,
+                            readOnly: _isGoods,
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
+                            style: TextStyle(color: _activeColor, fontSize: 24, fontWeight: FontWeight.bold),
+                            decoration: InputDecoration(
+                              labelText: 'Total Value (ETB)',
+                              labelStyle: const TextStyle(fontSize: 16),
+                              prefixIcon: Icon(Icons.payments_rounded, color: _activeColor),
+                            ),
+                            validator: (val) {
+                              final v = Decimal.tryParse((val ?? '').trim()) ?? Decimal.zero;
+                              if (v <= Decimal.zero) return 'Invalid amount';
+                              return null;
+                            },
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: AppDimensions.xl * 2), // Padding for button
                     ],
                   ),
                 ),
               ),
             ),
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, -5),
-                  ),
-                ],
-              ),
+            Padding(
+              padding: const EdgeInsets.all(AppDimensions.pagePaddingH),
               child: SizedBox(
                 width: double.infinity,
                 height: 56,
@@ -851,78 +556,19 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                   onPressed: _isLoading ? null : _saveTransaction,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _activeColor,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    elevation: 4,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppDimensions.radiusLg)),
                   ),
                   child: _isLoading
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text(
-                          'SAVE TRANSACTION',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
+                      ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3))
+                      : Text(
+                          widget.transactionToEdit == null ? "Save Execution" : "Update Protocol",
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
                         ),
                 ),
               ),
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildContactVerificationBadge(ContactVerificationStatus status) {
-    IconData icon;
-    Color color;
-
-    switch (status) {
-      case ContactVerificationStatus.verified:
-        icon = Icons.verified;
-        color = AppColors.give;
-        break;
-      case ContactVerificationStatus.pending:
-        icon = Icons.schedule;
-        color = const Color(0xFFB26A00);
-        break;
-      case ContactVerificationStatus.expired:
-        icon = Icons.cancel_outlined;
-        color = AppColors.take;
-        break;
-      case ContactVerificationStatus.unverified:
-        icon = Icons.circle_outlined;
-        color = AppColors.textSecondary;
-        break;
-    }
-
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: status == ContactVerificationStatus.unverified
-            ? const Text(
-                'Unverified',
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textSecondary,
-                ),
-              )
-            : Padding(
-                padding: const EdgeInsets.all(4),
-                child: Icon(
-                  icon,
-                  color: color,
-                  size: 13,
-                ),
-              ),
       ),
     );
   }
