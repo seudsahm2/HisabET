@@ -1,191 +1,360 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:hisabet/core/theme/theme.dart';
 
-/// A module card for the Business Hub.
-/// Two variants: [AppModuleCard.priority] (large) and [AppModuleCard.compact] (small).
+/// ─── App Module Tile ─────────────────────────────────────────────────────────
 ///
-/// Completely decoupled — receives module data and callback only.
+/// A premium, icon-free "mini-app" launcher tile for the Business Hub.
+/// Each tile has a dark-surface card with a subtle left-edge gradient accent,
+/// a large category icon rendered as a monochrome watermark, live stat badge,
+/// and a clean title/description layout.
 ///
-/// Usage:
-/// ```dart
-/// AppModuleCard.priority(
-///   title: 'Sales',
-///   subtitle: 'Today: ETB 4,200',
-///   icon: Icons.point_of_sale,
-///   color: AppColors.moduleSales,
-///   onTap: () => Navigator.push(...),
-/// )
-/// ```
-class AppModuleCard extends StatelessWidget {
-  const AppModuleCard._({
+/// Two variants:
+///   [AppModuleTile.hero]    – full-width tall cards for top-level modules
+///   [AppModuleTile.compact] – standard list tile with icon on left
+///
+class AppModuleTile extends StatefulWidget {
+  const AppModuleTile._({
     required this.title,
-    required this.subtitle,
+    required this.description,
     required this.icon,
-    required this.color,
+    required this.accentColor,
     required this.onTap,
-    required this.size,
+    required this.variant,
     this.badge,
+    this.stat,
   });
 
-  /// Large card for Daily Operations section.
-  factory AppModuleCard.priority({
+  /// Full-width hero variant (for primary modules grid).
+  factory AppModuleTile.hero({
     required String title,
-    required String subtitle,
+    required String description,
     required IconData icon,
-    required Color color,
+    required Color accentColor,
     required VoidCallback onTap,
     AppStatusBadgeData? badge,
+    String? stat,
   }) =>
-      AppModuleCard._(
+      AppModuleTile._(
         title: title,
-        subtitle: subtitle,
+        description: description,
         icon: icon,
-        color: color,
+        accentColor: accentColor,
         onTap: onTap,
-        size: _CardSize.priority,
+        variant: _TileVariant.hero,
         badge: badge,
+        stat: stat,
       );
 
-  /// Compact card for Finance / Growth sections.
-  factory AppModuleCard.compact({
+  /// Standard compact list-row variant.
+  factory AppModuleTile.compact({
     required String title,
-    required String subtitle,
+    required String description,
     required IconData icon,
-    required Color color,
+    required Color accentColor,
     required VoidCallback onTap,
     AppStatusBadgeData? badge,
+    String? stat,
   }) =>
-      AppModuleCard._(
+      AppModuleTile._(
         title: title,
-        subtitle: subtitle,
+        description: description,
         icon: icon,
-        color: color,
+        accentColor: accentColor,
         onTap: onTap,
-        size: _CardSize.compact,
+        variant: _TileVariant.compact,
         badge: badge,
+        stat: stat,
       );
 
   final String title;
-  final String subtitle;
+  final String description;
   final IconData icon;
-  final Color color;
+  final Color accentColor;
   final VoidCallback onTap;
-  final _CardSize size;
+  // ignore: library_private_types_in_public_api
+  final _TileVariant variant;
   final AppStatusBadgeData? badge;
+  final String? stat;
+
+  @override
+  State<AppModuleTile> createState() => _AppModuleTileState();
+}
+
+class _AppModuleTileState extends State<AppModuleTile>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 120));
+    _scale = Tween(begin: 1.0, end: 0.97).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  void _onTapDown(_) {
+    _ctrl.forward();
+    HapticFeedback.selectionClick();
+  }
+
+  void _onTapUp(_) => _ctrl.reverse();
+  void _onTapCancel() => _ctrl.reverse();
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
+    return GestureDetector(
+      onTapDown: _onTapDown,
+      onTapUp: _onTapUp,
+      onTapCancel: _onTapCancel,
+      onTap: widget.onTap,
+      child: AnimatedBuilder(
+        animation: _scale,
+        builder: (context, child) =>
+            Transform.scale(scale: _scale.value, child: child),
+        child: widget.variant == _TileVariant.hero
+            ? _buildHero(context)
+            : _buildCompact(context),
+      ),
+    );
+  }
+
+  // ── Hero Card ─────────────────────────────────────────────────────────────
+  Widget _buildHero(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? const Color(0xFF1C1C1E) : Colors.white;
+    final accent = widget.accentColor;
+
+    return Container(
+      height: 130,
+      decoration: BoxDecoration(
+        color: cardBg,
         borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
-        child: Ink(
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
-            border: Border(
-              left: BorderSide(
-                color: color,
-                width: 4,
-              ),
-            ),
-            boxShadow: const [
-              BoxShadow(
-                color: AppColors.shadowLight,
-                blurRadius: 10,
-                offset: Offset(0, 4),
-              ),
-            ],
+        boxShadow: [
+          BoxShadow(
+            color: accent.withOpacity(isDark ? 0.18 : 0.10),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
           ),
-          child: Padding(
-            padding: EdgeInsets.all(
-              size == _CardSize.priority
-                  ? AppDimensions.lg
-                  : AppDimensions.md,
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.35 : 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
+        child: Stack(
+          children: [
+            // ── Gradient accent strip on left ─────────────────────────────
+            Positioned(
+              left: 0,
+              top: 0,
+              bottom: 0,
+              width: 4,
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [accent, accent.withOpacity(0.4)],
+                  ),
+                ),
+              ),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: size == _CardSize.priority ? 40 : 32,
-                      height: size == _CardSize.priority ? 40 : 32,
-                      decoration: BoxDecoration(
-                        color: color.withOpacity(0.12),
-                        borderRadius:
-                            BorderRadius.circular(AppDimensions.radiusSm),
-                      ),
-                      child: Icon(
-                        icon,
-                        color: color,
-                        size: size == _CardSize.priority
-                            ? AppDimensions.iconMd
-                            : AppDimensions.iconSm,
-                      ),
-                    ),
-                    const Spacer(),
-                    if (badge != null)
+            // ── Watermark icon (decorative, large, faint) ─────────────────
+            Positioned(
+              right: -12,
+              bottom: -14,
+              child: Icon(
+                widget.icon,
+                size: 96,
+                color: accent.withOpacity(isDark ? 0.07 : 0.06),
+              ),
+            ),
+            // ── Content ────────────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 16, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      // Small tinted icon circle
                       Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
+                        width: 34,
+                        height: 34,
                         decoration: BoxDecoration(
-                          color: badge!.color.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(
-                            AppDimensions.radiusFull,
-                          ),
+                          color: accent.withOpacity(0.10),
+                          borderRadius: BorderRadius.circular(10),
                         ),
-                        child: Text(
-                          badge!.label,
-                          style: AppTextStyles.badgeLabel.copyWith(
-                            color: badge!.color,
-                            fontSize: 10,
-                          ),
-                        ),
+                        child: Icon(widget.icon, size: 18, color: accent),
                       ),
-                    const Icon(
-                      Icons.chevron_right,
-                      color: AppColors.textHint,
-                      size: 18,
+                      const Spacer(),
+                      if (widget.badge != null) _buildBadge(widget.badge!),
+                      if (widget.badge == null)
+                        Icon(Icons.arrow_forward_ios_rounded,
+                            size: 13,
+                            color: isDark
+                                ? Colors.white24
+                                : AppColors.textHint),
+                    ],
+                  ),
+                  const Spacer(),
+                  Text(
+                    widget.title,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? Colors.white : AppColors.textPrimary,
+                      letterSpacing: -0.2,
                     ),
-                  ],
-                ),
-                SizedBox(
-                  height: size == _CardSize.priority
-                      ? AppDimensions.md
-                      : AppDimensions.sm,
-                ),
-                Text(
-                  title,
-                  style: AppTextStyles.moduleTitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style: AppTextStyles.moduleStat,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    widget.stat ?? widget.description,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      color: isDark
+                          ? Colors.white38
+                          : AppColors.textSecondary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Compact Row ───────────────────────────────────────────────────────────
+  Widget _buildCompact(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? const Color(0xFF1C1C1E) : Colors.white;
+    final accent = widget.accentColor;
+
+    return Container(
+      height: 68,
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.25 : 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+        child: Row(
+          children: [
+            // Accent strip
+            Container(
+              width: 3,
+              color: accent,
+            ),
+            // Icon block
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              child: Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: accent.withOpacity(0.09),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(widget.icon, size: 19, color: accent),
+              ),
+            ),
+            // Text
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.title,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? Colors.white : AppColors.textPrimary,
+                      letterSpacing: -0.2,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    widget.description,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      color: isDark ? Colors.white38 : AppColors.textSecondary,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            // Trailing
+            Padding(
+              padding: const EdgeInsets.only(right: 14),
+              child: widget.badge != null
+                  ? _buildBadge(widget.badge!)
+                  : Icon(Icons.chevron_right_rounded,
+                      size: 18,
+                      color: isDark ? Colors.white24 : AppColors.textHint),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBadge(AppStatusBadgeData badge) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: badge.color.withOpacity(0.13),
+        borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
+        border: Border.all(color: badge.color.withOpacity(0.25), width: 1),
+      ),
+      child: Text(
+        badge.label,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          color: badge.color,
+          letterSpacing: 0.3,
         ),
       ),
     );
   }
 }
 
-enum _CardSize { priority, compact }
+enum _TileVariant { hero, compact }
 
-/// Simple data class for module card badge.
+/// Simple data class for module tile badge.
 class AppStatusBadgeData {
   const AppStatusBadgeData({required this.label, required this.color});
   final String label;
   final Color color;
 }
+
+// Keep the old name as an alias so nothing else breaks
+typedef AppModuleCard = AppModuleTile;

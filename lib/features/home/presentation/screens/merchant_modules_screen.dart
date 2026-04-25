@@ -6,7 +6,6 @@ import 'package:hisabet/core/theme/theme.dart';
 
 // Screens
 import 'package:hisabet/features/cashbook/presentation/screens/cashbook_screen.dart';
-import 'package:hisabet/features/contacts/presentation/screens/contacts_list_screen.dart';
 import 'package:hisabet/features/customers/presentation/screens/customers_screen.dart';
 import 'package:hisabet/features/inventory/presentation/screens/products_list_screen.dart';
 import 'package:hisabet/features/expenses/presentation/screens/expenses_screen.dart';
@@ -26,29 +25,47 @@ class MerchantModulesScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: CustomScrollView(
           physics: const BouncingScrollPhysics(),
           slivers: [
-            // ─────────────────────────────────────────────────────────────
-            // Header & Pulse Bar
-            // ─────────────────────────────────────────────────────────────
-            const SliverToBoxAdapter(
+            // ── Header ─────────────────────────────────────────────────────
+            SliverToBoxAdapter(
               child: Padding(
-                padding: EdgeInsets.fromLTRB(AppDimensions.lg, AppDimensions.lg,
-                    AppDimensions.lg, AppDimensions.sm),
-                child: Text(
-                  "Business Hub",
-                  style: TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.textPrimary,
-                  ),
+                padding: const EdgeInsets.fromLTRB(
+                    AppDimensions.pagePaddingH, AppDimensions.lg,
+                    AppDimensions.pagePaddingH, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Business Hub",
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w800,
+                        color: isDark ? Colors.white : AppColors.textPrimary,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      "All your tools in one place",
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: isDark ? Colors.white38 : AppColors.textSecondary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
+
+            // ── Pulse / Alert Bar ───────────────────────────────────────────
             SliverToBoxAdapter(
               child: AppPulseBar(
                 chips: [
@@ -70,93 +87,88 @@ class MerchantModulesScreen extends ConsumerWidget {
                 ],
               ),
             ),
-            const SliverToBoxAdapter(child: SizedBox(height: AppDimensions.lg)),
+            const SliverToBoxAdapter(child: SizedBox(height: AppDimensions.xl)),
 
             // ─────────────────────────────────────────────────────────────
-            // Daily Operations (Priority Cards)
+            // SECTION: Daily Operations  — 2-column hero grid
             // ─────────────────────────────────────────────────────────────
-            const SliverToBoxAdapter(
-              child: AppSectionHeader(
-                title: 'Daily Operations',
-                uppercase: true,
-              ),
+            SliverToBoxAdapter(
+              child: _SectionLabel(label: 'Daily Operations'),
             ),
             SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: AppDimensions.pagePaddingH),
-              sliver: SliverGrid.count(
-                crossAxisCount: 2,
-                mainAxisSpacing: AppDimensions.md,
-                crossAxisSpacing: AppDimensions.md,
-                childAspectRatio: 1.1,
-                children: [
-                  AppModuleCard.priority(
-                    title: 'Sales (POS)',
-                    subtitle: 'Point of sale, invoices & carts',
-                    icon: Icons.point_of_sale,
-                    color: AppColors.moduleSales,
+              padding: const EdgeInsets.fromLTRB(AppDimensions.pagePaddingH, 0,
+                  AppDimensions.pagePaddingH, 0),
+              sliver: SliverGrid(
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  crossAxisSpacing: AppDimensions.md,
+                  mainAxisSpacing: AppDimensions.md,
+                  childAspectRatio: 1.35,
+                ),
+                delegate: SliverChildListDelegate([
+                  AppModuleTile.hero(
+                    title: 'Sales',
+                    description: 'POS · Invoices · Carts',
+                    icon: Icons.point_of_sale_rounded,
+                    accentColor: AppColors.moduleSales,
                     onTap: () => _navigate(context, ref, 'Sales', const PosCartScreen()),
                   ),
-                  AppModuleCard.priority(
+                  AppModuleTile.hero(
                     title: 'Inventory',
-                    subtitle: 'Products, stock levels & SKUs',
-                    icon: Icons.inventory_2,
-                    color: AppColors.moduleInventory,
+                    description: 'Products · Stock · SKUs',
+                    icon: Icons.inventory_2_rounded,
+                    accentColor: AppColors.moduleInventory,
                     onTap: () => _navigate(context, ref, 'Inventory', const ProductsListScreen()),
                   ),
-                  AppModuleCard.priority(
+                  AppModuleTile.hero(
                     title: 'Orders',
-                    subtitle: 'Manage fulfillment & delivery',
-                    icon: Icons.list_alt,
-                    color: AppColors.moduleOrders,
+                    description: 'Fulfillment · Delivery',
+                    icon: Icons.receipt_rounded,
+                    accentColor: AppColors.moduleOrders,
                     onTap: () => _navigate(context, ref, 'Orders', const OrdersScreen()),
-                    badge: const AppStatusBadgeData(label: '2 New', color: AppColors.info),
+                    badge: const AppStatusBadgeData(label: '2 NEW', color: AppColors.info),
                   ),
-                  AppModuleCard.priority(
+                  AppModuleTile.hero(
                     title: 'Purchases',
-                    subtitle: 'Supplier bills & buying',
-                    icon: Icons.shopping_cart,
-                    color: AppColors.modulePurchases,
+                    description: 'Supplier bills · Buying',
+                    icon: Icons.shopping_bag_rounded,
+                    accentColor: AppColors.modulePurchases,
                     onTap: () => _navigate(context, ref, 'Purchases', const PurchaseOrdersScreen()),
                   ),
-                ],
+                ]),
               ),
             ),
             const SliverToBoxAdapter(child: SizedBox(height: AppDimensions.xl)),
 
             // ─────────────────────────────────────────────────────────────
-            // Finance & Tracking (Compact Cards)
+            // SECTION: Finance & Tracking  — vertical compact list
             // ─────────────────────────────────────────────────────────────
-            const SliverToBoxAdapter(
-              child: AppSectionHeader(
-                title: 'Finance & Tracking',
-                uppercase: true,
-              ),
-            ),
+            SliverToBoxAdapter(child: _SectionLabel(label: 'Finance & Tracking')),
             SliverPadding(
               padding: const EdgeInsets.symmetric(horizontal: AppDimensions.pagePaddingH),
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
-                  AppModuleCard.compact(
+                  AppModuleTile.compact(
                     title: 'Expenses',
-                    subtitle: 'Operating costs and recurring bills',
-                    icon: Icons.receipt_long,
-                    color: AppColors.moduleExpenses,
+                    description: 'Operating costs & recurring bills',
+                    icon: Icons.receipt_long_rounded,
+                    accentColor: AppColors.moduleExpenses,
                     onTap: () => _navigate(context, ref, 'Expenses', const ExpensesScreen()),
                   ),
                   const SizedBox(height: AppDimensions.sm),
-                  AppModuleCard.compact(
+                  AppModuleTile.compact(
                     title: 'Cashbook',
-                    subtitle: 'Daily cash and bank reconciliation',
-                    icon: Icons.account_balance_wallet,
-                    color: AppColors.moduleCashbook,
+                    description: 'Daily cash & bank reconciliation',
+                    icon: Icons.account_balance_wallet_rounded,
+                    accentColor: AppColors.moduleCashbook,
                     onTap: () => _navigate(context, ref, 'Cashbook', const CashbookScreen()),
                   ),
                   const SizedBox(height: AppDimensions.sm),
-                  AppModuleCard.compact(
+                  AppModuleTile.compact(
                     title: 'Reports',
-                    subtitle: 'Profits, trends and analytics',
-                    icon: Icons.bar_chart,
-                    color: AppColors.moduleReports,
+                    description: 'Profits, trends & analytics',
+                    icon: Icons.bar_chart_rounded,
+                    accentColor: AppColors.moduleReports,
                     onTap: () => _navigate(context, ref, 'Reports', const ReportsScreen()),
                   ),
                 ]),
@@ -165,64 +177,46 @@ class MerchantModulesScreen extends ConsumerWidget {
             const SliverToBoxAdapter(child: SizedBox(height: AppDimensions.xl)),
 
             // ─────────────────────────────────────────────────────────────
-            // People & Relationships
+            // SECTION: People & Relationships — 2-column compact grid
             // ─────────────────────────────────────────────────────────────
-            const SliverToBoxAdapter(
-              child: AppSectionHeader(
-                title: 'People & Relationships',
-                uppercase: true,
-              ),
-            ),
+            SliverToBoxAdapter(child: _SectionLabel(label: 'People & Relationships')),
             SliverPadding(
               padding: const EdgeInsets.symmetric(horizontal: AppDimensions.pagePaddingH),
-              sliver: SliverList(
+              sliver: SliverGrid(
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  crossAxisSpacing: AppDimensions.md,
+                  mainAxisSpacing: AppDimensions.md,
+                  childAspectRatio: 2.4,
+                ),
                 delegate: SliverChildListDelegate([
-                  Row(
-                    children: [
-                      Expanded(
-                        child: AppModuleCard.compact(
-                          title: 'Customers',
-                          subtitle: 'CRM',
-                          icon: Icons.groups,
-                          color: AppColors.moduleCustomers,
-                          onTap: () => _navigate(context, ref, 'Customers', const CustomersScreen()),
-                        ),
-                      ),
-                      const SizedBox(width: AppDimensions.sm),
-                      Expanded(
-                        child: AppModuleCard.compact(
-                          title: 'B2B Tenders',
-                          subtitle: 'Global supply bids',
-                          icon: Icons.storefront_rounded,
-                          color: AppColors.moduleSuppliers,
-                          onTap: () => _navigate(context, ref, 'Suppliers', const SuppliersListScreen()),
-                        ),
-                      ),
-                    ],
+                  AppModuleTile.compact(
+                    title: 'Customers',
+                    description: 'CRM & loyalty',
+                    icon: Icons.groups_rounded,
+                    accentColor: AppColors.moduleCustomers,
+                    onTap: () => _navigate(context, ref, 'Customers', const CustomersScreen()),
                   ),
-                  const SizedBox(height: AppDimensions.sm),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: AppModuleCard.compact(
-                          title: 'Promotions',
-                          subtitle: 'Coupons',
-                          icon: Icons.local_offer,
-                          color: AppColors.modulePromotions,
-                          onTap: () => _navigate(context, ref, 'Promotions', const PromotionsScreen()),
-                        ),
-                      ),
-                      const SizedBox(width: AppDimensions.sm),
-                      Expanded(
-                        child: AppModuleCard.compact(
-                          title: 'Team',
-                          subtitle: 'Staff info',
-                          icon: Icons.badge,
-                          color: AppColors.moduleTeam,
-                          onTap: () => _navigate(context, ref, 'Team', const TeamManagementScreen()),
-                        ),
-                      ),
-                    ],
+                  AppModuleTile.compact(
+                    title: 'B2B Tenders',
+                    description: 'Global supply bids',
+                    icon: Icons.handshake_rounded,
+                    accentColor: AppColors.moduleSuppliers,
+                    onTap: () => _navigate(context, ref, 'Suppliers', const SuppliersListScreen()),
+                  ),
+                  AppModuleTile.compact(
+                    title: 'Promotions',
+                    description: 'Coupons & offers',
+                    icon: Icons.local_offer_rounded,
+                    accentColor: AppColors.modulePromotions,
+                    onTap: () => _navigate(context, ref, 'Promotions', const PromotionsScreen()),
+                  ),
+                  AppModuleTile.compact(
+                    title: 'Team',
+                    description: 'Staff & roles',
+                    icon: Icons.badge_rounded,
+                    accentColor: AppColors.moduleTeam,
+                    onTap: () => _navigate(context, ref, 'Team', const TeamManagementScreen()),
                   ),
                 ]),
               ),
@@ -230,22 +224,17 @@ class MerchantModulesScreen extends ConsumerWidget {
             const SliverToBoxAdapter(child: SizedBox(height: AppDimensions.xl)),
 
             // ─────────────────────────────────────────────────────────────
-            // Administration
+            // SECTION: Administration
             // ─────────────────────────────────────────────────────────────
-            const SliverToBoxAdapter(
-              child: AppSectionHeader(
-                title: 'Administration',
-                uppercase: true,
-              ),
-            ),
+            SliverToBoxAdapter(child: _SectionLabel(label: 'Administration')),
             SliverPadding(
               padding: const EdgeInsets.symmetric(horizontal: AppDimensions.pagePaddingH),
               sliver: SliverToBoxAdapter(
-                child: AppModuleCard.compact(
+                child: AppModuleTile.compact(
                   title: 'Store Settings',
-                  subtitle: 'Taxes, invoices and business profile',
-                  icon: Icons.settings,
-                  color: AppColors.moduleSettings,
+                  description: 'Taxes, invoices & business profile',
+                  icon: Icons.settings_rounded,
+                  accentColor: AppColors.moduleSettings,
                   onTap: () => _navigate(context, ref, 'Settings', const SettingsScreen()),
                 ),
               ),
@@ -257,7 +246,7 @@ class MerchantModulesScreen extends ConsumerWidget {
     );
   }
 
-  // Permission handling wrapper
+  // ── Permission-aware navigation ──────────────────────────────────────────
   Future<void> _navigate(
       BuildContext context, WidgetRef ref, String moduleTitle, Widget screen) async {
     final allowed = await _ensureModulePermission(context, ref, moduleTitle);
@@ -267,10 +256,7 @@ class MerchantModulesScreen extends ConsumerWidget {
   }
 
   Future<bool> _ensureModulePermission(
-    BuildContext context,
-    WidgetRef ref,
-    String moduleTitle,
-  ) async {
+      BuildContext context, WidgetRef ref, String moduleTitle) async {
     TeamPermission? requiredPermission;
 
     switch (moduleTitle) {
@@ -298,7 +284,6 @@ class MerchantModulesScreen extends ConsumerWidget {
         requiredPermission = TeamPermission.viewReports;
         break;
       case 'Team':
-        // Always allow Team so users can switch session role. Mutable actions protected inside.
         requiredPermission = null;
         break;
       default:
@@ -319,5 +304,29 @@ class MerchantModulesScreen extends ConsumerWidget {
       );
     }
     return false;
+  }
+}
+
+// ── Section Label ────────────────────────────────────────────────────────────
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel({required this.label});
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+          AppDimensions.pagePaddingH, 0, AppDimensions.pagePaddingH, AppDimensions.sm),
+      child: Text(
+        label.toUpperCase(),
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 1.4,
+          color: isDark ? Colors.white30 : AppColors.textHint,
+        ),
+      ),
+    );
   }
 }
