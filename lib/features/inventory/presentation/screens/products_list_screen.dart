@@ -178,9 +178,9 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                       child: AppEmptyState(
                         icon: Icons.production_quantity_limits_rounded,
                         title: _searchQuery.isEmpty ? 'No products found' : 'No matching products',
-                        subtitle: 'Try adjusting your filters or adding a new product.',
-                        actionLabel: 'Create Product',
-                        onAction: () => _handleCreateProduct(context, ref),
+                        subtitle: _searchQuery.isEmpty
+                            ? 'Tap the + button below to add your first product.'
+                            : 'Try adjusting your search or filters.',
                       ),
                     ),
                   )
@@ -370,11 +370,15 @@ class _PremiumProductCard extends StatelessWidget {
                     children: [
                       Icon(isBundle ? Icons.view_in_ar_rounded : Icons.inventory_2_outlined, size: 14, color: AppColors.textSecondary),
                       const SizedBox(width: 4),
-                      Text(
-                        isBundle 
-                          ? 'Stock: ${product.stockQuantity} CTN (${itemsPerCarton}/CTN)'
-                          : 'Stock: ${product.stockQuantity} ${product.unit}',
-                        style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                      Expanded(
+                        child: Text(
+                          isBundle
+                            ? 'Stock: ${product.stockQuantity} CTN (${itemsPerCarton}/CTN)'
+                            : 'Stock: ${product.stockQuantity} ${product.unit}',
+                          style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        ),
                       ),
                     ],
                   ),

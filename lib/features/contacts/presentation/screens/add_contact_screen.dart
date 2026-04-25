@@ -1,4 +1,5 @@
 import 'package:decimal/decimal.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -144,6 +145,16 @@ class _AddContactScreenState extends ConsumerState<AddContactScreen> {
       }
 
       if (userData != null && mounted) {
+        // Block adding yourself
+        final currentUid = FirebaseAuth.instance.currentUser?.uid;
+        if (userData['uid'] != null && userData['uid'] == currentUid) {
+          setState(() => _lookupState = _LookupState.idle);
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('You cannot add yourself as a contact.'),
+            backgroundColor: AppColors.negative,
+          ));
+          return;
+        }
         _applyUserData(userData);
         setState(() => _lookupState = _LookupState.found);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -338,6 +349,7 @@ class _AddContactScreenState extends ConsumerState<AddContactScreen> {
                       Expanded(
                         child: _lookupMethod == _LookupMethod.phone
                             ? TextFormField(
+                                key: const ValueKey('phone_input'),
                                 controller: _phoneController,
                                 enabled: _identifierEditable,
                                 keyboardType: TextInputType.phone,
@@ -349,6 +361,7 @@ class _AddContactScreenState extends ConsumerState<AddContactScreen> {
                                     border: InputBorder.none),
                               )
                             : TextFormField(
+                                key: const ValueKey('email_input'),
                                 controller: _emailLookupController,
                                 enabled: _identifierEditable,
                                 keyboardType: TextInputType.emailAddress,
