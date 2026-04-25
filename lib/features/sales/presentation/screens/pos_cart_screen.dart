@@ -19,6 +19,7 @@ import 'package:hisabet/features/team/data/models/team_member_model.dart';
 import 'package:hisabet/features/team/presentation/providers/team_providers.dart';
 import 'package:hisabet/features/transactions/presentation/providers/transactions_providers.dart';
 import 'package:hisabet/features/sales/presentation/screens/invoice_preview_screen.dart';
+import 'package:hisabet/features/settings/presentation/providers/settings_providers.dart';
 
 class PosCartScreen extends ConsumerStatefulWidget {
   const PosCartScreen({super.key});
@@ -38,10 +39,11 @@ class _PosCartScreenState extends ConsumerState<PosCartScreen> {
     super.dispose();
   }
 
-  @override
   Widget build(BuildContext context) {
     final productsAsync = ref.watch(allProductsProvider);
     final cart = ref.watch(posCartProvider);
+    final settingsAsync = ref.watch(appSettingsProvider);
+    final defaultTaxPercent = settingsAsync.valueOrNull?.defaultTaxPercent ?? 0.0;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -333,9 +335,10 @@ class _CartBottomSheetState extends ConsumerState<_CartBottomSheet> {
     super.dispose();
   }
 
-  @override
   Widget build(BuildContext context) {
     final cart = ref.watch(posCartProvider); // Realtime updates inside sheet
+    final settingsAsync = ref.watch(appSettingsProvider);
+    final defaultTaxPercent = settingsAsync.valueOrNull?.defaultTaxPercent ?? 0.0;
 
     return Container(
       height: MediaQuery.of(context).size.height * 0.85,
@@ -459,7 +462,9 @@ class _CartBottomSheetState extends ConsumerState<_CartBottomSheet> {
                     onPressed: cart.items.isEmpty
                         ? null
                         : () {
-                            _showCheckoutDialog(context, ref, cart);
+                            final taxAmount = cart.subtotal * Decimal.parse((defaultTaxPercent / 100).toStringAsFixed(4));
+                            ref.read(posCartProvider.notifier).setTax(taxAmount);
+                            _showCheckoutDialog(context, ref, ref.read(posCartProvider), defaultTaxPercent);
                           },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
@@ -477,9 +482,8 @@ class _CartBottomSheetState extends ConsumerState<_CartBottomSheet> {
   }
 }
 
-Future<void> _showCheckoutDialog(BuildContext context, WidgetRef ref, PosCartState cart) async {
+Future<void> _showCheckoutDialog(BuildContext context, WidgetRef ref, PosCartState cart, double taxPercent) async {
   final customerNameCtrl = TextEditingController();
-  final taxCtrl = TextEditingController(text: cart.tax == Decimal.zero ? '' : cart.tax.toString());
   final paidCtrl = TextEditingController(text: cart.total.toString());
   final noteCtrl = TextEditingController();
   String paymentMethod = 'cash';
@@ -487,6 +491,7 @@ Future<void> _showCheckoutDialog(BuildContext context, WidgetRef ref, PosCartSta
   String? appliedPromotionCode;
   String? promoMessage;
   bool promoApplied = false;
+  bool isPartialPayment = false;
   ContactModel? selectedContact;
   PromotionModel? selectedPromotion;
 
@@ -527,29 +532,50 @@ Future<void> _showCheckoutDialog(BuildContext context, WidgetRef ref, PosCartSta
                       ),
                       const Divider(height: 1),
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: AppDimensions.xl, vertical: AppDimensions.sm),
-                        child: TextField(
-                          controller: taxCtrl,
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
-                          decoration: const InputDecoration(labelText: 'Tax (ETB)', border: InputBorder.none),
-                          onChanged: (value) {
-                            final amount = Decimal.tryParse(value) ?? Decimal.zero;
-                            ref.read(posCartProvider.notifier).setTax(amount);
-                            setState(() {
-                              paidCtrl.text = ref.read(posCartProvider).total.toString();
-                            });
-                          },
+                        padding: const EdgeInsets.symmetric(horizontal: AppDimensions.xl, vertical: AppDimensions.md),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text('Tax ($taxPercent%)', style: const TextStyle(fontSize: 16)),
+                            Text('ETB ${cart.tax}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textSecondary)),
+                          ],
                         ),
+                      ),
+                      const Divider(height: 1),
+                      CheckboxListTile(
+                        title: const Text('Partial Payment (Credit Sale)', style: TextStyle(fontSize: 16)),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: AppDimensions.xl),
+                        value: isPartialPayment,
+                        onChanged: (val) {
+                          setState(() {
+                            isPartialPayment = val ?? false;
+                            if (!isPartialPayment) {
+                              paidCtrl.text = ref.read(posCartProvider).total.toString();
+                            } else {
+                              paidCtrl.clear();
+                            }
+                          });
+                        },
+                        controlAffinity: ListTileControlAffinity.leading,
+                        activeColor: AppColors.primary,
                       ),
                       const Divider(height: 1),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: AppDimensions.xl, vertical: AppDimensions.sm),
                         child: TextField(
                           controller: paidCtrl,
+                          enabled: isPartialPayment,
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
                           inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
-                          decoration: const InputDecoration(labelText: 'Amount Tendered (ETB)', border: InputBorder.none),
+                          decoration: InputDecoration(
+                            labelText: isPartialPayment ? 'Amount Tendered (ETB)' : 'Full Amount Tendered (Auto)',
+                            border: InputBorder.none,
+                            labelStyle: TextStyle(color: isPartialPayment ? AppColors.textPrimary : AppColors.textSecondary),
+                          ),
+                          style: TextStyle(
+                            color: isPartialPayment ? AppColors.textPrimary : AppColors.textSecondary,
+                            fontWeight: isPartialPayment ? FontWeight.bold : FontWeight.normal,
+                          ),
                         ),
                       ),
                     ],
@@ -641,7 +667,9 @@ Future<void> _showCheckoutDialog(BuildContext context, WidgetRef ref, PosCartSta
                                       appliedPromotionId = null;
                                       appliedPromotionCode = null;
                                       ref.read(posCartProvider.notifier).setDiscount(Decimal.zero);
-                                      paidCtrl.text = ref.read(posCartProvider).total.toString();
+                                      if (!isPartialPayment) {
+                                        paidCtrl.text = ref.read(posCartProvider).total.toString();
+                                      }
                                     });
                                     return;
                                   }
@@ -662,7 +690,9 @@ Future<void> _showCheckoutDialog(BuildContext context, WidgetRef ref, PosCartSta
                                       promoMessage = 'Applied ${res.promotion!.code} (- ETB ${res.discountAmount})';
                                       ref.read(posCartProvider.notifier).setDiscount(res.discountAmount);
                                     }
-                                    paidCtrl.text = ref.read(posCartProvider).total.toString();
+                                    if (!isPartialPayment) {
+                                      paidCtrl.text = ref.read(posCartProvider).total.toString();
+                                    }
                                   });
                                 },
                               ),
@@ -743,12 +773,13 @@ Future<void> _showCheckoutDialog(BuildContext context, WidgetRef ref, PosCartSta
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Processing checkout... Please wait.'), duration: Duration(seconds: 2)));
     }
     
+    final latestCart = ref.read(posCartProvider);
     final saleId = await ref.read(salesRepositoryProvider).checkoutSale(
-          cartItems: cart.items,
+          cartItems: latestCart.items,
           contactId: selectedContact?.id,
           customerName: customerNameCtrl.text.trim().isEmpty ? null : customerNameCtrl.text.trim(),
-          discount: cart.discount,
-          tax: cart.tax,
+          discount: latestCart.discount,
+          tax: latestCart.tax,
           paidAmount: Decimal.tryParse(paidCtrl.text.trim()) ?? Decimal.zero,
           paymentMethod: paymentMethod,
           note: noteCtrl.text.trim().isEmpty ? null : noteCtrl.text.trim(),

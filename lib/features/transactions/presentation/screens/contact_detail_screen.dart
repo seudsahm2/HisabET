@@ -15,17 +15,24 @@ import 'package:hisabet/features/team/data/models/team_member_model.dart';
 import 'package:hisabet/features/team/presentation/providers/team_providers.dart';
 import 'package:hisabet/features/sales/presentation/screens/invoice_preview_screen.dart';
 
-class ContactDetailScreen extends ConsumerWidget {
+class ContactDetailScreen extends ConsumerStatefulWidget {
   final ContactModel contact;
 
   const ContactDetailScreen({super.key, required this.contact});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final contactAsync = ref.watch(contactProvider(contact.id));
-    final transactionsAsync = ref.watch(contactTransactionsProvider(contact.id));
+  ConsumerState<ContactDetailScreen> createState() => _ContactDetailScreenState();
+}
 
-    final currentContact = contactAsync.value ?? contact;
+class _ContactDetailScreenState extends ConsumerState<ContactDetailScreen> {
+  String _selectedTab = 'ALL';
+
+  @override
+  Widget build(BuildContext context) {
+    final contactAsync = ref.watch(contactProvider(widget.contact.id));
+    final transactionsAsync = ref.watch(contactTransactionsProvider(widget.contact.id));
+
+    final currentContact = contactAsync.value ?? widget.contact;
     final isPositive = currentContact.netBalance.toDouble() >= 0;
     final balanceColor = isPositive ? AppColors.give : AppColors.take;
 
@@ -79,10 +86,16 @@ class ContactDetailScreen extends ConsumerWidget {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, s) => Center(child: Text('Error: $e')),
         data: (transactions) {
+          final filteredTransactions = transactions.where((t) {
+            if (_selectedTab == 'SALES') return t.saleId != null;
+            if (_selectedTab == 'MANUAL') return t.saleId == null;
+            return true;
+          }).toList();
+
           return RefreshIndicator(
             onRefresh: () async {
-              ref.invalidate(contactTransactionsProvider(contact.id));
-              ref.invalidate(contactProvider(contact.id));
+              ref.invalidate(contactTransactionsProvider(widget.contact.id));
+              ref.invalidate(contactProvider(widget.contact.id));
               ref.invalidate(allContactsProvider);
             },
             child: ListView(
@@ -102,14 +115,24 @@ class ContactDetailScreen extends ConsumerWidget {
                 const SizedBox(height: AppDimensions.xl),
                 const AppSectionHeader(title: 'Transaction History', uppercase: true),
                 const SizedBox(height: AppDimensions.sm),
-                if (transactions.isEmpty)
+                Row(
+                  children: [
+                    _buildTab('ALL', 'All'),
+                    const SizedBox(width: AppDimensions.sm),
+                    _buildTab('SALES', 'Sales'),
+                    const SizedBox(width: AppDimensions.sm),
+                    _buildTab('MANUAL', 'Manual'),
+                  ],
+                ),
+                const SizedBox(height: AppDimensions.md),
+                if (filteredTransactions.isEmpty)
                   const AppEmptyState(
                     icon: Icons.history_rounded,
                     title: 'No ledger history',
                     subtitle: 'Transact directly to populate the contact ledger log.',
                   )
                 else
-                  ...transactions.map(
+                  ...filteredTransactions.map(
                     (transaction) => Padding(
                       padding: const EdgeInsets.only(bottom: AppDimensions.sm),
                       child: _TransactionTile(transaction: transaction, ref: ref, contact: currentContact),
@@ -119,6 +142,28 @@ class ContactDetailScreen extends ConsumerWidget {
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildTab(String key, String label) {
+    final isSelected = _selectedTab == key;
+    return GestureDetector(
+      onTap: () => setState(() => _selectedTab = key),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.primary.withOpacity(0.1) : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: isSelected ? AppColors.primary : AppColors.border),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? AppColors.primary : AppColors.textSecondary,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
       ),
     );
   }
@@ -149,14 +194,14 @@ class ContactDetailScreen extends ConsumerWidget {
   }
 
   Future<void> _addTransaction(BuildContext context, WidgetRef ref, TransactionType type) async {
-    final allowed = await _ensureTransactionPermission(context, ref, attemptedAction: 'add_transaction', entityType: 'contact', entityId: contact.id);
+    final allowed = await _ensureTransactionPermission(context, ref, attemptedAction: 'add_transaction', entityType: 'contact', entityId: widget.contact.id);
     if (!allowed) return;
 
     await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => AddTransactionScreen(contactId: contact.id, type: type)),
+      MaterialPageRoute(builder: (_) => AddTransactionScreen(contactId: widget.contact.id, type: type)),
     );
-    ref.invalidate(contactTransactionsProvider(contact.id));
-    ref.invalidate(contactProvider(contact.id));
+    ref.invalidate(contactTransactionsProvider(widget.contact.id));
+    ref.invalidate(contactProvider(widget.contact.id));
     ref.invalidate(allContactsProvider);
   }
 
