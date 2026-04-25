@@ -24,14 +24,19 @@ class _ProductUpsertScreenState extends ConsumerState<ProductUpsertScreen> {
   final _nameController = TextEditingController();
   final _skuController = TextEditingController();
   final _barcodeController = TextEditingController();
-  final _categoryController = TextEditingController();
-  final _brandController = TextEditingController();
-  final _unitController = TextEditingController(text: 'pcs');
   final _itemsPerCartonController = TextEditingController();
   final _costPriceController = TextEditingController();
   final _sellingPriceController = TextEditingController();
   final _stockQuantityController = TextEditingController(text: '0');
   final _reorderLevelController = TextEditingController(text: '0');
+
+  final List<String> _categories = ['Groceries', 'Electronics', 'Clothing', 'Hardware', 'Services', 'Other'];
+  final List<String> _brands = ['Generic', 'Nestle', 'Coca-Cola', 'Unilever', 'Samsung', 'Local', 'Other'];
+  final List<String> _units = ['pcs', 'carton', 'kg', 'L', 'box', 'pack'];
+
+  String? _selectedCategory;
+  String? _selectedBrand;
+  String? _selectedUnit;
 
   bool _isActive = true;
   bool _isLoading = false;
@@ -49,9 +54,18 @@ class _ProductUpsertScreenState extends ConsumerState<ProductUpsertScreen> {
     _nameController.text = product.name;
     _skuController.text = product.sku ?? '';
     _barcodeController.text = product.barcode ?? '';
-    _categoryController.text = product.category ?? '';
-    _brandController.text = product.brand ?? '';
-    _unitController.text = product.unit;
+    if (product.category != null && product.category!.isNotEmpty) {
+      if (!_categories.contains(product.category)) _categories.add(product.category!);
+      _selectedCategory = product.category;
+    }
+    if (product.brand != null && product.brand!.isNotEmpty) {
+      if (!_brands.contains(product.brand)) _brands.add(product.brand!);
+      _selectedBrand = product.brand;
+    }
+    if (product.unit.isNotEmpty) {
+      if (!_units.contains(product.unit)) _units.add(product.unit);
+      _selectedUnit = product.unit;
+    }
     _itemsPerCartonController.text = product.itemsPerCarton?.toString() ?? '';
     _costPriceController.text = product.costPrice.toString();
     _sellingPriceController.text = product.sellingPrice.toString();
@@ -65,9 +79,6 @@ class _ProductUpsertScreenState extends ConsumerState<ProductUpsertScreen> {
     _nameController.dispose();
     _skuController.dispose();
     _barcodeController.dispose();
-    _categoryController.dispose();
-    _brandController.dispose();
-    _unitController.dispose();
     _itemsPerCartonController.dispose();
     _costPriceController.dispose();
     _sellingPriceController.dispose();
@@ -96,11 +107,9 @@ class _ProductUpsertScreenState extends ConsumerState<ProductUpsertScreen> {
       final name = _nameController.text.trim();
       final sku = _skuController.text.trim();
       final barcode = _barcodeController.text.trim();
-      final category = _categoryController.text.trim();
-      final brand = _brandController.text.trim();
-      final unit = _unitController.text.trim().isEmpty
-          ? 'pcs'
-          : _unitController.text.trim();
+      final category = _selectedCategory ?? '';
+      final brand = _selectedBrand ?? '';
+      final unit = _selectedUnit ?? 'pcs';
       final itemsPerCarton = int.tryParse(_itemsPerCartonController.text.trim());
       final costPrice = Decimal.tryParse(_costPriceController.text.trim()) ??
           Decimal.zero;
@@ -306,16 +315,20 @@ class _ProductUpsertScreenState extends ConsumerState<ProductUpsertScreen> {
                           : null,
                     ),
                     const Divider(height: 1),
-                    _buildTextFormField(
-                      controller: _categoryController,
+                    _buildDropdownField(
+                      value: _selectedCategory,
+                      items: _categories,
                       label: 'Category',
-                      hintText: 'e.g. Groceries',
+                      hintText: 'Select Category',
+                      onChanged: (val) => setState(() => _selectedCategory = val),
                     ),
                     const Divider(height: 1),
-                    _buildTextFormField(
-                      controller: _brandController,
+                    _buildDropdownField(
+                      value: _selectedBrand,
+                      items: _brands,
                       label: 'Brand',
-                      hintText: 'e.g. BestBrand',
+                      hintText: 'Select Brand',
+                      onChanged: (val) => setState(() => _selectedBrand = val),
                     ),
                     const Divider(height: 1),
                     _buildTextFormField(
@@ -341,16 +354,17 @@ class _ProductUpsertScreenState extends ConsumerState<ProductUpsertScreen> {
                   title: 'Inventory & Stock',
                   icon: Icons.inventory_2_outlined,
                   children: [
-                    _buildTextFormField(
-                      controller: _unitController,
+                    _buildDropdownField(
+                      value: _selectedUnit,
+                      items: _units,
                       label: 'Unit of Measurement',
-                      hintText: 'pcs, kg, carton, box...',
-                      onChanged: (_) => setState(() {}), // Trigger carton reveal
+                      hintText: 'Select Unit',
+                      onChanged: (val) => setState(() => _selectedUnit = val),
                       validator: (value) => value == null || value.trim().isEmpty
                           ? 'Unit is required'
                           : null,
                     ),
-                    if (_unitController.text.trim().toLowerCase() == 'carton') ...[
+                    if (_selectedUnit?.toLowerCase() == 'carton') ...[
                       const Divider(height: 1),
                       _buildTextFormField(
                         controller: _itemsPerCartonController,
@@ -359,7 +373,7 @@ class _ProductUpsertScreenState extends ConsumerState<ProductUpsertScreen> {
                         keyboardType: TextInputType.number,
                         inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                         validator: (value) {
-                          if (_unitController.text.trim().toLowerCase() != 'carton') return null;
+                          if (_selectedUnit?.toLowerCase() != 'carton') return null;
                           final count = int.tryParse(value?.trim() ?? '');
                           if (count == null || count <= 0) return 'Required for carton';
                           return null;
@@ -528,6 +542,37 @@ class _ProductUpsertScreenState extends ConsumerState<ProductUpsertScreen> {
           alignLabelWithHint: true,
           contentPadding: const EdgeInsets.symmetric(vertical: 4),
         ),
+      ),
+    );
+  }
+
+  Widget _buildDropdownField({
+    required String? value,
+    required List<String> items,
+    required String label,
+    required String hintText,
+    required void Function(String?) onChanged,
+    String? Function(String?)? validator,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppDimensions.lg, vertical: AppDimensions.sm),
+      child: DropdownButtonFormField<String>(
+        value: value,
+        decoration: InputDecoration(
+          labelText: label,
+          hintText: hintText,
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          errorBorder: InputBorder.none,
+          focusedErrorBorder: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(vertical: 4),
+        ),
+        items: items.map((item) {
+          return DropdownMenuItem(value: item, child: Text(item));
+        }).toList(),
+        onChanged: onChanged,
+        validator: validator,
       ),
     );
   }

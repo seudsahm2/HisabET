@@ -136,13 +136,13 @@ class ContactDetailScreen extends ConsumerWidget {
   }
 
   void _openReconciliation(BuildContext context, ContactModel contact) {
-    if (contact.phoneNumber == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Contact has no phone number')));
+    if (contact.phoneNumber == null && contact.linkedUserUid == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Contact needs a phone number or app link for reconciliation')));
       return;
     }
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => ReconciliationScreen(contactId: contact.id, contactName: contact.name, contactPhone: contact.phoneNumber!),
+        builder: (_) => ReconciliationScreen(contactId: contact.id, contactName: contact.name, contactPhone: contact.phoneNumber),
       ),
     );
   }

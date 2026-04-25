@@ -86,12 +86,13 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
           _db.contacts,
         )..where((t) => t.id.equals(contactId))).getSingleOrNull();
 
-        if (contact != null && contact.phoneNumber != null) {
+        if (contact != null && (contact.phoneNumber != null || contact.linkedUserUid != null)) {
           await _syncService.saveTransactionToCloud(
             transaction: model,
             creatorUid: user.uid,
             creatorPhone: user.phoneNumber!,
-            contactPhone: contact.phoneNumber!,
+            contactPhone: contact.phoneNumber,
+            contactUid: contact.linkedUserUid,
           );
         }
       }
@@ -139,12 +140,13 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
       if (user != null &&
           user.phoneNumber != null &&
           contact != null &&
-          contact.phoneNumber != null) {
+          (contact.phoneNumber != null || contact.linkedUserUid != null)) {
         await _syncService.saveTransactionToCloud(
           transaction: transaction,
           creatorUid: user.uid,
           creatorPhone: user.phoneNumber!,
-          contactPhone: contact.phoneNumber!,
+          contactPhone: contact.phoneNumber,
+          contactUid: contact.linkedUserUid,
         );
       }
     } catch (e) {
@@ -181,12 +183,13 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
       if (user != null &&
           user.phoneNumber != null &&
           contact != null &&
-          contact.phoneNumber != null) {
+          (contact.phoneNumber != null || contact.linkedUserUid != null)) {
         await _syncService.saveTransactionToCloud(
           transaction: txModel,
           creatorUid: user.uid,
           creatorPhone: user.phoneNumber!,
-          contactPhone: contact.phoneNumber!,
+          contactPhone: contact.phoneNumber,
+          contactUid: contact.linkedUserUid,
         );
       }
     } catch (e) {

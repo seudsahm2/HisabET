@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 import 'package:hisabet/features/sync/presentation/screens/onboarding_screen.dart';
 import 'package:hisabet/features/home/presentation/screens/main_scaffold.dart';
@@ -18,20 +20,22 @@ class AuthGate extends StatelessWidget {
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
+          debugPrint('[AuthGate] Waiting for auth state...');
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
           );
         }
 
-        // If user is logged in, authorize them
         if (snapshot.hasData) {
+          debugPrint('[AuthGate] User is logged in: ${snapshot.data!.uid}. Routing to ProfileCheckGate.');
           if (kDevBypassProfileCheck) {
+            debugPrint('[AuthGate] Dev bypass active -> MainScaffold');
             return const MainScaffold();
           }
           return const ProfileCheckGate();
         }
 
-        // Otherwise, show login/onboarding
+        debugPrint('[AuthGate] No user logged in -> Login page.');
         return const OnboardingScreen();
       },
     );
@@ -46,19 +50,42 @@ class ProfileCheckGate extends StatefulWidget {
 }
 
 class _ProfileCheckGateState extends State<ProfileCheckGate> {
-  bool _isProfileComplete(Map<String, dynamic>? data) {
+  bool _isProfileComplete(Map<String, dynamic>? data, User user) {
     if (data == null) return false;
     final hasName = data['name']?.toString().trim().isNotEmpty == true;
-    final hasPhone = data['phone']?.toString().trim().isNotEmpty == true;
-    final hasAccountType = data['accountType']?.toString().trim().isNotEmpty == true;
-    return hasName && hasPhone && hasAccountType;
+    final hasRoles = data['roles'] != null && (data['roles'] as List).isNotEmpty;
+    // Check Firestore-stored contact info first, then fall back to Firebase Auth directly
+    final firestorePhone = data['phone']?.toString().trim().isNotEmpty == true;
+    final firestoreEmail = data['email']?.toString().trim().isNotEmpty == true;
+    final authPhone = user.phoneNumber?.isNotEmpty == true;
+    final authEmail = user.email?.isNotEmpty == true;
+    final hasContact = firestorePhone || firestoreEmail || authPhone || authEmail;
+    debugPrint('[ProfileCheckGate] hasName=$hasName, hasRoles=$hasRoles, firestorePhone=$firestorePhone, firestoreEmail=$firestoreEmail, authPhone=$authPhone, authEmail=$authEmail');
+    return hasName && hasContact && hasRoles;
+  }
+
+  Future<void> _signOut() async {
+    debugPrint('[ProfileCheckGate] Signing out user due to incomplete profile on app start.');
+    await FirebaseAuth.instance.signOut();
+    try {
+      final googleSignIn = GoogleSignIn();
+      if (await googleSignIn.isSignedIn()) {
+        await googleSignIn.signOut();
+      }
+    } catch (_) {}
   }
 
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return const OnboardingScreen();
-    if (kDevBypassProfileCheck) return const MainScaffold();
+    if (user == null) {
+      debugPrint('[ProfileCheckGate] currentUser is null -> Login page.');
+      return const OnboardingScreen();
+    }
+    if (kDevBypassProfileCheck) {
+      debugPrint('[ProfileCheckGate] Dev bypass -> MainScaffold');
+      return const MainScaffold();
+    }
 
     return StreamBuilder<DocumentSnapshot>(
       stream: FirebaseFirestore.instance
@@ -67,17 +94,63 @@ class _ProfileCheckGateState extends State<ProfileCheckGate> {
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
+          debugPrint('[ProfileCheckGate] Waiting for Firestore profile (uid=${user.uid})...');
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
           );
         }
 
+        if (snapshot.hasError) {
+          debugPrint('[ProfileCheckGate] Firestore error: ${snapshot.error}');
+          return Scaffold(
+            body: Center(child: Text('Connection error: ${snapshot.error}')),
+          );
+        }
+
+        final docExists = snapshot.data?.exists == true;
         final data = snapshot.data?.data() as Map<String, dynamic>?;
-        if (_isProfileComplete(data)) {
+
+        debugPrint('[ProfileCheckGate] Firestore snapshot received. docExists=$docExists, data keys=${data?.keys.toList()}');
+
+        if (_isProfileComplete(data, user)) {
+          debugPrint('[ProfileCheckGate] Profile is COMPLETE -> MainScaffold ✓');
+
+          // Silently backfill email/phone into Firestore if missing.
+          // This fixes existing Google OAuth users whose email was never saved.
+          final firestoreEmail = data?['email']?.toString().trim() ?? '';
+          final firestorePhone = data?['phone']?.toString().trim() ?? '';
+          final authEmail = user.email ?? '';
+          final authPhone = user.phoneNumber ?? '';
+          final needsUpdate = (firestoreEmail.isEmpty && authEmail.isNotEmpty) ||
+              (firestorePhone.isEmpty && authPhone.isNotEmpty);
+          if (needsUpdate) {
+            final updates = <String, dynamic>{};
+            if (firestoreEmail.isEmpty && authEmail.isNotEmpty) updates['email'] = authEmail;
+            if (firestorePhone.isEmpty && authPhone.isNotEmpty) updates['phone'] = authPhone;
+            debugPrint('[ProfileCheckGate] Backfilling missing fields: $updates');
+            FirebaseFirestore.instance
+                .collection('users')
+                .doc(user.uid)
+                .update(updates)
+                .catchError((e) => debugPrint('[ProfileCheckGate] Backfill error: $e'));
+          }
+
           return const MainScaffold();
         }
 
-        return const OnboardingScreen(startAtProfile: true);
+        if (!docExists) {
+          // Brand new user who just authenticated — show profile setup
+          debugPrint('[ProfileCheckGate] New user (no Firestore doc) -> Profile setup page.');
+          return const OnboardingScreen(startAtProfile: true);
+        }
+
+        // Doc exists but profile is still incomplete (e.g. missing roles, name, or contact).
+        // Show Profile page so the user can complete it.
+        final existingRoles = (data?['roles'] as List<dynamic>?)
+            ?.map((e) => e.toString())
+            .toList() ?? [];
+        debugPrint('[ProfileCheckGate] Doc exists but profile INCOMPLETE -> Profile setup page. existingRoles=$existingRoles');
+        return OnboardingScreen(startAtProfile: true, initialRoles: existingRoles);
       },
     );
   }

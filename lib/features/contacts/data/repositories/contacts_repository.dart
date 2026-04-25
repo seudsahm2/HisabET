@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:hisabet/core/database/app_database.dart';
 import 'package:hisabet/core/utils/phone_util.dart';
 import 'package:hisabet/features/contacts/data/models/contact_model.dart';
@@ -17,8 +18,11 @@ abstract class ContactsRepository {
     String? shop, {
     String? linkedUserUid,
     ContactRole role = ContactRole.merchant,
-    VerificationTimeoutPolicy verificationTimeoutPolicy =
-        VerificationTimeoutPolicy.autoConfirm,
+    String? verificationMethod, // 'phone' or 'email'
+    bool isRetailer = false,
+    bool isWholesaler = false,
+    bool isBroker = false,
+    bool isSupplier = false,
   });
   Future<void> deleteContact(String id);
   Future<void> updateCustomerProfile({
@@ -31,26 +35,24 @@ abstract class ContactsRepository {
   });
   Future<void> updateNetBalance(String id, Decimal newBalance);
   Future<Map<String, dynamic>?> searchUserByPhone(String phone);
+  Future<Map<String, dynamic>?> searchUserByEmail(String email);
+  Future<List<Map<String, dynamic>>> searchNetwork(String query);
   Stream<ContactModel?> watchContact(String id);
 }
 
 class ContactsRepositoryImpl implements ContactsRepository {
-  static const Duration _verificationTimeout = Duration(hours: 48);
-
   final AppDatabase _db;
 
   ContactsRepositoryImpl(this._db);
 
   @override
   Future<List<ContactModel>> getAllContacts() async {
-    await _resolvePendingVerificationTimeouts();
     final rows = await _db.select(_db.contacts).get();
     return rows.map((e) => ContactModel.fromDb(e)).toList();
   }
 
   @override
   Future<List<ContactModel>> getCustomerContacts() async {
-    await _resolvePendingVerificationTimeouts();
     final rows =
         await (_db.select(_db.contacts)
               ..where(
@@ -68,9 +70,6 @@ class ContactsRepositoryImpl implements ContactsRepository {
     var row = await (_db.select(
       _db.contacts,
     )..where((tbl) => tbl.id.equals(id))).getSingleOrNull();
-    if (row != null) {
-      row = await _resolveVerificationTimeoutIfNeeded(row);
-    }
     return row != null ? ContactModel.fromDb(row) : null;
   }
 
@@ -81,19 +80,37 @@ class ContactsRepositoryImpl implements ContactsRepository {
     String? shop, {
     String? linkedUserUid,
     ContactRole role = ContactRole.merchant,
-    VerificationTimeoutPolicy verificationTimeoutPolicy =
-        VerificationTimeoutPolicy.autoConfirm,
+    String? verificationMethod,
+    bool isRetailer = false,
+    bool isWholesaler = false,
+    bool isBroker = false,
+    bool isSupplier = false,
   }) async {
     final id = const Uuid().v4();
     final now = DateTime.now();
     final hasLinkedUser =
         linkedUserUid != null && linkedUserUid.trim().isNotEmpty;
     final verificationStatus = hasLinkedUser
-        ? ContactVerificationStatus.pending
+        ? ContactVerificationStatus.verified
         : ContactVerificationStatus.unverified;
-    final verificationDeadlineAt = hasLinkedUser
-        ? now.add(_verificationTimeout)
-        : null;
+    final currentUid = FirebaseAuth.instance.currentUser?.uid;
+    if (linkedUserUid != null && linkedUserUid == currentUid) {
+      throw Exception("You cannot add yourself as a contact.");
+    }
+
+    if (linkedUserUid != null && linkedUserUid.trim().isNotEmpty) {
+      final existingLinked = await (_db.select(_db.contacts)..where((t) => t.linkedUserUid.equals(linkedUserUid))).get();
+      if (existingLinked.isNotEmpty) {
+        throw Exception("Contact already exists in your directory!");
+      }
+    }
+
+    if (phone != null && phone.trim().isNotEmpty) {
+      final existingPhone = await (_db.select(_db.contacts)..where((t) => t.phoneNumber.equals(phone))).get();
+      if (existingPhone.isNotEmpty) {
+        throw Exception("Contact with this phone number already exists!");
+      }
+    }
 
     await _db
         .into(_db.contacts)
@@ -104,14 +121,41 @@ class ContactsRepositoryImpl implements ContactsRepository {
             role: Value(role.index),
             verificationStatus: Value(verificationStatus.index),
             verificationRequestedAt: Value(hasLinkedUser ? now : null),
-            verificationDeadlineAt: Value(verificationDeadlineAt),
-            verificationTimeoutPolicy: Value(verificationTimeoutPolicy.index),
+            verificationDeadlineAt: const Value(null),
+            verificationTimeoutPolicy: const Value(0),
             phoneNumber: Value(phone),
             shopNumber: Value(shop),
             lastTransactionDate: now,
             linkedUserUid: Value(linkedUserUid),
+            verificationMethod: Value(hasLinkedUser ? verificationMethod : null),
+            isRetailer: Value(isRetailer),
+            isWholesaler: Value(isWholesaler),
+            isBroker: Value(isBroker),
+            isSupplier: Value(isSupplier),
           ),
         );
+
+    // Send connection request
+    if (hasLinkedUser && currentUid != null) {
+      try {
+        final currentUserDoc = await FirebaseFirestore.instance.collection('users').doc(currentUid).get();
+        if (currentUserDoc.exists) {
+          final data = currentUserDoc.data()!;
+          await FirebaseFirestore.instance.collection('connection_requests').add({
+            'fromUid': currentUid,
+            'toUid': linkedUserUid,
+            'fromName': data['name'] ?? 'A HisabET User',
+            'fromPhone': data['phone'],
+            'fromEmail': data['email'],
+            'status': 'pending',
+            'timestamp': FieldValue.serverTimestamp(),
+          });
+        }
+      } catch (e) {
+        debugPrint('[ContactsRepo] Failed to send connection request: $e');
+      }
+    }
+
     return id;
   }
 
@@ -158,7 +202,7 @@ class ContactsRepositoryImpl implements ContactsRepository {
   Future<Map<String, dynamic>?> searchUserByPhone(String phone) async {
     try {
       final normalizedPhone = PhoneUtil.normalize(phone);
-      debugPrint('Searching user with phone: $normalizedPhone');
+      debugPrint('[ContactsRepo] Searching user by phone: $normalizedPhone');
 
       final query = await FirebaseFirestore.instance
           .collection('users')
@@ -169,13 +213,88 @@ class ContactsRepositoryImpl implements ContactsRepository {
       if (query.docs.isNotEmpty) {
         final doc = query.docs.first;
         final data = doc.data();
-        data['uid'] = doc.id; // Inject ID into data map
+        data['uid'] = doc.id;
         return data;
       }
       return null;
     } catch (e) {
-      debugPrint('Error searching user: $e');
+      debugPrint('[ContactsRepo] Error searching user by phone: $e');
       return null;
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>?> searchUserByEmail(String email) async {
+    try {
+      final normalizedEmail = email.trim().toLowerCase();
+      debugPrint('[ContactsRepo] Searching user by email: $normalizedEmail');
+
+      final query = await FirebaseFirestore.instance
+          .collection('users')
+          .where('email', isEqualTo: normalizedEmail)
+          .limit(1)
+          .get();
+
+      if (query.docs.isNotEmpty) {
+        final doc = query.docs.first;
+        final data = doc.data();
+        data['uid'] = doc.id;
+        return data;
+      }
+      return null;
+    } catch (e) {
+      debugPrint('[ContactsRepo] Error searching user by email: $e');
+      return null;
+    }
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> searchNetwork(String queryText) async {
+    try {
+      final normalized = queryText.trim();
+      if (normalized.isEmpty) return [];
+
+      debugPrint('[ContactsRepo] Searching network for: $normalized');
+
+      final usersCollection = FirebaseFirestore.instance.collection('users');
+      List<Map<String, dynamic>> results = [];
+
+      // If it looks like an email, search by email
+      if (normalized.contains('@')) {
+        final emailQuery = await usersCollection
+            .where('email', isEqualTo: normalized.toLowerCase())
+            .limit(10)
+            .get();
+        results.addAll(emailQuery.docs.map((d) => d.data()..['uid'] = d.id));
+      } 
+      // If it looks like a phone number (starts with + or is numeric)
+      else if (normalized.startsWith('+') || int.tryParse(normalized.replaceAll(RegExp(r'\s'), '')) != null) {
+        final phoneQuery = await usersCollection
+            .where('phone', isEqualTo: PhoneUtil.normalize(normalized))
+            .limit(10)
+            .get();
+        results.addAll(phoneQuery.docs.map((d) => d.data()..['uid'] = d.id));
+      } 
+      // Otherwise search by name prefix
+      else {
+        final nameQuery = await usersCollection
+            .where('name', isGreaterThanOrEqualTo: normalized)
+            .where('name', isLessThan: '$normalized\uf8ff')
+            .limit(20)
+            .get();
+        results.addAll(nameQuery.docs.map((d) => d.data()..['uid'] = d.id));
+      }
+
+      // Deduplicate by UID
+      final uniqueResults = <String, Map<String, dynamic>>{};
+      for (final r in results) {
+        uniqueResults[r['uid'] as String] = r;
+      }
+      
+      return uniqueResults.values.toList();
+    } catch (e) {
+      debugPrint('[ContactsRepo] Error searching network: $e');
+      return [];
     }
   }
 
@@ -183,51 +302,11 @@ class ContactsRepositoryImpl implements ContactsRepository {
   Stream<ContactModel?> watchContact(String id) {
     return (_db.select(_db.contacts)..where((tbl) => tbl.id.equals(id)))
         .watchSingleOrNull()
-        .asyncMap((row) async {
+        .map((row) {
           if (row == null) return null;
-          final resolved = await _resolveVerificationTimeoutIfNeeded(row);
-          return ContactModel.fromDb(resolved);
+          return ContactModel.fromDb(row);
         });
   }
 
-  Future<void> _resolvePendingVerificationTimeouts() async {
-    final now = DateTime.now();
-    final pendingRows =
-        await (_db.select(_db.contacts)..where(
-              (tbl) => tbl.verificationStatus.equals(
-                ContactVerificationStatus.pending.index,
-              ),
-            ))
-            .get();
 
-    for (final row in pendingRows) {
-      if (row.verificationDeadlineAt == null) continue;
-      if (now.isBefore(row.verificationDeadlineAt!)) continue;
-      await _resolveVerificationTimeoutIfNeeded(row);
-    }
-  }
-
-  Future<Contact> _resolveVerificationTimeoutIfNeeded(Contact row) async {
-    if (row.verificationStatus != ContactVerificationStatus.pending.index) {
-      return row;
-    }
-    final deadline = row.verificationDeadlineAt;
-    if (deadline == null || DateTime.now().isBefore(deadline)) {
-      return row;
-    }
-
-    final nextStatus =
-        row.verificationTimeoutPolicy ==
-            VerificationTimeoutPolicy.autoExpire.index
-        ? ContactVerificationStatus.expired
-        : ContactVerificationStatus.verified;
-
-    await (_db.update(_db.contacts)..where((tbl) => tbl.id.equals(row.id)))
-        .write(ContactsCompanion(verificationStatus: Value(nextStatus.index)));
-
-    final updated = await (_db.select(
-      _db.contacts,
-    )..where((tbl) => tbl.id.equals(row.id))).getSingleOrNull();
-    return updated ?? row;
-  }
 }

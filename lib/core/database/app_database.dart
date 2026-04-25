@@ -43,7 +43,9 @@ part 'app_database.g.dart';
   ],
 )
 class AppDatabase extends _$AppDatabase {
-  AppDatabase() : super(_openConnection());
+  final String uid;
+  
+  AppDatabase(this.uid) : super(_openConnection(uid));
 
   Future<bool> _hasColumn(String tableName, String columnName) async {
     final rows = await customSelect('PRAGMA table_info("$tableName")').get();
@@ -57,7 +59,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 20;
+  int get schemaVersion => 22;
 
   @override
   MigrationStrategy get migration {
@@ -165,6 +167,25 @@ class AppDatabase extends _$AppDatabase {
           await m.createTable(promotions);
           await m.createTable(promotionRedemptions);
         }
+        if (from < 21) {
+          if (!await _hasColumn('contacts', 'verification_method')) {
+            await m.addColumn(contacts, contacts.verificationMethod);
+          }
+        }
+        if (from < 22) {
+          if (!await _hasColumn('contacts', 'is_retailer')) {
+            await m.addColumn(contacts, contacts.isRetailer);
+          }
+          if (!await _hasColumn('contacts', 'is_wholesaler')) {
+            await m.addColumn(contacts, contacts.isWholesaler);
+          }
+          if (!await _hasColumn('contacts', 'is_broker')) {
+            await m.addColumn(contacts, contacts.isBroker);
+          }
+          if (!await _hasColumn('contacts', 'is_supplier')) {
+            await m.addColumn(contacts, contacts.isSupplier);
+          }
+        }
       },
       beforeOpen: (details) async {
         await customStatement('PRAGMA foreign_keys = ON');
@@ -173,10 +194,10 @@ class AppDatabase extends _$AppDatabase {
   }
 }
 
-LazyDatabase _openConnection() {
+LazyDatabase _openConnection(String uid) {
   return LazyDatabase(() async {
     final dbFolder = await getApplicationDocumentsDirectory();
-    final file = File(p.join(dbFolder.path, 'hisabet_v1.sqlite'));
+    final file = File(p.join(dbFolder.path, 'hisabet_$uid.sqlite'));
     return NativeDatabase.createInBackground(file);
   });
 }

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hisabet/core/presentation/widgets/widgets.dart';
 import 'package:hisabet/core/theme/theme.dart';
@@ -407,28 +409,39 @@ class _ProfileTab extends ConsumerWidget {
             Text("Settings & Tools", style: AppTextStyles.headlineLarge),
             const SizedBox(height: AppDimensions.xxxl),
             
-            AppFormSection(
-              title: "General",
-              icon: Icons.tune,
-              children: [
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.language, color: AppColors.primary),
-                  title: const Text("Language / ቋንቋ"),
-                  subtitle: const Text("English / አማርኛ"),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => _showLanguageSheet(context, ref),
-                ),
-                const Divider(),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.security, color: AppColors.primary),
-                  title: const Text("Permissions"),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () {},
-                ),
-              ],
-            ),
+              AppFormSection(
+                title: "General",
+                icon: Icons.tune,
+                children: [
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.language, color: AppColors.primary),
+                    title: const Text("Language / ቋንቋ"),
+                    subtitle: const Text("English / አማርኛ"),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => _showLanguageSheet(context, ref),
+                  ),
+                  const Divider(),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.security, color: AppColors.primary),
+                    title: const Text("Permissions"),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () {},
+                  ),
+                  const Divider(),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.logout, color: AppColors.negative),
+                    title: const Text("Logout", style: TextStyle(color: AppColors.negative)),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () async {
+                      await FirebaseAuth.instance.signOut();
+                      await GoogleSignIn().signOut();
+                    },
+                  ),
+                ],
+              ),
             
             const SizedBox(height: AppDimensions.xl),
             

@@ -14,13 +14,13 @@ import 'package:hisabet/features/team/presentation/providers/team_providers.dart
 class ReconciliationScreen extends ConsumerWidget {
   final String contactId;
   final String contactName;
-  final String contactPhone;
+  final String? contactPhone;
 
   const ReconciliationScreen({
     super.key,
     required this.contactId,
     required this.contactName,
-    required this.contactPhone,
+    this.contactPhone,
   });
 
   @override
@@ -76,9 +76,9 @@ class ReconciliationScreen extends ConsumerWidget {
 class _TimelineItem extends ConsumerWidget {
   final TransactionDiff diff;
   final String contactId;
-  final String contactPhone;
+  final String? contactPhone;
 
-  const _TimelineItem({required this.diff, required this.contactId, required this.contactPhone});
+  const _TimelineItem({required this.diff, required this.contactId, this.contactPhone});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

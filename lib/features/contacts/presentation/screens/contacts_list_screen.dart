@@ -9,9 +9,14 @@ import 'package:hisabet/core/theme/theme.dart';
 import 'package:hisabet/features/contacts/data/models/contact_model.dart';
 import 'package:hisabet/features/contacts/presentation/providers/contacts_providers.dart';
 import 'package:hisabet/features/contacts/presentation/screens/add_contact_screen.dart';
+import 'package:hisabet/features/contacts/presentation/screens/network_search_screen.dart';
+import 'package:hisabet/features/contacts/presentation/screens/connection_inbox_screen.dart';
 import 'package:hisabet/features/team/data/models/team_member_model.dart';
 import 'package:hisabet/features/team/presentation/providers/team_providers.dart';
 import 'package:hisabet/features/transactions/presentation/screens/contact_detail_screen.dart';
+
+// Filter options
+const _kRoleFilters = ['All', 'Retailers', 'Wholesalers', 'Brokers', 'Suppliers'];
 
 class ContactsListScreen extends ConsumerStatefulWidget {
   final int initialFilterIndex;
@@ -23,20 +28,51 @@ class ContactsListScreen extends ConsumerStatefulWidget {
 }
 
 class _ContactsListScreenState extends ConsumerState<ContactsListScreen> {
-  static const _filterOptions = ['All Contacts', 'Merchants', 'Suppliers'];
   late String _selectedFilter;
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
 
   @override
   void initState() {
     super.initState();
-    final idx = widget.initialFilterIndex.clamp(0, _filterOptions.length - 1);
-    _selectedFilter = _filterOptions[idx];
+    final idx = widget.initialFilterIndex.clamp(0, _kRoleFilters.length - 1);
+    _selectedFilter = _kRoleFilters[idx];
+    _searchController.addListener(() {
+      setState(() => _searchQuery = _searchController.text.trim().toLowerCase());
+    });
   }
 
-  List<ContactModel> _applyRoleFilter(List<ContactModel> contacts) {
-    if (_selectedFilter == 'Merchants') return contacts.where((c) => c.role == ContactRole.merchant || c.role == ContactRole.both).toList();
-    if (_selectedFilter == 'Suppliers') return contacts.where((c) => c.role == ContactRole.supplier || c.role == ContactRole.both).toList();
-    return contacts;
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  List<ContactModel> _applyFilters(List<ContactModel> contacts) {
+    var list = contacts;
+    // Role filter
+    switch (_selectedFilter) {
+      case 'Retailers':
+        list = list.where((c) => c.isRetailer).toList();
+        break;
+      case 'Wholesalers':
+        list = list.where((c) => c.isWholesaler).toList();
+        break;
+      case 'Brokers':
+        list = list.where((c) => c.isBroker).toList();
+        break;
+      case 'Suppliers':
+        list = list.where((c) => c.isSupplier || c.role == ContactRole.supplier).toList();
+        break;
+    }
+    // Local search
+    if (_searchQuery.isNotEmpty) {
+      list = list.where((c) {
+        return c.name.toLowerCase().contains(_searchQuery) ||
+            (c.phoneNumber?.toLowerCase().contains(_searchQuery) ?? false);
+      }).toList();
+    }
+    return list;
   }
 
   @override
@@ -58,30 +94,152 @@ class _ContactsListScreenState extends ConsumerState<ContactsListScreen> {
           },
         ),
         actions: [
-          IconButton(icon: const Icon(Icons.search_rounded), onPressed: () {}),
-          IconButton(icon: const Icon(Icons.notifications_none_rounded), onPressed: () {}),
+          // Network / Global search — clearly labeled
+          IconButton(
+            icon: const Icon(Icons.travel_explore_rounded),
+            tooltip: 'Search HisabET Network',
+            onPressed: () async {
+              await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NetworkSearchScreen()));
+              ref.invalidate(allContactsProvider);
+            },
+          ),
+          // Notification bell with badge
+          Consumer(
+            builder: (context, ref, child) {
+              final requestsAsync = ref.watch(connectionRequestsProvider);
+              final pendingCount = requestsAsync.valueOrNull?.length ?? 0;
+
+              return Stack(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.notifications_none_rounded),
+                    tooltip: 'Connection Requests',
+                    onPressed: () {
+                      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ConnectionInboxScreen()));
+                    },
+                  ),
+                  if (pendingCount > 0)
+                    Positioned(
+                      right: 8,
+                      top: 8,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          color: AppColors.negative,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                        child: Text(
+                          pendingCount.toString(),
+                          style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
         ],
       ),
       body: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
+          // ── Local Search Bar ──────────────────────────────────────────
           SliverToBoxAdapter(
-            child: AppFilterChips<String>(
-              options: _filterOptions,
-              selected: _selectedFilter,
-              labelBuilder: (s) => s,
-              onSelected: (s) => setState(() => _selectedFilter = s),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(AppDimensions.pagePaddingH, AppDimensions.md, AppDimensions.pagePaddingH, 0),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Theme.of(context).cardColor,
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.06),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: TextField(
+                  controller: _searchController,
+                  decoration: InputDecoration(
+                    hintText: 'Search your contacts…',
+                    prefixIcon: const Icon(Icons.search_rounded, color: AppColors.textSecondary),
+                    suffixIcon: _searchQuery.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear_rounded, size: 18),
+                            onPressed: () => _searchController.clear(),
+                          )
+                        : null,
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                ),
+              ),
             ),
           ),
-          const SliverToBoxAdapter(child: SizedBox(height: AppDimensions.lg)),
+          // ── Role Filter Chips ─────────────────────────────────────────
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.only(top: AppDimensions.sm),
+              child: AppFilterChips<String>(
+                options: _kRoleFilters,
+                selected: _selectedFilter,
+                labelBuilder: (s) => s,
+                onSelected: (s) => setState(() => _selectedFilter = s),
+              ),
+            ),
+          ),
+          // ── Network Search Hint Banner ────────────────────────────────
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(AppDimensions.pagePaddingH, AppDimensions.sm, AppDimensions.pagePaddingH, 0),
+              child: GestureDetector(
+                onTap: () async {
+                  await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NetworkSearchScreen()));
+                  ref.invalidate(allContactsProvider);
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: AppDimensions.md, vertical: AppDimensions.sm),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
+                    border: Border.all(color: AppColors.primary.withOpacity(0.25)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.travel_explore_rounded, size: 16, color: AppColors.primary),
+                      const SizedBox(width: AppDimensions.sm),
+                      const Expanded(
+                        child: Text(
+                          'Find & add contacts from the HisabET network',
+                          style: TextStyle(fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      const Icon(Icons.arrow_forward_ios_rounded, size: 12, color: AppColors.primary),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SliverToBoxAdapter(child: SizedBox(height: AppDimensions.md)),
+          // ── Contact List ──────────────────────────────────────────────
           contactsAsync.when(
             loading: () => const SliverFillRemaining(child: Center(child: CircularProgressIndicator())),
             error: (err, stack) => SliverFillRemaining(child: Center(child: Text('Error: $err'))),
             data: (contacts) {
-              final filteredContacts = _applyRoleFilter(contacts);
+              final filteredContacts = _applyFilters(contacts);
               if (filteredContacts.isEmpty) {
-                return const SliverFillRemaining(
-                  child: AppEmptyState(icon: Icons.people_outline_rounded, title: 'No Local Contacts', subtitle: 'You have not added any local address profiles yet.'),
+                return SliverFillRemaining(
+                  child: AppEmptyState(
+                    icon: Icons.people_outline_rounded,
+                    title: _searchQuery.isNotEmpty ? 'No Matches Found' : 'No Contacts',
+                    subtitle: _searchQuery.isNotEmpty
+                        ? 'No contacts match "$_searchQuery".'
+                        : 'Add contacts manually or search the HisabET network.',
+                  ),
                 );
               }
               return SliverPadding(
@@ -96,7 +254,7 @@ class _ContactsListScreenState extends ConsumerState<ContactsListScreen> {
                       leadingIcon: Icons.badge_rounded,
                       leadingColor: isPositive ? AppColors.positive : AppColors.negative,
                       title: contact.name,
-                      subtitle: contact.phoneNumber ?? 'No Phone',
+                      subtitle: _buildContactSubtitle(contact),
                       onTap: () async {
                         await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ContactDetailScreen(contact: contact)));
                         ref.invalidate(allContactsProvider);
@@ -134,8 +292,8 @@ class _ContactsListScreenState extends ConsumerState<ContactsListScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        icon: const Icon(Icons.add),
-        label: const Text("New Contact"),
+        icon: const Icon(Icons.person_add_rounded),
+        label: const Text("Add Contact"),
         onPressed: () async {
           final allowed = await _ensureCreateContactPermission(context, ref);
           if (!allowed) return;
@@ -144,6 +302,13 @@ class _ContactsListScreenState extends ConsumerState<ContactsListScreen> {
         },
       ),
     );
+  }
+
+  String _buildContactSubtitle(ContactModel contact) {
+    final roles = contact.roleLabels;
+    final roleStr = roles.join(' · ');
+    final phone = contact.phoneNumber ?? 'No Phone';
+    return '$phone  |  $roleStr';
   }
 
   Future<bool> _ensureCreateContactPermission(BuildContext context, WidgetRef ref) async {

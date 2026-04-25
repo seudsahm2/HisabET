@@ -7,7 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:hisabet/features/contacts/presentation/providers/contacts_providers.dart';
 
 // Define family typedef
-typedef ReconciliationParams = ({String contactId, String contactPhone});
+typedef ReconciliationParams = ({String contactId, String? contactPhone});
 
 final reconciliationProvider =
     StreamProvider.family<ReconciliationResult, ReconciliationParams>((

@@ -479,7 +479,6 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                                   flex: 2,
                                   child: TextFormField(
                                     controller: _cartonsController,
-                                    readOnly: _isGoodsGive,
                                     keyboardType: TextInputType.number,
                                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                                     onChanged: (_) => _recalculateGoodsTotal(),

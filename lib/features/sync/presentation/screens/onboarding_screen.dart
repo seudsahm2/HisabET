@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -9,7 +10,8 @@ import 'package:hisabet/features/contacts/presentation/screens/contacts_list_scr
 
 class OnboardingScreen extends ConsumerStatefulWidget {
   final bool startAtProfile;
-  const OnboardingScreen({super.key, this.startAtProfile = false});
+  final List<String> initialRoles;
+  const OnboardingScreen({super.key, this.startAtProfile = false, this.initialRoles = const []});
 
   @override
   ConsumerState<OnboardingScreen> createState() => _OnboardingScreenState();
@@ -30,7 +32,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   final _otpController = TextEditingController();
   final _nameController = TextEditingController();
   final _profilePhoneController = TextEditingController();
-  final _supplierEmailController = TextEditingController();
   final _supplierAddressController = TextEditingController();
   final _supplierTermsController = TextEditingController(text: '0');
   final _supplierOpeningBalanceController = TextEditingController(text: '0');
@@ -40,15 +41,26 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   bool _isLoading = false;
   bool _codeSent = false;
   late bool _isNameStep; // Late initialization
-  String _accountType = 'merchant';
+  List<String> _selectedRoles = [];
+  final List<String> _availableRoles = ['Supplier', 'Broker', 'Wholesaler', 'Retailer'];
+
+  bool _profilePhoneVerified = false;
+  String? _linkingVerificationId;
+  bool _linkingCodeSent = false;
+  bool _isLinking = false;
+  final _linkingOtpController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _isNameStep = widget.startAtProfile;
+    if (widget.initialRoles.isNotEmpty) {
+      _selectedRoles = List.from(widget.initialRoles);
+    }
     final signedInPhone = FirebaseAuth.instance.currentUser?.phoneNumber;
     if (signedInPhone != null && signedInPhone.trim().isNotEmpty) {
       _profilePhoneController.text = signedInPhone;
+      _profilePhoneVerified = true;
     }
   }
 
@@ -67,7 +79,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     _otpController.dispose();
     _nameController.dispose();
     _profilePhoneController.dispose();
-    _supplierEmailController.dispose();
+    _linkingOtpController.dispose();
     _supplierAddressController.dispose();
     _supplierTermsController.dispose();
     _supplierOpeningBalanceController.dispose();
@@ -184,6 +196,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   Future<void> _verifyOtp() async {
     if (_otpController.text.length != 6 || _verificationId == null) return;
     setState(() => _isLoading = true);
+    debugPrint('[OnboardingScreen] _verifyOtp: submitting OTP...');
 
     if (_verificationId == '__manual_dev_bypass__') {
       final enteredCode = _otpController.text.trim();
@@ -198,11 +211,11 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       }
 
       try {
-        // Anonymous sign-in unlocks authenticated app flow for feature development.
+        debugPrint('[OnboardingScreen] Dev bypass: signing in anonymously...');
         await FirebaseAuth.instance.signInAnonymously();
-        if (mounted) {
-          await _checkUserProfile();
-        }
+        debugPrint('[OnboardingScreen] Dev bypass: anonymous sign-in complete. AuthGate will handle routing.');
+        // AuthGate/ProfileCheckGate handles routing. Reset loading if still mounted.
+        if (mounted) setState(() => _isLoading = false);
       } on FirebaseAuthException catch (e) {
         if (mounted) {
           setState(() => _isLoading = false);
@@ -220,12 +233,14 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         smsCode: _otpController.text.trim(),
       );
 
+      debugPrint('[OnboardingScreen] _verifyOtp: calling signInWithCredential...');
       await FirebaseAuth.instance.signInWithCredential(credential);
-
-      if (mounted) {
-        await _checkUserProfile();
-      }
+      debugPrint('[OnboardingScreen] _verifyOtp: signInWithCredential SUCCESS. AuthGate will handle routing.');
+      // AuthGate's authStateChanges stream fires -> ProfileCheckGate takes over.
+      // Reset loading if still mounted (widget may already be unmounted by AuthGate rebuild).
+      if (mounted) setState(() => _isLoading = false);
     } on FirebaseAuthException catch (e) {
+      debugPrint('[OnboardingScreen] _verifyOtp: FirebaseAuthException: ${e.code} - ${e.message}');
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -233,11 +248,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         );
       }
     } catch (e) {
+      debugPrint('[OnboardingScreen] _verifyOtp: unexpected error: $e');
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     }
   }
@@ -247,30 +261,32 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       _isLoading = true;
       _phoneError = null;
     });
+    debugPrint('[OnboardingScreen] _signInWithGoogle: starting Google sign-in flow...');
 
     try {
       final googleSignIn = GoogleSignIn();
       final googleUser = await googleSignIn.signIn();
 
       if (googleUser == null) {
-        if (mounted) {
-          setState(() => _isLoading = false);
-        }
+        debugPrint('[OnboardingScreen] _signInWithGoogle: user cancelled Google sign-in.');
+        if (mounted) setState(() => _isLoading = false);
         return;
       }
 
+      debugPrint('[OnboardingScreen] _signInWithGoogle: got Google user ${googleUser.email}');
       final googleAuth = await googleUser.authentication;
       final credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
 
+      debugPrint('[OnboardingScreen] _signInWithGoogle: calling signInWithCredential...');
       await FirebaseAuth.instance.signInWithCredential(credential);
-
-      if (mounted) {
-        await _checkUserProfile();
-      }
+      debugPrint('[OnboardingScreen] _signInWithGoogle: signInWithCredential SUCCESS. AuthGate will handle routing.');
+      // AuthGate's authStateChanges stream fires -> ProfileCheckGate takes over.
+      if (mounted) setState(() => _isLoading = false);
     } on FirebaseAuthException catch (e) {
+      debugPrint('[OnboardingScreen] _signInWithGoogle: FirebaseAuthException: ${e.code} - ${e.message}');
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -278,6 +294,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         );
       }
     } catch (e) {
+      debugPrint('[OnboardingScreen] _signInWithGoogle: unexpected error: $e');
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -310,6 +327,104 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     }
   }
 
+  Future<void> _verifyPhoneForProfile() async {
+    setState(() {
+      _isLinking = true;
+    });
+
+    final rawPhone = _profilePhoneController.text.trim();
+    if (rawPhone.isEmpty) {
+      setState(() => _isLinking = false);
+      return;
+    }
+    
+    final phone = PhoneUtil.normalize(rawPhone);
+    try {
+      await FirebaseAuth.instance.verifyPhoneNumber(
+        phoneNumber: phone,
+        verificationCompleted: (PhoneAuthCredential credential) async {
+          await FirebaseAuth.instance.currentUser?.linkWithCredential(credential);
+          if (mounted) {
+            setState(() {
+              _profilePhoneVerified = true;
+              _isLinking = false;
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Phone number verified automatically.')),
+            );
+          }
+        },
+        verificationFailed: (FirebaseAuthException e) {
+          if (mounted) {
+            setState(() => _isLinking = false);
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(_readablePhoneAuthError(e))),
+            );
+          }
+        },
+        codeSent: (String verificationId, int? resendToken) {
+          if (mounted) {
+            setState(() {
+              _linkingVerificationId = verificationId;
+              _linkingCodeSent = true;
+              _isLinking = false;
+            });
+          }
+        },
+        codeAutoRetrievalTimeout: (String verificationId) {
+          _linkingVerificationId = verificationId;
+        },
+        timeout: const Duration(seconds: 60),
+      );
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLinking = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Verification failed: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _verifyOtpForProfile() async {
+    if (_linkingOtpController.text.length != 6 || _linkingVerificationId == null) return;
+    setState(() => _isLinking = true);
+
+    try {
+      final credential = PhoneAuthProvider.credential(
+        verificationId: _linkingVerificationId!,
+        smsCode: _linkingOtpController.text.trim(),
+      );
+
+      await FirebaseAuth.instance.currentUser?.linkWithCredential(credential);
+
+      if (mounted) {
+        setState(() {
+          _profilePhoneVerified = true;
+          _isLinking = false;
+          _linkingCodeSent = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Phone number linked successfully.')),
+        );
+      }
+    } on FirebaseAuthException catch (e) {
+      if (mounted) {
+        setState(() => _isLinking = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_readablePhoneAuthError(e))),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLinking = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    }
+  }
+
   // Check if profile exists; if not, show name setup
   Future<void> _checkUserProfile() async {
     final user = FirebaseAuth.instance.currentUser;
@@ -323,13 +438,24 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     final data = doc.data();
     final hasName = data?['name']?.toString().trim().isNotEmpty == true;
     final hasPhone = data?['phone']?.toString().trim().isNotEmpty == true;
-    final hasAccountType =
-        data?['accountType']?.toString().trim().isNotEmpty == true;
+    final hasEmail = data?['email']?.toString().trim().isNotEmpty == true;
+    final existingRoles = (data?['roles'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [];
+    final hasRoles = existingRoles.isNotEmpty;
 
-    if (doc.exists && hasName && hasPhone && hasAccountType) {
-      // User exists and has name -> AuthGate handles navigation
+    // Populate local role state if user already has roles in DB
+    if (hasRoles && _selectedRoles.isEmpty && mounted) {
+      setState(() => _selectedRoles = existingRoles);
+    }
+
+    // Profile is complete: has name, at least one role, and phone OR email
+    final isComplete = doc.exists && hasName && (hasPhone || hasEmail) && hasRoles;
+
+    if (isComplete) {
+      // AuthGate's StreamBuilder will handle routing to MainScaffold.
+      // Just reset the loading state.
+      if (mounted) setState(() => _isLoading = false);
     } else {
-      // User is new -> Show Name Setup
+      // New user or incomplete profile -> show Profile setup step
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -341,53 +467,75 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   Future<void> _saveProfile() async {
     final name = _nameController.text.trim();
-    final profilePhone = PhoneUtil.normalize(_profilePhoneController.text.trim());
-    if (name.isEmpty || profilePhone.isEmpty) return;
+    final profilePhone = _profilePhoneController.text.trim();
+    
+    if (name.isEmpty) return;
+    
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    if (profilePhone.isNotEmpty && !_profilePhoneVerified && user.phoneNumber == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please verify your optional phone number first or clear the field.')),
+      );
+      return;
+    }
+
+    if (_selectedRoles.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select at least one business role.')),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
+    debugPrint('[OnboardingScreen] _saveProfile: saving for uid=${user.uid}, name=$name, roles=$_selectedRoles');
 
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user != null) {
-        final profilePayload = <String, dynamic>{
-          'id': user.uid,
-          'phone': profilePhone,
-          'name': name,
-          'accountType': _accountType,
-          'created_at': DateTime.now().toIso8601String(),
-        };
+      final profilePayload = <String, dynamic>{
+        'id': user.uid,
+        'name': name,
+        'roles': _selectedRoles,
+        'created_at': DateTime.now().toIso8601String(),
+      };
 
-        if (_accountType == 'supplier') {
-          profilePayload['supplierEmail'] =
-              _supplierEmailController.text.trim().isEmpty
-                  ? null
-                  : _supplierEmailController.text.trim();
-          profilePayload['supplierAddress'] =
-              _supplierAddressController.text.trim().isEmpty
-                  ? null
-                  : _supplierAddressController.text.trim();
-          profilePayload['supplierTermsDays'] =
-              int.tryParse(_supplierTermsController.text.trim()) ?? 0;
-          profilePayload['supplierOpeningBalance'] =
-              _supplierOpeningBalanceController.text.trim().isEmpty
-                  ? '0'
-                  : _supplierOpeningBalanceController.text.trim();
-          profilePayload['supplierCurrentBalance'] =
-              _supplierCurrentBalanceController.text.trim().isEmpty
-                  ? '0'
-                  : _supplierCurrentBalanceController.text.trim();
-        }
-
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .set(profilePayload, SetOptions(merge: true));
-
-        if (mounted) {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (_) => const ContactsListScreen()),
-          );
-        }
+      // Save phone: prefer user-entered verified phone, else use Firebase Auth phone
+      if (_profilePhoneVerified && profilePhone.isNotEmpty) {
+        profilePayload['phone'] = PhoneUtil.normalize(profilePhone);
+      } else if (user.phoneNumber != null && user.phoneNumber!.isNotEmpty) {
+        profilePayload['phone'] = user.phoneNumber!;
       }
+
+      // Always save email from Firebase Auth if available (Google users)
+      if (user.email != null && user.email!.isNotEmpty) {
+        profilePayload['email'] = user.email!;
+        debugPrint('[OnboardingScreen] _saveProfile: saving email=${user.email}');
+      }
+
+      if (_selectedRoles.contains('Supplier')) {
+        profilePayload['supplierAddress'] =
+            _supplierAddressController.text.trim().isEmpty
+                ? null
+                : _supplierAddressController.text.trim();
+        profilePayload['supplierTermsDays'] =
+            int.tryParse(_supplierTermsController.text.trim()) ?? 0;
+        profilePayload['supplierOpeningBalance'] =
+            _supplierOpeningBalanceController.text.trim().isEmpty
+                ? '0'
+                : _supplierOpeningBalanceController.text.trim();
+        profilePayload['supplierCurrentBalance'] =
+            _supplierCurrentBalanceController.text.trim().isEmpty
+                ? '0'
+                : _supplierCurrentBalanceController.text.trim();
+      }
+
+      debugPrint('[OnboardingScreen] _saveProfile: writing to Firestore...');
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .set(profilePayload, SetOptions(merge: true));
+      debugPrint('[OnboardingScreen] _saveProfile: Firestore write SUCCESS. ProfileCheckGate will navigate to MainScaffold.');
+      // ProfileCheckGate's Firestore stream detects the update and routes to MainScaffold.
     } on FirebaseException catch (e) {
       if (!mounted) return;
 
@@ -400,11 +548,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           ),
         );
 
-        if (_devBypassProfileCheck) {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (_) => const ContactsListScreen()),
-          );
-        }
+        // Let AuthGate handle navigation if bypassed
         return;
       }
 
@@ -439,6 +583,26 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       appBar: AppBar(
         title: Text(_isNameStep ? 'Create Profile' : 'Verified Login'),
         automaticallyImplyLeading: false,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () async {
+              await FirebaseAuth.instance.signOut();
+              try {
+                final GoogleSignIn googleSignIn = GoogleSignIn();
+                if (await googleSignIn.isSignedIn()) {
+                  await googleSignIn.signOut();
+                }
+              } catch (_) {}
+              if (mounted) {
+                setState(() {
+                  _isNameStep = false;
+                  _selectedRoles.clear();
+                });
+              }
+            },
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(24.0),
@@ -473,51 +637,104 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _profilePhoneController,
-                    keyboardType: TextInputType.phone,
-                    decoration: const InputDecoration(
-                      labelText: 'Phone Number',
-                      hintText: '+251911223344',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.phone),
-                    ),
+                  const Text(
+                    'Select your business roles:',
+                    style: TextStyle(fontWeight: FontWeight.bold),
                   ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8.0,
+                    runSpacing: 8.0,
+                    children: _availableRoles.map((role) {
+                      final isSelected = _selectedRoles.contains(role);
+                      return FilterChip(
+                        label: Text(role),
+                        selected: isSelected,
+                        onSelected: (selected) {
+                          setState(() {
+                            if (selected) {
+                              _selectedRoles.add(role);
+                            } else {
+                              _selectedRoles.remove(role);
+                            }
+                          });
+                        },
+                      );
+                    }).toList(),
+                  ),
+                  if (_selectedRoles.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 8.0),
+                      child: Text(
+                        'Please select at least one role to continue.',
+                        style: TextStyle(color: Colors.red, fontSize: 12),
+                      ),
+                    ),
                   const SizedBox(height: 16),
-                  DropdownButtonFormField<String>(
-                    initialValue: _accountType,
-                    decoration: const InputDecoration(
-                      labelText: 'Account Type',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.person_search),
-                    ),
-                    items: const [
-                      DropdownMenuItem(
-                        value: 'merchant',
-                        child: Text('Merchant'),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          controller: _profilePhoneController,
+                          keyboardType: TextInputType.phone,
+                          enabled: FirebaseAuth.instance.currentUser?.phoneNumber == null,
+                          decoration: InputDecoration(
+                            labelText: FirebaseAuth.instance.currentUser?.phoneNumber != null ? 'Phone Number' : 'Optional Phone Number',
+                            hintText: '+251911223344',
+                            border: const OutlineInputBorder(),
+                            prefixIcon: const Icon(Icons.phone),
+                          ),
+                        ),
                       ),
-                      DropdownMenuItem(
-                        value: 'supplier',
-                        child: Text('Supplier'),
-                      ),
+                      if (FirebaseAuth.instance.currentUser?.phoneNumber == null && !_profilePhoneVerified) ...[
+                        const SizedBox(width: 8),
+                        ElevatedButton(
+                          onPressed: _isLinking ? null : _verifyPhoneForProfile,
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+                          ),
+                          child: _isLinking ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Verify'),
+                        ),
+                      ] else if (_profilePhoneVerified) ...[
+                        const SizedBox(width: 8),
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 16.0),
+                          child: Icon(Icons.check_circle, color: Colors.green),
+                        ),
+                      ]
                     ],
-                    onChanged: (value) {
-                      if (value != null) {
-                        setState(() => _accountType = value);
-                      }
-                    },
                   ),
-                  if (_accountType == 'supplier') ...[
+                  if (_linkingCodeSent && !_profilePhoneVerified) ...[
                     const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _supplierEmailController,
-                      keyboardType: TextInputType.emailAddress,
-                      decoration: const InputDecoration(
-                        labelText: 'Supplier Email (Optional)',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.email_outlined),
-                      ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: _linkingOtpController,
+                            decoration: const InputDecoration(
+                              labelText: '6-Digit SMS Code',
+                              border: OutlineInputBorder(),
+                            ),
+                            keyboardType: TextInputType.number,
+                            maxLength: 6,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton(
+                          onPressed: _isLinking ? null : _verifyOtpForProfile,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+                          ),
+                          child: _isLinking ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('Confirm'),
+                        ),
+                      ],
                     ),
+                  ],
+                  const SizedBox(height: 16),
+                  if (_selectedRoles.contains('Supplier')) ...[
                     const SizedBox(height: 16),
                     TextFormField(
                       controller: _supplierAddressController,
@@ -572,9 +789,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                   ],
                   const SizedBox(height: 16),
                   ElevatedButton(
-                    onPressed: _isLoading ? null : _saveProfile,
+                    onPressed: (_isLoading || _selectedRoles.isEmpty) ? null : _saveProfile,
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.all(16),
+                      backgroundColor: _selectedRoles.isEmpty ? Colors.grey : null,
                     ),
                     child: _isLoading
                         ? const CircularProgressIndicator()
@@ -590,11 +808,12 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'We will verify your phone number to secure your ledger.',
+                    'Select your business roles to continue.',
                     textAlign: TextAlign.center,
                     style: TextStyle(color: Colors.grey),
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 16),
+
                   TextFormField(
                     controller: _phoneController,
                     decoration: InputDecoration(

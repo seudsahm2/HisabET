@@ -626,6 +626,77 @@ class $ContactsTable extends Contacts with TableInfo<$ContactsTable, Contact> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _verificationMethodMeta =
+      const VerificationMeta('verificationMethod');
+  @override
+  late final GeneratedColumn<String> verificationMethod =
+      GeneratedColumn<String>(
+        'verification_method',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _isRetailerMeta = const VerificationMeta(
+    'isRetailer',
+  );
+  @override
+  late final GeneratedColumn<bool> isRetailer = GeneratedColumn<bool>(
+    'is_retailer',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_retailer" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _isWholesalerMeta = const VerificationMeta(
+    'isWholesaler',
+  );
+  @override
+  late final GeneratedColumn<bool> isWholesaler = GeneratedColumn<bool>(
+    'is_wholesaler',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_wholesaler" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _isBrokerMeta = const VerificationMeta(
+    'isBroker',
+  );
+  @override
+  late final GeneratedColumn<bool> isBroker = GeneratedColumn<bool>(
+    'is_broker',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_broker" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _isSupplierMeta = const VerificationMeta(
+    'isSupplier',
+  );
+  @override
+  late final GeneratedColumn<bool> isSupplier = GeneratedColumn<bool>(
+    'is_supplier',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_supplier" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -642,6 +713,11 @@ class $ContactsTable extends Contacts with TableInfo<$ContactsTable, Contact> {
     loyaltyPoints,
     lastTransactionDate,
     linkedUserUid,
+    verificationMethod,
+    isRetailer,
+    isWholesaler,
+    isBroker,
+    isSupplier,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -769,6 +845,42 @@ class $ContactsTable extends Contacts with TableInfo<$ContactsTable, Contact> {
         ),
       );
     }
+    if (data.containsKey('verification_method')) {
+      context.handle(
+        _verificationMethodMeta,
+        verificationMethod.isAcceptableOrUnknown(
+          data['verification_method']!,
+          _verificationMethodMeta,
+        ),
+      );
+    }
+    if (data.containsKey('is_retailer')) {
+      context.handle(
+        _isRetailerMeta,
+        isRetailer.isAcceptableOrUnknown(data['is_retailer']!, _isRetailerMeta),
+      );
+    }
+    if (data.containsKey('is_wholesaler')) {
+      context.handle(
+        _isWholesalerMeta,
+        isWholesaler.isAcceptableOrUnknown(
+          data['is_wholesaler']!,
+          _isWholesalerMeta,
+        ),
+      );
+    }
+    if (data.containsKey('is_broker')) {
+      context.handle(
+        _isBrokerMeta,
+        isBroker.isAcceptableOrUnknown(data['is_broker']!, _isBrokerMeta),
+      );
+    }
+    if (data.containsKey('is_supplier')) {
+      context.handle(
+        _isSupplierMeta,
+        isSupplier.isAcceptableOrUnknown(data['is_supplier']!, _isSupplierMeta),
+      );
+    }
     return context;
   }
 
@@ -834,6 +946,26 @@ class $ContactsTable extends Contacts with TableInfo<$ContactsTable, Contact> {
         DriftSqlType.string,
         data['${effectivePrefix}linked_user_uid'],
       ),
+      verificationMethod: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}verification_method'],
+      ),
+      isRetailer: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_retailer'],
+      )!,
+      isWholesaler: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_wholesaler'],
+      )!,
+      isBroker: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_broker'],
+      )!,
+      isSupplier: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_supplier'],
+      )!,
     );
   }
 
@@ -860,6 +992,13 @@ class Contact extends DataClass implements Insertable<Contact> {
 
   /// Stores the Firestore UID if this contact is a real verified user.
   final String? linkedUserUid;
+
+  /// How the contact was verified: 'phone' or 'email'. Null if unverified.
+  final String? verificationMethod;
+  final bool isRetailer;
+  final bool isWholesaler;
+  final bool isBroker;
+  final bool isSupplier;
   const Contact({
     required this.id,
     required this.name,
@@ -875,6 +1014,11 @@ class Contact extends DataClass implements Insertable<Contact> {
     required this.loyaltyPoints,
     required this.lastTransactionDate,
     this.linkedUserUid,
+    this.verificationMethod,
+    required this.isRetailer,
+    required this.isWholesaler,
+    required this.isBroker,
+    required this.isSupplier,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -909,6 +1053,13 @@ class Contact extends DataClass implements Insertable<Contact> {
     if (!nullToAbsent || linkedUserUid != null) {
       map['linked_user_uid'] = Variable<String>(linkedUserUid);
     }
+    if (!nullToAbsent || verificationMethod != null) {
+      map['verification_method'] = Variable<String>(verificationMethod);
+    }
+    map['is_retailer'] = Variable<bool>(isRetailer);
+    map['is_wholesaler'] = Variable<bool>(isWholesaler);
+    map['is_broker'] = Variable<bool>(isBroker);
+    map['is_supplier'] = Variable<bool>(isSupplier);
     return map;
   }
 
@@ -938,6 +1089,13 @@ class Contact extends DataClass implements Insertable<Contact> {
       linkedUserUid: linkedUserUid == null && nullToAbsent
           ? const Value.absent()
           : Value(linkedUserUid),
+      verificationMethod: verificationMethod == null && nullToAbsent
+          ? const Value.absent()
+          : Value(verificationMethod),
+      isRetailer: Value(isRetailer),
+      isWholesaler: Value(isWholesaler),
+      isBroker: Value(isBroker),
+      isSupplier: Value(isSupplier),
     );
   }
 
@@ -969,6 +1127,13 @@ class Contact extends DataClass implements Insertable<Contact> {
         json['lastTransactionDate'],
       ),
       linkedUserUid: serializer.fromJson<String?>(json['linkedUserUid']),
+      verificationMethod: serializer.fromJson<String?>(
+        json['verificationMethod'],
+      ),
+      isRetailer: serializer.fromJson<bool>(json['isRetailer']),
+      isWholesaler: serializer.fromJson<bool>(json['isWholesaler']),
+      isBroker: serializer.fromJson<bool>(json['isBroker']),
+      isSupplier: serializer.fromJson<bool>(json['isSupplier']),
     );
   }
   @override
@@ -995,6 +1160,11 @@ class Contact extends DataClass implements Insertable<Contact> {
       'loyaltyPoints': serializer.toJson<int>(loyaltyPoints),
       'lastTransactionDate': serializer.toJson<DateTime>(lastTransactionDate),
       'linkedUserUid': serializer.toJson<String?>(linkedUserUid),
+      'verificationMethod': serializer.toJson<String?>(verificationMethod),
+      'isRetailer': serializer.toJson<bool>(isRetailer),
+      'isWholesaler': serializer.toJson<bool>(isWholesaler),
+      'isBroker': serializer.toJson<bool>(isBroker),
+      'isSupplier': serializer.toJson<bool>(isSupplier),
     };
   }
 
@@ -1013,6 +1183,11 @@ class Contact extends DataClass implements Insertable<Contact> {
     int? loyaltyPoints,
     DateTime? lastTransactionDate,
     Value<String?> linkedUserUid = const Value.absent(),
+    Value<String?> verificationMethod = const Value.absent(),
+    bool? isRetailer,
+    bool? isWholesaler,
+    bool? isBroker,
+    bool? isSupplier,
   }) => Contact(
     id: id ?? this.id,
     name: name ?? this.name,
@@ -1035,6 +1210,13 @@ class Contact extends DataClass implements Insertable<Contact> {
     linkedUserUid: linkedUserUid.present
         ? linkedUserUid.value
         : this.linkedUserUid,
+    verificationMethod: verificationMethod.present
+        ? verificationMethod.value
+        : this.verificationMethod,
+    isRetailer: isRetailer ?? this.isRetailer,
+    isWholesaler: isWholesaler ?? this.isWholesaler,
+    isBroker: isBroker ?? this.isBroker,
+    isSupplier: isSupplier ?? this.isSupplier,
   );
   Contact copyWithCompanion(ContactsCompanion data) {
     return Contact(
@@ -1074,6 +1256,19 @@ class Contact extends DataClass implements Insertable<Contact> {
       linkedUserUid: data.linkedUserUid.present
           ? data.linkedUserUid.value
           : this.linkedUserUid,
+      verificationMethod: data.verificationMethod.present
+          ? data.verificationMethod.value
+          : this.verificationMethod,
+      isRetailer: data.isRetailer.present
+          ? data.isRetailer.value
+          : this.isRetailer,
+      isWholesaler: data.isWholesaler.present
+          ? data.isWholesaler.value
+          : this.isWholesaler,
+      isBroker: data.isBroker.present ? data.isBroker.value : this.isBroker,
+      isSupplier: data.isSupplier.present
+          ? data.isSupplier.value
+          : this.isSupplier,
     );
   }
 
@@ -1093,7 +1288,12 @@ class Contact extends DataClass implements Insertable<Contact> {
           ..write('creditLimit: $creditLimit, ')
           ..write('loyaltyPoints: $loyaltyPoints, ')
           ..write('lastTransactionDate: $lastTransactionDate, ')
-          ..write('linkedUserUid: $linkedUserUid')
+          ..write('linkedUserUid: $linkedUserUid, ')
+          ..write('verificationMethod: $verificationMethod, ')
+          ..write('isRetailer: $isRetailer, ')
+          ..write('isWholesaler: $isWholesaler, ')
+          ..write('isBroker: $isBroker, ')
+          ..write('isSupplier: $isSupplier')
           ..write(')'))
         .toString();
   }
@@ -1114,6 +1314,11 @@ class Contact extends DataClass implements Insertable<Contact> {
     loyaltyPoints,
     lastTransactionDate,
     linkedUserUid,
+    verificationMethod,
+    isRetailer,
+    isWholesaler,
+    isBroker,
+    isSupplier,
   );
   @override
   bool operator ==(Object other) =>
@@ -1132,7 +1337,12 @@ class Contact extends DataClass implements Insertable<Contact> {
           other.creditLimit == this.creditLimit &&
           other.loyaltyPoints == this.loyaltyPoints &&
           other.lastTransactionDate == this.lastTransactionDate &&
-          other.linkedUserUid == this.linkedUserUid);
+          other.linkedUserUid == this.linkedUserUid &&
+          other.verificationMethod == this.verificationMethod &&
+          other.isRetailer == this.isRetailer &&
+          other.isWholesaler == this.isWholesaler &&
+          other.isBroker == this.isBroker &&
+          other.isSupplier == this.isSupplier);
 }
 
 class ContactsCompanion extends UpdateCompanion<Contact> {
@@ -1150,6 +1360,11 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
   final Value<int> loyaltyPoints;
   final Value<DateTime> lastTransactionDate;
   final Value<String?> linkedUserUid;
+  final Value<String?> verificationMethod;
+  final Value<bool> isRetailer;
+  final Value<bool> isWholesaler;
+  final Value<bool> isBroker;
+  final Value<bool> isSupplier;
   final Value<int> rowid;
   const ContactsCompanion({
     this.id = const Value.absent(),
@@ -1166,6 +1381,11 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
     this.loyaltyPoints = const Value.absent(),
     this.lastTransactionDate = const Value.absent(),
     this.linkedUserUid = const Value.absent(),
+    this.verificationMethod = const Value.absent(),
+    this.isRetailer = const Value.absent(),
+    this.isWholesaler = const Value.absent(),
+    this.isBroker = const Value.absent(),
+    this.isSupplier = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ContactsCompanion.insert({
@@ -1183,6 +1403,11 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
     this.loyaltyPoints = const Value.absent(),
     required DateTime lastTransactionDate,
     this.linkedUserUid = const Value.absent(),
+    this.verificationMethod = const Value.absent(),
+    this.isRetailer = const Value.absent(),
+    this.isWholesaler = const Value.absent(),
+    this.isBroker = const Value.absent(),
+    this.isSupplier = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        name = Value(name),
@@ -1202,6 +1427,11 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
     Expression<int>? loyaltyPoints,
     Expression<DateTime>? lastTransactionDate,
     Expression<String>? linkedUserUid,
+    Expression<String>? verificationMethod,
+    Expression<bool>? isRetailer,
+    Expression<bool>? isWholesaler,
+    Expression<bool>? isBroker,
+    Expression<bool>? isSupplier,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -1223,6 +1453,11 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
       if (lastTransactionDate != null)
         'last_transaction_date': lastTransactionDate,
       if (linkedUserUid != null) 'linked_user_uid': linkedUserUid,
+      if (verificationMethod != null) 'verification_method': verificationMethod,
+      if (isRetailer != null) 'is_retailer': isRetailer,
+      if (isWholesaler != null) 'is_wholesaler': isWholesaler,
+      if (isBroker != null) 'is_broker': isBroker,
+      if (isSupplier != null) 'is_supplier': isSupplier,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1242,6 +1477,11 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
     Value<int>? loyaltyPoints,
     Value<DateTime>? lastTransactionDate,
     Value<String?>? linkedUserUid,
+    Value<String?>? verificationMethod,
+    Value<bool>? isRetailer,
+    Value<bool>? isWholesaler,
+    Value<bool>? isBroker,
+    Value<bool>? isSupplier,
     Value<int>? rowid,
   }) {
     return ContactsCompanion(
@@ -1262,6 +1502,11 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
       loyaltyPoints: loyaltyPoints ?? this.loyaltyPoints,
       lastTransactionDate: lastTransactionDate ?? this.lastTransactionDate,
       linkedUserUid: linkedUserUid ?? this.linkedUserUid,
+      verificationMethod: verificationMethod ?? this.verificationMethod,
+      isRetailer: isRetailer ?? this.isRetailer,
+      isWholesaler: isWholesaler ?? this.isWholesaler,
+      isBroker: isBroker ?? this.isBroker,
+      isSupplier: isSupplier ?? this.isSupplier,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1319,6 +1564,21 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
     if (linkedUserUid.present) {
       map['linked_user_uid'] = Variable<String>(linkedUserUid.value);
     }
+    if (verificationMethod.present) {
+      map['verification_method'] = Variable<String>(verificationMethod.value);
+    }
+    if (isRetailer.present) {
+      map['is_retailer'] = Variable<bool>(isRetailer.value);
+    }
+    if (isWholesaler.present) {
+      map['is_wholesaler'] = Variable<bool>(isWholesaler.value);
+    }
+    if (isBroker.present) {
+      map['is_broker'] = Variable<bool>(isBroker.value);
+    }
+    if (isSupplier.present) {
+      map['is_supplier'] = Variable<bool>(isSupplier.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1342,6 +1602,11 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
           ..write('loyaltyPoints: $loyaltyPoints, ')
           ..write('lastTransactionDate: $lastTransactionDate, ')
           ..write('linkedUserUid: $linkedUserUid, ')
+          ..write('verificationMethod: $verificationMethod, ')
+          ..write('isRetailer: $isRetailer, ')
+          ..write('isWholesaler: $isWholesaler, ')
+          ..write('isBroker: $isBroker, ')
+          ..write('isSupplier: $isSupplier, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -9904,6 +10169,11 @@ typedef $$ContactsTableCreateCompanionBuilder =
       Value<int> loyaltyPoints,
       required DateTime lastTransactionDate,
       Value<String?> linkedUserUid,
+      Value<String?> verificationMethod,
+      Value<bool> isRetailer,
+      Value<bool> isWholesaler,
+      Value<bool> isBroker,
+      Value<bool> isSupplier,
       Value<int> rowid,
     });
 typedef $$ContactsTableUpdateCompanionBuilder =
@@ -9922,6 +10192,11 @@ typedef $$ContactsTableUpdateCompanionBuilder =
       Value<int> loyaltyPoints,
       Value<DateTime> lastTransactionDate,
       Value<String?> linkedUserUid,
+      Value<String?> verificationMethod,
+      Value<bool> isRetailer,
+      Value<bool> isWholesaler,
+      Value<bool> isBroker,
+      Value<bool> isSupplier,
       Value<int> rowid,
     });
 
@@ -10024,6 +10299,31 @@ class $$ContactsTableFilterComposer
 
   ColumnFilters<String> get linkedUserUid => $composableBuilder(
     column: $table.linkedUserUid,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get verificationMethod => $composableBuilder(
+    column: $table.verificationMethod,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isRetailer => $composableBuilder(
+    column: $table.isRetailer,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isWholesaler => $composableBuilder(
+    column: $table.isWholesaler,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isBroker => $composableBuilder(
+    column: $table.isBroker,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isSupplier => $composableBuilder(
+    column: $table.isSupplier,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -10131,6 +10431,31 @@ class $$ContactsTableOrderingComposer
     column: $table.linkedUserUid,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get verificationMethod => $composableBuilder(
+    column: $table.verificationMethod,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isRetailer => $composableBuilder(
+    column: $table.isRetailer,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isWholesaler => $composableBuilder(
+    column: $table.isWholesaler,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isBroker => $composableBuilder(
+    column: $table.isBroker,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isSupplier => $composableBuilder(
+    column: $table.isSupplier,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$ContactsTableAnnotationComposer
@@ -10206,6 +10531,29 @@ class $$ContactsTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get verificationMethod => $composableBuilder(
+    column: $table.verificationMethod,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get isRetailer => $composableBuilder(
+    column: $table.isRetailer,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get isWholesaler => $composableBuilder(
+    column: $table.isWholesaler,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get isBroker =>
+      $composableBuilder(column: $table.isBroker, builder: (column) => column);
+
+  GeneratedColumn<bool> get isSupplier => $composableBuilder(
+    column: $table.isSupplier,
+    builder: (column) => column,
+  );
+
   Expression<T> transactionsRefs<T extends Object>(
     Expression<T> Function($$TransactionsTableAnnotationComposer a) f,
   ) {
@@ -10274,6 +10622,11 @@ class $$ContactsTableTableManager
                 Value<int> loyaltyPoints = const Value.absent(),
                 Value<DateTime> lastTransactionDate = const Value.absent(),
                 Value<String?> linkedUserUid = const Value.absent(),
+                Value<String?> verificationMethod = const Value.absent(),
+                Value<bool> isRetailer = const Value.absent(),
+                Value<bool> isWholesaler = const Value.absent(),
+                Value<bool> isBroker = const Value.absent(),
+                Value<bool> isSupplier = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ContactsCompanion(
                 id: id,
@@ -10290,6 +10643,11 @@ class $$ContactsTableTableManager
                 loyaltyPoints: loyaltyPoints,
                 lastTransactionDate: lastTransactionDate,
                 linkedUserUid: linkedUserUid,
+                verificationMethod: verificationMethod,
+                isRetailer: isRetailer,
+                isWholesaler: isWholesaler,
+                isBroker: isBroker,
+                isSupplier: isSupplier,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -10308,6 +10666,11 @@ class $$ContactsTableTableManager
                 Value<int> loyaltyPoints = const Value.absent(),
                 required DateTime lastTransactionDate,
                 Value<String?> linkedUserUid = const Value.absent(),
+                Value<String?> verificationMethod = const Value.absent(),
+                Value<bool> isRetailer = const Value.absent(),
+                Value<bool> isWholesaler = const Value.absent(),
+                Value<bool> isBroker = const Value.absent(),
+                Value<bool> isSupplier = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ContactsCompanion.insert(
                 id: id,
@@ -10324,6 +10687,11 @@ class $$ContactsTableTableManager
                 loyaltyPoints: loyaltyPoints,
                 lastTransactionDate: lastTransactionDate,
                 linkedUserUid: linkedUserUid,
+                verificationMethod: verificationMethod,
+                isRetailer: isRetailer,
+                isWholesaler: isWholesaler,
+                isBroker: isBroker,
+                isSupplier: isSupplier,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

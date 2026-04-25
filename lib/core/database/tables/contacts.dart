@@ -3,7 +3,7 @@ import 'package:drift/drift.dart';
 class Contacts extends Table {
   TextColumn get id => text()(); // UUID
   TextColumn get name => text()();
-  IntColumn get role => integer().withDefault(const Constant(0))();
+  IntColumn get role => integer().withDefault(const Constant(0))(); // Legacy, kept for migration
   IntColumn get verificationStatus =>
       integer().withDefault(const Constant(0))();
   DateTimeColumn get verificationRequestedAt => dateTime().nullable()();
@@ -22,6 +22,15 @@ class Contacts extends Table {
 
   /// Stores the Firestore UID if this contact is a real verified user.
   TextColumn get linkedUserUid => text().nullable()();
+
+  /// How the contact was verified: 'phone' or 'email'. Null if unverified.
+  TextColumn get verificationMethod => text().nullable()();
+
+  // Role flags – a contact may have multiple roles
+  BoolColumn get isRetailer => boolean().withDefault(const Constant(false))();
+  BoolColumn get isWholesaler => boolean().withDefault(const Constant(false))();
+  BoolColumn get isBroker => boolean().withDefault(const Constant(false))();
+  BoolColumn get isSupplier => boolean().withDefault(const Constant(false))();
 
   @override
   Set<Column> get primaryKey => {id};

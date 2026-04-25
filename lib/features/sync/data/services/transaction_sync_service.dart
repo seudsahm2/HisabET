@@ -14,7 +14,8 @@ class TransactionSyncService {
     required TransactionModel transaction,
     required String creatorUid,
     required String creatorPhone,
-    required String contactPhone,
+    String? contactPhone,
+    String? contactUid,
   }) async {
     try {
       final docRef = _firestore
@@ -36,6 +37,7 @@ class TransactionSyncService {
         'metadata': transaction.metadata,
         'creator_phone': creatorPhone,
         'contact_phone': contactPhone,
+        'contact_uid': contactUid,
         'reference_id': transaction.referenceId,
         'last_updated': FieldValue.serverTimestamp(),
       };
@@ -53,12 +55,12 @@ class TransactionSyncService {
   /// If not, it falls back to Collection Group query (Requires Index).
   Stream<List<TransactionModel>> streamRemoteTransactions({
     required String myPhone,
-    required String contactPhone,
+    String? contactPhone,
     String? contactUid,
   }) {
     // Normalize phones to ensure matching
     final myPhoneSanitized = PhoneUtil.normalize(myPhone);
-    final contactPhoneSanitized = PhoneUtil.normalize(contactPhone);
+    final contactPhoneSanitized = contactPhone != null ? PhoneUtil.normalize(contactPhone) : null;
 
     Query<Map<String, dynamic>> query;
 
@@ -69,6 +71,9 @@ class TransactionSyncService {
           .collection('transactions')
           .where('contact_phone', isEqualTo: myPhoneSanitized);
     } else {
+      if (contactPhoneSanitized == null) {
+        throw ArgumentError('Either contactUid or contactPhone must be provided.');
+      }
       query = _firestore
           .collectionGroup('transactions')
           .where('creator_phone', isEqualTo: contactPhoneSanitized)

@@ -8,11 +8,14 @@ enum ContactVerificationStatus { unverified, pending, verified, expired }
 
 enum VerificationTimeoutPolicy { autoConfirm, autoExpire }
 
+/// How the contact was matched to an app user
+enum ContactVerificationMethod { phone, email }
+
 /// Model class for Contact, maps between DB and Domain
 class ContactModel {
   final String id;
   final String name;
-  final ContactRole role;
+  final ContactRole role; // legacy field
   final ContactVerificationStatus verificationStatus;
   final DateTime? verificationRequestedAt;
   final DateTime? verificationDeadlineAt;
@@ -24,6 +27,13 @@ class ContactModel {
   final int loyaltyPoints;
   final DateTime lastTransactionDate;
   final String? linkedUserUid;
+  final String? verificationMethod; // 'phone' or 'email'
+
+  // New multi-role flags
+  final bool isRetailer;
+  final bool isWholesaler;
+  final bool isBroker;
+  final bool isSupplier;
 
   ContactModel({
     required this.id,
@@ -40,6 +50,11 @@ class ContactModel {
     this.loyaltyPoints = 0,
     required this.lastTransactionDate,
     this.linkedUserUid,
+    this.verificationMethod,
+    this.isRetailer = false,
+    this.isWholesaler = false,
+    this.isBroker = false,
+    this.isSupplier = false,
   }) : creditLimit = creditLimit ?? Decimal.zero;
 
   /// From database row (Drift generated class)
@@ -61,6 +76,11 @@ class ContactModel {
       loyaltyPoints: dbContact.loyaltyPoints,
       lastTransactionDate: dbContact.lastTransactionDate,
       linkedUserUid: dbContact.linkedUserUid,
+      verificationMethod: dbContact.verificationMethod,
+      isRetailer: dbContact.isRetailer,
+      isWholesaler: dbContact.isWholesaler,
+      isBroker: dbContact.isBroker,
+      isSupplier: dbContact.isSupplier,
     );
   }
 
@@ -81,7 +101,23 @@ class ContactModel {
       loyaltyPoints: drift.Value(loyaltyPoints),
       lastTransactionDate: lastTransactionDate,
       linkedUserUid: drift.Value(linkedUserUid),
+      verificationMethod: drift.Value(verificationMethod),
+      isRetailer: drift.Value(isRetailer),
+      isWholesaler: drift.Value(isWholesaler),
+      isBroker: drift.Value(isBroker),
+      isSupplier: drift.Value(isSupplier),
     );
+  }
+
+  /// Returns labels of all active roles for display
+  List<String> get roleLabels {
+    final labels = <String>[];
+    if (isRetailer) labels.add('Retailer');
+    if (isWholesaler) labels.add('Wholesaler');
+    if (isBroker) labels.add('Broker');
+    if (isSupplier) labels.add('Supplier');
+    if (labels.isEmpty) labels.add('Merchant');
+    return labels;
   }
 
   bool get isVerified =>
@@ -92,4 +128,11 @@ class ContactModel {
       verificationStatus == ContactVerificationStatus.unverified;
   bool get isVerificationExpired =>
       verificationStatus == ContactVerificationStatus.expired;
+
+  /// Human-readable verified-by label for UI display
+  String get verificationLabel {
+    if (verificationMethod == 'email') return 'VERIFIED BY EMAIL';
+    if (verificationMethod == 'phone') return 'VERIFIED BY PHONE';
+    return 'VERIFIED';
+  }
 }
