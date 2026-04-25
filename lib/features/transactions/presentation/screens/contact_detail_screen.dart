@@ -171,13 +171,16 @@ class _ContactDetailScreenState extends ConsumerState<ContactDetailScreen> {
   Widget _buildVerificationBadge(ContactVerificationStatus status) {
     switch (status) {
       case ContactVerificationStatus.verified:
-        return AppStatusBadge.success(label: 'Verified', small: true);
+        return const Tooltip(
+          message: 'Verified Account',
+          child: Icon(Icons.verified_rounded, color: Colors.blue, size: 20),
+        );
       case ContactVerificationStatus.pending:
         return AppStatusBadge.warning(label: 'Pending', small: true);
       case ContactVerificationStatus.expired:
         return AppStatusBadge.danger(label: 'Expired', small: true);
       case ContactVerificationStatus.unverified:
-        return AppStatusBadge.neutral(label: 'Unverified', small: true);
+        return const SizedBox.shrink();
     }
   }
 
@@ -309,13 +312,22 @@ class _ContactHeaderTitle extends StatelessWidget {
                   badge,
                 ],
               ),
-              if (contact.phoneNumber != null)
+              if (contact.phoneNumber != null && contact.phoneNumber!.isNotEmpty)
                 Text(
                   contact.phoneNumber!,
                   style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
                   overflow: TextOverflow.ellipsis,
                   maxLines: 1,
+                )
+              else if (contact.verificationMethod == 'email')
+                const Text(
+                  'Verified via email',
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontStyle: FontStyle.italic),
                 ),
+              Text(
+                contact.roleLabels.join(' · '),
+                style: const TextStyle(color: AppColors.primary, fontSize: 11, fontWeight: FontWeight.w600),
+              ),
             ],
           ),
         ),
