@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/foundation.dart';
 
 import 'package:hisabet/core/presentation/widgets/widgets.dart';
 import 'package:hisabet/core/theme/theme.dart';
@@ -111,29 +112,30 @@ class MerchantModulesScreen extends ConsumerWidget {
                     description: 'POS · Invoices · Carts',
                     icon: Icons.point_of_sale_rounded,
                     accentColor: AppColors.moduleSales,
-                    onTap: () => _navigate(context, ref, 'Sales', const PosCartScreen()),
+                    onTap: () => _showComingSoon(context, 'Sales & POS'),
                   ),
-                  AppModuleTile.hero(
-                    title: 'Inventory',
-                    description: 'Products · Stock · SKUs',
-                    icon: Icons.inventory_2_rounded,
-                    accentColor: AppColors.moduleInventory,
-                    onTap: () => _navigate(context, ref, 'Inventory', const ProductsListScreen()),
-                  ),
+                  if (kDebugMode)
+                    AppModuleTile.hero(
+                      title: 'Inventory',
+                      description: 'Products · Stock · SKUs',
+                      icon: Icons.inventory_2_rounded,
+                      accentColor: AppColors.moduleInventory,
+                      onTap: () => _navigate(context, ref, 'Inventory', const ProductsListScreen()),
+                      badge: const AppStatusBadgeData(label: 'DEV ONLY', color: AppColors.negative),
+                    ),
                   AppModuleTile.hero(
                     title: 'Orders',
                     description: 'Fulfillment · Delivery',
                     icon: Icons.receipt_rounded,
                     accentColor: AppColors.moduleOrders,
-                    onTap: () => _navigate(context, ref, 'Orders', const OrdersScreen()),
-                    badge: const AppStatusBadgeData(label: '2 NEW', color: AppColors.info),
+                    onTap: () => _showComingSoon(context, 'Order Fulfillment'),
                   ),
                   AppModuleTile.hero(
                     title: 'Purchases',
                     description: 'Supplier bills · Buying',
                     icon: Icons.shopping_bag_rounded,
                     accentColor: AppColors.modulePurchases,
-                    onTap: () => _navigate(context, ref, 'Purchases', const PurchaseOrdersScreen()),
+                    onTap: () => _showComingSoon(context, 'Purchasing'),
                   ),
                 ]),
               ),
@@ -153,7 +155,7 @@ class MerchantModulesScreen extends ConsumerWidget {
                     description: 'Operating costs & recurring bills',
                     icon: Icons.receipt_long_rounded,
                     accentColor: AppColors.moduleExpenses,
-                    onTap: () => _navigate(context, ref, 'Expenses', const ExpensesScreen()),
+                    onTap: () => _showComingSoon(context, 'Expense Tracking'),
                   ),
                   const SizedBox(height: AppDimensions.sm),
                   AppModuleTile.compact(
@@ -161,7 +163,7 @@ class MerchantModulesScreen extends ConsumerWidget {
                     description: 'Daily cash & bank reconciliation',
                     icon: Icons.account_balance_wallet_rounded,
                     accentColor: AppColors.moduleCashbook,
-                    onTap: () => _navigate(context, ref, 'Cashbook', const CashbookScreen()),
+                    onTap: () => _showComingSoon(context, 'Cashbook'),
                   ),
                   const SizedBox(height: AppDimensions.sm),
                   AppModuleTile.compact(
@@ -169,7 +171,7 @@ class MerchantModulesScreen extends ConsumerWidget {
                     description: 'Profits, trends & analytics',
                     icon: Icons.bar_chart_rounded,
                     accentColor: AppColors.moduleReports,
-                    onTap: () => _navigate(context, ref, 'Reports', const ReportsScreen()),
+                    onTap: () => _showComingSoon(context, 'Analytics & Reports'),
                   ),
                 ]),
               ),
@@ -195,28 +197,28 @@ class MerchantModulesScreen extends ConsumerWidget {
                     description: 'CRM & loyalty',
                     icon: Icons.groups_rounded,
                     accentColor: AppColors.moduleCustomers,
-                    onTap: () => _navigate(context, ref, 'Customers', const CustomersScreen()),
+                    onTap: () => _showComingSoon(context, 'Customer CRM'),
                   ),
                   AppModuleTile.compact(
                     title: 'B2B Tenders',
                     description: 'Global supply bids',
                     icon: Icons.handshake_rounded,
                     accentColor: AppColors.moduleSuppliers,
-                    onTap: () => _navigate(context, ref, 'Suppliers', const SuppliersListScreen()),
+                    onTap: () => _showComingSoon(context, 'Supplier Network'),
                   ),
                   AppModuleTile.compact(
                     title: 'Promotions',
                     description: 'Coupons & offers',
                     icon: Icons.local_offer_rounded,
                     accentColor: AppColors.modulePromotions,
-                    onTap: () => _navigate(context, ref, 'Promotions', const PromotionsScreen()),
+                    onTap: () => _showComingSoon(context, 'Promotions Manager'),
                   ),
                   AppModuleTile.compact(
                     title: 'Team',
                     description: 'Staff & roles',
                     icon: Icons.badge_rounded,
                     accentColor: AppColors.moduleTeam,
-                    onTap: () => _navigate(context, ref, 'Team', const TeamManagementScreen()),
+                    onTap: () => _showComingSoon(context, 'Team Management'),
                   ),
                 ]),
               ),
@@ -235,13 +237,23 @@ class MerchantModulesScreen extends ConsumerWidget {
                   description: 'Taxes, invoices & business profile',
                   icon: Icons.settings_rounded,
                   accentColor: AppColors.moduleSettings,
-                  onTap: () => _navigate(context, ref, 'Settings', const SettingsScreen()),
+                  onTap: () => _showComingSoon(context, 'Store Settings'),
                 ),
               ),
             ),
             const SliverToBoxAdapter(child: SizedBox(height: 100)),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showComingSoon(BuildContext context, String moduleName) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$moduleName will be available in the next major update! 🚀'),
+        backgroundColor: AppColors.primary,
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }

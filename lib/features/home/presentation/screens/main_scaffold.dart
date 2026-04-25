@@ -9,10 +9,12 @@ import 'package:hisabet/features/contacts/presentation/screens/contacts_list_scr
 import 'package:hisabet/features/contacts/presentation/screens/add_contact_screen.dart';
 import 'package:hisabet/features/home/presentation/providers/dashboard_providers.dart';
 import 'package:hisabet/features/home/presentation/screens/merchant_modules_screen.dart';
+import 'package:hisabet/features/inventory/presentation/screens/products_list_screen.dart';
 import 'package:hisabet/features/transactions/data/models/transaction_model.dart';
 import 'package:hisabet/core/l10n/language_provider.dart';
 
 // Navigation targets
+import 'package:hisabet/features/inventory/presentation/screens/product_upsert_screen.dart';
 import 'package:hisabet/features/sales/presentation/screens/pos_cart_screen.dart';
 import 'package:hisabet/features/expenses/presentation/screens/expense_upsert_screen.dart';
 import 'package:hisabet/features/reports/presentation/screens/reports_screen.dart';
@@ -66,6 +68,7 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
         children: const [
           _HomeDashboard(),
           ContactsListScreen(), // Will be renamed to Ledger in future phases
+          ProductsListScreen(), // The Inventory
           MerchantModulesScreen(), // The Business Hub
           _ProfileTab(), // Replaced Menu Tab
         ],
@@ -93,6 +96,11 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
               icon: Icon(Icons.menu_book_outlined),
               selectedIcon: Icon(Icons.menu_book_rounded),
               label: 'Ledger',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.inventory_2_outlined),
+              selectedIcon: Icon(Icons.inventory_2_rounded),
+              label: 'Inventory',
             ),
             NavigationDestination(
               icon: Icon(Icons.business_center_outlined),
@@ -253,6 +261,16 @@ class _DashboardHeader extends StatelessWidget {
 class _PremiumQuickActions extends ConsumerWidget {
   const _PremiumQuickActions();
 
+  void _showComingSoon(BuildContext context, String moduleName) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$moduleName will be available in the next major update! 🚀'),
+        backgroundColor: AppColors.primary,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Padding(
@@ -276,14 +294,14 @@ class _PremiumQuickActions extends ConsumerWidget {
           ),
           _buildActionItem(
             context: context,
-            icon: Icons.point_of_sale,
-            label: "New Sale",
+            icon: Icons.inventory_2,
+            label: "Add Product",
             bg: AppColors.positiveLight,
             iconColor: AppColors.positive,
             onTap: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => const PosCartScreen()),
+                MaterialPageRoute(builder: (_) => const ProductUpsertScreen()),
               );
             },
           ),
@@ -293,12 +311,7 @@ class _PremiumQuickActions extends ConsumerWidget {
             label: "Add Expense",
             bg: AppColors.negativeLight,
             iconColor: AppColors.negative,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const ExpenseUpsertScreen()),
-              );
-            },
+            onTap: () => _showComingSoon(context, 'Expense Tracking'),
           ),
           _buildActionItem(
             context: context,
@@ -306,12 +319,7 @@ class _PremiumQuickActions extends ConsumerWidget {
             label: "Reports",
             bg: AppColors.warningLight,
             iconColor: AppColors.warning,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const ReportsScreen()),
-              );
-            },
+            onTap: () => _showComingSoon(context, 'Analytics & Reports'),
           ),
         ],
       ),

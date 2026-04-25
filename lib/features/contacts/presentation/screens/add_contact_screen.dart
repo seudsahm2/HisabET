@@ -301,7 +301,7 @@ class _AddContactScreenState extends ConsumerState<AddContactScreen> {
                   subtitle: const Text('Sells goods to end consumers'),
                   value: _isRetailer,
                   activeColor: AppColors.primary,
-                  onChanged: (v) => setState(() => _isRetailer = v ?? false),
+                  onChanged: _isVerifiedBySystem ? null : (v) => setState(() => _isRetailer = v ?? false),
                 ),
                 CheckboxListTile(
                   dense: true,
@@ -309,7 +309,7 @@ class _AddContactScreenState extends ConsumerState<AddContactScreen> {
                   subtitle: const Text('Buys in bulk and resells'),
                   value: _isWholesaler,
                   activeColor: AppColors.primary,
-                  onChanged: (v) => setState(() => _isWholesaler = v ?? false),
+                  onChanged: _isVerifiedBySystem ? null : (v) => setState(() => _isWholesaler = v ?? false),
                 ),
                 CheckboxListTile(
                   dense: true,
@@ -317,7 +317,7 @@ class _AddContactScreenState extends ConsumerState<AddContactScreen> {
                   subtitle: const Text('Acts as intermediary / agent'),
                   value: _isBroker,
                   activeColor: AppColors.primary,
-                  onChanged: (v) => setState(() => _isBroker = v ?? false),
+                  onChanged: _isVerifiedBySystem ? null : (v) => setState(() => _isBroker = v ?? false),
                 ),
                 CheckboxListTile(
                   dense: true,
@@ -325,12 +325,23 @@ class _AddContactScreenState extends ConsumerState<AddContactScreen> {
                   subtitle: const Text('Provides goods or services to you'),
                   value: _isSupplier,
                   activeColor: AppColors.primary,
-                  onChanged: (v) => setState(() {
+                  onChanged: _isVerifiedBySystem ? null : (v) => setState(() {
                     _isSupplier = v ?? false;
                     _selectedRole = _isSupplier ? ContactRole.supplier : ContactRole.merchant;
                     if (!_isSupplier) _supplierAutoFillLocked = false;
                   }),
                 ),
+                if (_isVerifiedBySystem)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(AppDimensions.xl, 0, AppDimensions.xl, AppDimensions.sm),
+                    child: Row(
+                      children: const [
+                        Icon(Icons.lock_rounded, size: 14, color: AppColors.textSecondary),
+                        SizedBox(width: 4),
+                        Text('Roles retrieved from verified profile', style: TextStyle(fontSize: 12, color: AppColors.textSecondary, fontStyle: FontStyle.italic)),
+                      ],
+                    ),
+                  ),
               ],
             ),
             const SizedBox(height: AppDimensions.xl),

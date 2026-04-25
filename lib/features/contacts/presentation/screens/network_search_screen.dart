@@ -45,6 +45,7 @@ class _NetworkSearchScreenState extends ConsumerState<NetworkSearchScreen> {
       
       final email = user['email']?.toString();
       final phone = user['phone']?.toString();
+      final rolesList = (user['roles'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [];
       
       await repo.addContact(
         user['name']?.toString() ?? 'Unknown Business',
@@ -52,6 +53,10 @@ class _NetworkSearchScreenState extends ConsumerState<NetworkSearchScreen> {
         user['shop']?.toString(),
         linkedUserUid: user['uid']?.toString(),
         verificationMethod: email != null && email.isNotEmpty ? 'email' : 'phone',
+        isRetailer: rolesList.contains('Retailer'),
+        isWholesaler: rolesList.contains('Wholesaler'),
+        isBroker: rolesList.contains('Broker'),
+        isSupplier: rolesList.contains('Supplier'),
       );
 
       if (mounted) {

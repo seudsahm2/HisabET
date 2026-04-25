@@ -26,37 +26,15 @@ class ReconciliationScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final diffAsync = ref.watch(reconciliationProvider((contactId: contactId, contactPhone: contactPhone)));
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(contactName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            Text("Reconciling ledger...", style: TextStyle(color: AppColors.positive, fontSize: 12, fontWeight: FontWeight.normal)),
-          ],
-        ),
+        title: const Text('Ledger Sync'),
+        elevation: 0,
       ),
       body: diffAsync.when(
-        data: (result) {
-          if (result.diffs.isEmpty) {
-            return const Center(child: AppEmptyState(icon: Icons.check_circle_outline_rounded, title: 'Perfect Match!', subtitle: 'Your ledger matches their isolated ledger 100%. No discrepancies detected.'));
-          }
-          final sortedDiffs = List<TransactionDiff>.from(result.diffs)..sort((a, b) => b.date.compareTo(a.date));
-
-          return ListView.builder(
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: AppDimensions.pagePaddingH, vertical: AppDimensions.lg),
-            itemCount: sortedDiffs.length,
-            itemBuilder: (context, index) {
-              return Padding(
-                padding: const EdgeInsets.only(bottom: AppDimensions.md),
-                child: _TimelineItem(diff: sortedDiffs[index], contactId: contactId, contactPhone: contactPhone),
-              );
-            },
-          );
-        },
         loading: () => const Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -68,6 +46,152 @@ class ReconciliationScreen extends ConsumerWidget {
           ),
         ),
         error: (err, stack) => Center(child: Text('Error: $err', textAlign: TextAlign.center)),
+        data: (result) {
+          final sortedDiffs = List<TransactionDiff>.from(result.diffs)..sort((a, b) => b.date.compareTo(a.date));
+          
+          final matchCount = sortedDiffs.where((d) => d.type == DiffType.match).length;
+          final conflictCount = sortedDiffs.where((d) => d.type == DiffType.conflict).length;
+          final missingCount = sortedDiffs.where((d) => d.type != DiffType.match && d.type != DiffType.conflict).length;
+          
+          final syncPercentage = sortedDiffs.isEmpty ? 100 : ((matchCount / sortedDiffs.length) * 100).round();
+
+          return CustomScrollView(
+            physics: const BouncingScrollPhysics(),
+            slivers: [
+              SliverToBoxAdapter(
+                child: Container(
+                  padding: const EdgeInsets.all(AppDimensions.pagePaddingH),
+                  decoration: BoxDecoration(
+                    color: isDark ? Theme.of(context).cardColor : Colors.white,
+                    borderRadius: const BorderRadius.vertical(bottom: Radius.circular(30)),
+                    boxShadow: [
+                      BoxShadow(color: AppColors.shadowMedium, blurRadius: 20, offset: const Offset(0, 10)),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withOpacity(0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.sync_rounded, color: AppColors.primary, size: 28),
+                          ),
+                          const SizedBox(width: AppDimensions.md),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  contactName,
+                                  style: TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w800,
+                                    color: isDark ? Colors.white : AppColors.textPrimary,
+                                    letterSpacing: -0.5,
+                                  ),
+                                ),
+                                Text(
+                                  contactPhone ?? "No Linked Account",
+                                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: syncPercentage == 100 ? AppColors.positive.withOpacity(0.1) : AppColors.warning.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              '$syncPercentage% Sync',
+                              style: TextStyle(
+                                color: syncPercentage == 100 ? AppColors.positive : AppColors.warning,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: AppDimensions.xl),
+                      Row(
+                        children: [
+                          Expanded(child: _StatPill(label: 'Matched', count: matchCount, color: AppColors.positive)),
+                          const SizedBox(width: 8),
+                          Expanded(child: _StatPill(label: 'Conflicts', count: conflictCount, color: AppColors.negative)),
+                          const SizedBox(width: 8),
+                          Expanded(child: _StatPill(label: 'Missing', count: missingCount, color: AppColors.warning)),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SliverToBoxAdapter(child: SizedBox(height: AppDimensions.lg)),
+              
+              if (sortedDiffs.isEmpty)
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppDimensions.xxxl),
+                    child: AppEmptyState(
+                      icon: Icons.check_circle_outline_rounded,
+                      title: 'Perfect Match!',
+                      subtitle: 'Your ledger matches their isolated ledger 100%. No discrepancies detected.',
+                    ),
+                  ),
+                )
+              else
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: AppDimensions.pagePaddingH, vertical: AppDimensions.sm),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: AppDimensions.lg),
+                          child: _TimelineItem(diff: sortedDiffs[index], contactId: contactId, contactPhone: contactPhone),
+                        );
+                      },
+                      childCount: sortedDiffs.length,
+                    ),
+                  ),
+                ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _StatPill extends StatelessWidget {
+  final String label;
+  final int count;
+  final Color color;
+
+  const _StatPill({required this.label, required this.count, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Column(
+        children: [
+          Text(count.toString(), style: TextStyle(color: color, fontSize: 20, fontWeight: FontWeight.w900)),
+          const SizedBox(height: 2),
+          Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+        ],
       ),
     );
   }
@@ -83,7 +207,7 @@ class _TimelineItem extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (diff.type == DiffType.match) {
-      return _buildMatchItem();
+      return _buildMatchItem(context);
     } else if (diff.type == DiffType.conflict) {
       return _buildConflictItem(context, ref);
     } else {
@@ -91,22 +215,33 @@ class _TimelineItem extends ConsumerWidget {
     }
   }
 
-  Widget _buildMatchItem() {
+  Widget _buildMatchItem(BuildContext context) {
     final amount = diff.local?.amount ?? diff.remote?.amount ?? '0';
     final description = diff.local?.description ?? diff.remote?.description ?? 'No description';
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     
-    return AppCard(
-      padding: EdgeInsets.zero,
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? Theme.of(context).cardColor : Colors.white,
+        borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
+        border: Border.all(color: AppColors.positive.withOpacity(0.3)),
+        boxShadow: [BoxShadow(color: AppColors.shadowLight, blurRadius: 10, offset: const Offset(0, 4))],
+      ),
       child: Column(
         children: [
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: AppDimensions.md, vertical: AppDimensions.sm),
-            decoration: BoxDecoration(color: AppColors.positive.withOpacity(0.1), borderRadius: const BorderRadius.vertical(top: Radius.circular(AppDimensions.radiusMd))),
+            padding: const EdgeInsets.symmetric(horizontal: AppDimensions.md, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppColors.positive.withOpacity(0.1),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(AppDimensions.radiusLg - 1)),
+            ),
             child: Row(
               children: [
-                AppStatusBadge.success(label: 'MATCH', small: true),
+                const Icon(Icons.check_circle_rounded, color: AppColors.positive, size: 16),
+                const SizedBox(width: 6),
+                const Text('MATCHED', style: TextStyle(color: AppColors.positive, fontWeight: FontWeight.bold, fontSize: 12)),
                 const Spacer(),
-                Text(DateFormat('MMM dd, yyyy').format(diff.date), style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                Text(DateFormat('MMM dd, yyyy').format(diff.date), style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w500)),
               ],
             ),
           ),
@@ -114,22 +249,16 @@ class _TimelineItem extends ConsumerWidget {
             padding: const EdgeInsets.all(AppDimensions.md),
             child: Row(
               children: [
-                Container(
-                  padding: const EdgeInsets.all(AppDimensions.sm),
-                  decoration: BoxDecoration(color: AppColors.positive.withOpacity(0.1), borderRadius: BorderRadius.circular(AppDimensions.radiusSm)),
-                  child: const Icon(Icons.handshake_rounded, color: AppColors.positive, size: 24),
-                ),
-                const SizedBox(width: AppDimensions.md),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(description, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      Text(description, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15), maxLines: 1, overflow: TextOverflow.ellipsis),
                       const Text("Ledgers perfectly sync", style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
                     ],
                   ),
                 ),
-                AppAmountText(amount: amount.toString(), isPositive: true, fontSize: 18),
+                Text('ETB $amount', style: const TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.w900)),
               ],
             ),
           ),
@@ -141,48 +270,52 @@ class _TimelineItem extends ConsumerWidget {
   Widget _buildConflictItem(BuildContext context, WidgetRef ref) {
     final local = diff.local!;
     final remote = diff.remote!;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return AppCard(
-      padding: EdgeInsets.zero,
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? Theme.of(context).cardColor : Colors.white,
+        borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
+        border: Border.all(color: AppColors.negative),
+        boxShadow: [BoxShadow(color: AppColors.negative.withOpacity(0.15), blurRadius: 12, offset: const Offset(0, 4))],
+      ),
       child: Column(
         children: [
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: AppDimensions.md, vertical: AppDimensions.sm),
-            decoration: BoxDecoration(color: AppColors.negative.withOpacity(0.1), borderRadius: const BorderRadius.vertical(top: Radius.circular(AppDimensions.radiusMd))),
+            padding: const EdgeInsets.symmetric(horizontal: AppDimensions.md, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppColors.negative,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(AppDimensions.radiusLg - 1)),
+            ),
             child: Row(
               children: [
-                AppStatusBadge.danger(label: 'DISPUTE DETECTED', small: true),
+                const Icon(Icons.warning_rounded, color: Colors.white, size: 16),
+                const SizedBox(width: 6),
+                const Text('DATA CONFLICT', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
                 const Spacer(),
-                Text(DateFormat.yMMMd().format(diff.date), style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                Text(DateFormat.yMMMd().format(diff.date), style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500)),
               ],
             ),
           ),
           Padding(
-            padding: const EdgeInsets.all(AppDimensions.lg),
+            padding: const EdgeInsets.all(AppDimensions.md),
             child: Row(
               children: [
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text("YOU HAVE", style: TextStyle(fontSize: 10, color: AppColors.textSecondary, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 4),
-                      Text("ETB ${local.amount}", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                      Text(local.description ?? "No Desc", style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                    ],
+                  child: _ConflictSidePanel(
+                    title: 'YOUR LEDGER',
+                    amount: local.amount.toString(),
+                    description: local.description,
+                    color: AppColors.textPrimary,
                   ),
                 ),
-                Container(width: 1, height: 40, color: AppColors.divider),
-                const SizedBox(width: AppDimensions.md),
+                Container(width: 1, height: 60, color: AppColors.divider),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      const Text("THEY HAVE", style: TextStyle(fontSize: 10, color: AppColors.textSecondary, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 4),
-                      Text("ETB ${remote.amount}", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                      Text(remote.description ?? "No Desc", style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                    ],
+                  child: _ConflictSidePanel(
+                    title: 'THEIR LEDGER',
+                    amount: remote.amount.toString(),
+                    description: remote.description,
+                    color: AppColors.primary,
                   ),
                 ),
               ],
@@ -190,21 +323,25 @@ class _TimelineItem extends ConsumerWidget {
           ),
           const Divider(height: 1, color: AppColors.divider),
           Padding(
-            padding: const EdgeInsets.all(AppDimensions.sm),
+            padding: const EdgeInsets.symmetric(horizontal: AppDimensions.sm, vertical: 8),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                TextButton.icon(
-                  onPressed: () => _keepMine(context, ref, local),
-                  icon: const Icon(Icons.shield_rounded, size: 16),
-                  label: const Text("Keep Mine"),
-                  style: TextButton.styleFrom(foregroundColor: AppColors.textSecondary),
+                Expanded(
+                  child: TextButton(
+                    onPressed: () => _keepMine(context, ref, local),
+                    style: TextButton.styleFrom(foregroundColor: AppColors.textSecondary),
+                    child: const Text("Keep Mine", style: TextStyle(fontWeight: FontWeight.bold)),
+                  ),
                 ),
-                TextButton.icon(
-                  onPressed: () => _acceptTheirs(context, ref, local, remote),
-                  icon: const Icon(Icons.sync_rounded, size: 16),
-                  label: const Text("Accept Theirs"),
-                  style: TextButton.styleFrom(foregroundColor: AppColors.primary),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () => _acceptTheirs(context, ref, local, remote),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppDimensions.radiusMd)),
+                    ),
+                    child: const Text("Accept Theirs", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  ),
                 ),
               ],
             ),
@@ -216,83 +353,63 @@ class _TimelineItem extends ConsumerWidget {
 
   Widget _buildMissingItem(BuildContext context, WidgetRef ref) {
     final isMissingLocal = diff.type == DiffType.missingLocal;
-    final item = isMissingLocal ? diff.remote! : diff.local!;
-    final color = isMissingLocal ? AppColors.primary : AppColors.warning;
-    
-    final isGiveType = item.type == TransactionType.goodsGiven || item.type == TransactionType.paymentGiven;
-    final theirTypeLabel = isGiveType ? "GAVE" : "TOOK";
-    final myTypeLabel = isGiveType ? "TOOK" : "GAVE";
-    final typeColor = isGiveType ? AppColors.take : AppColors.give;
+    final tx = isMissingLocal ? diff.remote! : diff.local!;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return AppCard(
-      padding: EdgeInsets.zero,
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? Theme.of(context).cardColor : Colors.white,
+        borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
+        border: Border.all(color: AppColors.warning.withOpacity(0.5)),
+        boxShadow: [BoxShadow(color: AppColors.shadowLight, blurRadius: 10, offset: const Offset(0, 4))],
+      ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: AppDimensions.md, vertical: AppDimensions.sm),
-            decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: const BorderRadius.vertical(top: Radius.circular(AppDimensions.radiusMd))),
+            padding: const EdgeInsets.symmetric(horizontal: AppDimensions.md, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppColors.warning.withOpacity(0.1),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(AppDimensions.radiusLg - 1)),
+            ),
             child: Row(
               children: [
-                Icon(isMissingLocal ? Icons.cloud_download_rounded : Icons.cloud_off_rounded, size: 18, color: color),
-                const SizedBox(width: AppDimensions.sm),
-                Expanded(
-                  child: Text(
-                    isMissingLocal ? "Missing from your ledger" : "Missing from their ledger",
-                    style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 13),
-                  ),
-                ),
-                AppStatusBadge(label: isMissingLocal ? "They $theirTypeLabel" : "You $myTypeLabel", color: typeColor, small: true),
+                Icon(isMissingLocal ? Icons.download_rounded : Icons.cloud_off_rounded, color: AppColors.warning, size: 16),
+                const SizedBox(width: 6),
+                Text(isMissingLocal ? 'MISSING FROM YOU' : 'MISSING FROM THEM', style: const TextStyle(color: AppColors.warning, fontWeight: FontWeight.bold, fontSize: 12)),
+                const Spacer(),
+                Text(DateFormat.yMMMd().format(diff.date), style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w500)),
               ],
             ),
           ),
           Padding(
-            padding: const EdgeInsets.all(AppDimensions.lg),
+            padding: const EdgeInsets.all(AppDimensions.md),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Expanded(
-                      child: Text("ETB ${item.amount}", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: typeColor)),
-                    ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                         Text(DateFormat('MMM dd').format(diff.date), style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.bold)),
-                         Text(DateFormat('yyyy').format(diff.date), style: const TextStyle(fontSize: 10, color: AppColors.textSecondary)),
-                      ],
-                    ),
+                    Expanded(child: Text(tx.description ?? "Unlabeled Transaction", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                    Text('ETB ${tx.amount}', style: const TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.w900)),
                   ],
                 ),
                 const SizedBox(height: AppDimensions.md),
-                if (item.description != null && item.description!.isNotEmpty)
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(AppDimensions.sm),
-                    decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(AppDimensions.radiusSm)),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.notes_rounded, size: 14, color: AppColors.textSecondary),
-                        const SizedBox(width: AppDimensions.sm),
-                        Expanded(child: Text(item.description!, style: const TextStyle(color: AppColors.textPrimary, fontSize: 13), maxLines: 2)),
-                      ],
-                    ),
-                  ),
-                if (isMissingLocal) ...[
-                  const SizedBox(height: AppDimensions.lg),
+                if (isMissingLocal)
                   SizedBox(
                     width: double.infinity,
                     height: 48,
                     child: ElevatedButton.icon(
-                      onPressed: () => _addMissingTransaction(context, ref, item),
-                      icon: const Icon(Icons.add_circle_outline_rounded, size: 20),
-                      label: const Text("Sync to My Ledger"),
-                      style: ElevatedButton.styleFrom(backgroundColor: color, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppDimensions.radiusSm))),
+                      onPressed: () => _addMissingTransaction(context, ref, tx),
+                      icon: const Icon(Icons.add_circle_outline_rounded, color: Colors.white),
+                      label: const Text("Sync to My Ledger", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.warning,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppDimensions.radiusMd)),
+                      ),
                     ),
-                  ),
-                ],
+                  )
+                else
+                  const Text("Wait for the contact to sync their app, or ask them to add this transaction.", style: TextStyle(color: AppColors.textSecondary, fontSize: 13, fontStyle: FontStyle.italic)),
               ],
             ),
           ),
@@ -325,7 +442,7 @@ class _TimelineItem extends ConsumerWidget {
       await ref.read(auditRepositoryProvider).logAction(actorRole: actorRole, action: 'transaction_created', entityType: 'transaction', entityId: remoteTx.id, message: 'Missing reconciliation transaction synced.');
       ref.invalidate(recentAuditLogsProvider);
       
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Transaction synced successfully")));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Transaction synced successfully", style: TextStyle(color: Colors.white)), backgroundColor: AppColors.positive));
     } catch (e) {
       if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e"), backgroundColor: AppColors.negative));
     }
@@ -340,7 +457,7 @@ class _TimelineItem extends ConsumerWidget {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppDimensions.radiusLg)),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Cancel")),
-          ElevatedButton(onPressed: () => Navigator.pop(context, true), style: ElevatedButton.styleFrom(backgroundColor: AppColors.textSecondary, foregroundColor: Colors.white), child: const Text("Acknowledge Target")),
+          ElevatedButton(onPressed: () => Navigator.pop(context, true), style: ElevatedButton.styleFrom(backgroundColor: AppColors.textSecondary, foregroundColor: Colors.white), child: const Text("Acknowledge Target", style: TextStyle(color: Colors.white))),
         ],
       ),
     );
@@ -376,7 +493,7 @@ class _TimelineItem extends ConsumerWidget {
         await ref.read(auditRepositoryProvider).logAction(actorRole: actorRole, action: 'transaction_updated', entityType: 'transaction', entityId: localTx.id, message: 'Local transaction synced to external ledger properties.');
         ref.invalidate(recentAuditLogsProvider);
         ref.invalidate(contactTransactionsProvider(contactId));
-        if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Protocol synced.")));
+        if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Protocol synced.", style: TextStyle(color: Colors.white)), backgroundColor: AppColors.positive));
       } catch (e) {
         if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e"), backgroundColor: AppColors.negative));
       }
@@ -391,7 +508,32 @@ class _TimelineItem extends ConsumerWidget {
     await ref.read(auditRepositoryProvider).logAction(actorRole: actorRole, action: 'permission_denied', entityType: 'transaction', entityId: entityId, message: 'Denied $attemptedAction for role ${actorRole.name}.');
     ref.invalidate(recentAuditLogsProvider);
 
-    if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Unauthorized action.')));
+    if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Unauthorized action.'), backgroundColor: AppColors.negative));
     return false;
+  }
+}
+
+class _ConflictSidePanel extends StatelessWidget {
+  final String title;
+  final String amount;
+  final String? description;
+  final Color color;
+
+  const _ConflictSidePanel({required this.title, required this.amount, this.description, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppDimensions.sm),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(fontSize: 10, color: AppColors.textSecondary, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+          const SizedBox(height: 4),
+          Text("ETB $amount", style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: color, letterSpacing: -0.5)),
+          Text(description ?? "No Desc", style: const TextStyle(fontSize: 12, color: AppColors.textSecondary), maxLines: 2, overflow: TextOverflow.ellipsis),
+        ],
+      ),
+    );
   }
 }

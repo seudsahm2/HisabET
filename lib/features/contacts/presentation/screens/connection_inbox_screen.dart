@@ -18,12 +18,17 @@ class _ConnectionInboxScreenState extends ConsumerState<ConnectionInboxScreen> {
       final repo = ref.read(contactsRepositoryProvider);
       
       // 1. Add them as a verified contact
+      final rolesList = (request['roles'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [];
       await repo.addContact(
         request['fromName']?.toString() ?? 'Unknown User',
         request['fromPhone']?.toString(),
         null, // shop
         linkedUserUid: request['fromUid']?.toString(),
         verificationMethod: 'network',
+        isRetailer: rolesList.contains('Retailer'),
+        isWholesaler: rolesList.contains('Wholesaler'),
+        isBroker: rolesList.contains('Broker'),
+        isSupplier: rolesList.contains('Supplier'),
       );
 
       // 2. Mark request as accepted in Firestore

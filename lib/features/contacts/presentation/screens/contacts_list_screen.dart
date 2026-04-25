@@ -307,8 +307,10 @@ class _ContactsListScreenState extends ConsumerState<ContactsListScreen> {
   String _buildContactSubtitle(ContactModel contact) {
     final roles = contact.roleLabels;
     final roleStr = roles.join(' · ');
-    final phone = contact.phoneNumber ?? 'No Phone';
-    return '$phone  |  $roleStr';
+    final identifier = contact.phoneNumber?.isNotEmpty == true
+        ? contact.phoneNumber!
+        : (contact.verificationMethod == 'email' ? 'via email' : 'No Phone');
+    return '$identifier  |  $roleStr';
   }
 
   Future<bool> _ensureCreateContactPermission(BuildContext context, WidgetRef ref) async {
@@ -332,13 +334,16 @@ class _ContactsListScreenState extends ConsumerState<ContactsListScreen> {
   Widget _buildVerificationBadge(ContactVerificationStatus status) {
     switch (status) {
       case ContactVerificationStatus.verified:
-        return AppStatusBadge.success(label: 'VERIFIED', small: true);
+        return const Tooltip(
+          message: 'Verified',
+          child: Icon(Icons.verified_rounded, color: Colors.blue, size: 18),
+        );
       case ContactVerificationStatus.pending:
         return AppStatusBadge.warning(label: 'PENDING', small: true);
       case ContactVerificationStatus.expired:
         return AppStatusBadge.danger(label: 'EXPIRED', small: true);
       case ContactVerificationStatus.unverified:
-        return AppStatusBadge.neutral(label: 'UNVERIFIED', small: true);
+        return const SizedBox.shrink();
     }
   }
 }
