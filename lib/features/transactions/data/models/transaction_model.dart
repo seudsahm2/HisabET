@@ -31,6 +31,7 @@ class TransactionModel {
   final Decimal? unitPrice;
   final Map<String, dynamic>? metadata; // {quantity, unitPrice, batchCount}
   final String? referenceId; // Shared Bill # / Ticket #
+  final String? saleId; // Originating sale if auto-generated
 
   TransactionModel({
     required this.id,
@@ -45,6 +46,7 @@ class TransactionModel {
     this.unitPrice,
     this.metadata,
     this.referenceId,
+    this.saleId,
   });
 
   TransactionModel copyWith({
@@ -60,6 +62,7 @@ class TransactionModel {
     Decimal? unitPrice,
     Map<String, dynamic>? metadata,
     String? referenceId,
+    String? saleId,
   }) {
     return TransactionModel(
       id: id ?? this.id,
@@ -74,6 +77,7 @@ class TransactionModel {
       unitPrice: unitPrice ?? this.unitPrice,
       metadata: metadata ?? this.metadata,
       referenceId: referenceId ?? this.referenceId,
+      saleId: saleId ?? this.saleId,
     );
   }
 
@@ -117,6 +121,7 @@ class TransactionModel {
           ? jsonDecode(dbTransaction.metadata!) as Map<String, dynamic>
           : null,
       referenceId: dbTransaction.referenceId,
+      saleId: dbTransaction.saleId,
     );
   }
 
@@ -135,6 +140,7 @@ class TransactionModel {
       unitPrice: drift.Value(unitPrice?.toString()),
       metadata: drift.Value(metadata != null ? jsonEncode(metadata) : null),
       referenceId: drift.Value(referenceId),
+      saleId: drift.Value(saleId),
     );
   }
 

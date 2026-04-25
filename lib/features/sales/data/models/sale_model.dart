@@ -3,6 +3,7 @@ import 'package:hisabet/core/database/app_database.dart';
 
 class SaleModel {
   final String id;
+  final String? contactId;
   final String? customerName;
   final Decimal subtotal;
   final Decimal discount;
@@ -16,6 +17,7 @@ class SaleModel {
 
   const SaleModel({
     required this.id,
+    this.contactId,
     this.customerName,
     required this.subtotal,
     required this.discount,
@@ -31,6 +33,7 @@ class SaleModel {
   factory SaleModel.fromDb(Sale dbSale) {
     return SaleModel(
       id: dbSale.id,
+      contactId: dbSale.contactId,
       customerName: dbSale.customerName,
       subtotal: Decimal.parse(dbSale.subtotal),
       discount: Decimal.parse(dbSale.discount),

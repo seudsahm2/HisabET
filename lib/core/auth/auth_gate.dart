@@ -2,7 +2,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:hisabet/core/database/app_database.dart';
+import 'package:hisabet/features/contacts/presentation/providers/contacts_providers.dart';
 
 import 'package:hisabet/features/sync/presentation/screens/onboarding_screen.dart';
 import 'package:hisabet/features/home/presentation/screens/main_scaffold.dart';
@@ -42,14 +45,14 @@ class AuthGate extends StatelessWidget {
   }
 }
 
-class ProfileCheckGate extends StatefulWidget {
+class ProfileCheckGate extends ConsumerStatefulWidget {
   const ProfileCheckGate({super.key});
 
   @override
-  State<ProfileCheckGate> createState() => _ProfileCheckGateState();
+  ConsumerState<ProfileCheckGate> createState() => _ProfileCheckGateState();
 }
 
-class _ProfileCheckGateState extends State<ProfileCheckGate> {
+class _ProfileCheckGateState extends ConsumerState<ProfileCheckGate> {
   bool _isProfileComplete(Map<String, dynamic>? data, User user) {
     if (data == null) return false;
     final hasName = data['name']?.toString().trim().isNotEmpty == true;
@@ -64,8 +67,15 @@ class _ProfileCheckGateState extends State<ProfileCheckGate> {
     return hasName && hasContact && hasRoles;
   }
 
-  Future<void> _signOut() async {
-    debugPrint('[ProfileCheckGate] Signing out user due to incomplete profile on app start.');
+  Future<void> _signOutAndWipe() async {
+    debugPrint('[ProfileCheckGate] Signing out user due to incomplete profile or deleted account.');
+    try {
+      await ref.read(appDatabaseProvider).clearAllData();
+      debugPrint('[ProfileCheckGate] Local database wiped.');
+    } catch (e) {
+      debugPrint('[ProfileCheckGate] Error wiping database: $e');
+    }
+    
     await FirebaseAuth.instance.signOut();
     try {
       final googleSignIn = GoogleSignIn();
@@ -139,6 +149,22 @@ class _ProfileCheckGateState extends State<ProfileCheckGate> {
         }
 
         if (!docExists) {
+          // Verify if the Firebase Auth user actually still exists on the backend
+          user.reload().then((_) {
+            // User still exists in Auth, but Firestore doc is missing.
+          }).catchError((e) {
+            if (e is FirebaseAuthException) {
+              if (e.code == 'user-not-found' || e.code == 'user-disabled') {
+                debugPrint('[ProfileCheckGate] Account deleted/disabled on backend. Wiping data and signing out.');
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  _signOutAndWipe();
+                });
+              } else {
+                debugPrint('[ProfileCheckGate] user.reload() failed with code: ${e.code}. Ignoring due to possible network error.');
+              }
+            }
+          });
+
           // Brand new user who just authenticated — show profile setup
           debugPrint('[ProfileCheckGate] New user (no Firestore doc) -> Profile setup page.');
           return const OnboardingScreen(startAtProfile: true);

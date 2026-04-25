@@ -5,13 +5,18 @@ import 'package:hisabet/core/database/app_database.dart';
 import 'package:hisabet/features/contacts/data/models/contact_model.dart';
 import 'package:hisabet/features/contacts/data/repositories/contacts_repository.dart';
 
+final Map<String, AppDatabase> _dbCache = {};
+
 /// Provider for the database instance
 final appDatabaseProvider = Provider<AppDatabase>((ref) {
   final user = ref.watch(authStateProvider).value;
   final uid = user?.uid ?? 'unauthenticated';
-  final db = AppDatabase(uid);
-  ref.onDispose(() => db.close());
-  return db;
+  
+  if (!_dbCache.containsKey(uid)) {
+    _dbCache[uid] = AppDatabase(uid);
+  }
+  
+  return _dbCache[uid]!;
 });
 
 /// Provider for the ContactsRepository

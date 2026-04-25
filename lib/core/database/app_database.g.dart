@@ -4600,6 +4600,17 @@ class $SalesTable extends Sales with TableInfo<$SalesTable, Sale> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _contactIdMeta = const VerificationMeta(
+    'contactId',
+  );
+  @override
+  late final GeneratedColumn<String> contactId = GeneratedColumn<String>(
+    'contact_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _subtotalMeta = const VerificationMeta(
     'subtotal',
   );
@@ -4700,6 +4711,7 @@ class $SalesTable extends Sales with TableInfo<$SalesTable, Sale> {
   List<GeneratedColumn> get $columns => [
     id,
     customerName,
+    contactId,
     subtotal,
     discount,
     tax,
@@ -4734,6 +4746,12 @@ class $SalesTable extends Sales with TableInfo<$SalesTable, Sale> {
           data['customer_name']!,
           _customerNameMeta,
         ),
+      );
+    }
+    if (data.containsKey('contact_id')) {
+      context.handle(
+        _contactIdMeta,
+        contactId.isAcceptableOrUnknown(data['contact_id']!, _contactIdMeta),
       );
     }
     if (data.containsKey('subtotal')) {
@@ -4816,6 +4834,10 @@ class $SalesTable extends Sales with TableInfo<$SalesTable, Sale> {
         DriftSqlType.string,
         data['${effectivePrefix}customer_name'],
       ),
+      contactId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}contact_id'],
+      ),
       subtotal: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}subtotal'],
@@ -4864,6 +4886,7 @@ class $SalesTable extends Sales with TableInfo<$SalesTable, Sale> {
 class Sale extends DataClass implements Insertable<Sale> {
   final String id;
   final String? customerName;
+  final String? contactId;
   final String subtotal;
   final String discount;
   final String tax;
@@ -4876,6 +4899,7 @@ class Sale extends DataClass implements Insertable<Sale> {
   const Sale({
     required this.id,
     this.customerName,
+    this.contactId,
     required this.subtotal,
     required this.discount,
     required this.tax,
@@ -4892,6 +4916,9 @@ class Sale extends DataClass implements Insertable<Sale> {
     map['id'] = Variable<String>(id);
     if (!nullToAbsent || customerName != null) {
       map['customer_name'] = Variable<String>(customerName);
+    }
+    if (!nullToAbsent || contactId != null) {
+      map['contact_id'] = Variable<String>(contactId);
     }
     map['subtotal'] = Variable<String>(subtotal);
     map['discount'] = Variable<String>(discount);
@@ -4913,6 +4940,9 @@ class Sale extends DataClass implements Insertable<Sale> {
       customerName: customerName == null && nullToAbsent
           ? const Value.absent()
           : Value(customerName),
+      contactId: contactId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(contactId),
       subtotal: Value(subtotal),
       discount: Value(discount),
       tax: Value(tax),
@@ -4933,6 +4963,7 @@ class Sale extends DataClass implements Insertable<Sale> {
     return Sale(
       id: serializer.fromJson<String>(json['id']),
       customerName: serializer.fromJson<String?>(json['customerName']),
+      contactId: serializer.fromJson<String?>(json['contactId']),
       subtotal: serializer.fromJson<String>(json['subtotal']),
       discount: serializer.fromJson<String>(json['discount']),
       tax: serializer.fromJson<String>(json['tax']),
@@ -4950,6 +4981,7 @@ class Sale extends DataClass implements Insertable<Sale> {
     return <String, dynamic>{
       'id': serializer.toJson<String>(id),
       'customerName': serializer.toJson<String?>(customerName),
+      'contactId': serializer.toJson<String?>(contactId),
       'subtotal': serializer.toJson<String>(subtotal),
       'discount': serializer.toJson<String>(discount),
       'tax': serializer.toJson<String>(tax),
@@ -4965,6 +4997,7 @@ class Sale extends DataClass implements Insertable<Sale> {
   Sale copyWith({
     String? id,
     Value<String?> customerName = const Value.absent(),
+    Value<String?> contactId = const Value.absent(),
     String? subtotal,
     String? discount,
     String? tax,
@@ -4977,6 +5010,7 @@ class Sale extends DataClass implements Insertable<Sale> {
   }) => Sale(
     id: id ?? this.id,
     customerName: customerName.present ? customerName.value : this.customerName,
+    contactId: contactId.present ? contactId.value : this.contactId,
     subtotal: subtotal ?? this.subtotal,
     discount: discount ?? this.discount,
     tax: tax ?? this.tax,
@@ -4993,6 +5027,7 @@ class Sale extends DataClass implements Insertable<Sale> {
       customerName: data.customerName.present
           ? data.customerName.value
           : this.customerName,
+      contactId: data.contactId.present ? data.contactId.value : this.contactId,
       subtotal: data.subtotal.present ? data.subtotal.value : this.subtotal,
       discount: data.discount.present ? data.discount.value : this.discount,
       tax: data.tax.present ? data.tax.value : this.tax,
@@ -5014,6 +5049,7 @@ class Sale extends DataClass implements Insertable<Sale> {
     return (StringBuffer('Sale(')
           ..write('id: $id, ')
           ..write('customerName: $customerName, ')
+          ..write('contactId: $contactId, ')
           ..write('subtotal: $subtotal, ')
           ..write('discount: $discount, ')
           ..write('tax: $tax, ')
@@ -5031,6 +5067,7 @@ class Sale extends DataClass implements Insertable<Sale> {
   int get hashCode => Object.hash(
     id,
     customerName,
+    contactId,
     subtotal,
     discount,
     tax,
@@ -5047,6 +5084,7 @@ class Sale extends DataClass implements Insertable<Sale> {
       (other is Sale &&
           other.id == this.id &&
           other.customerName == this.customerName &&
+          other.contactId == this.contactId &&
           other.subtotal == this.subtotal &&
           other.discount == this.discount &&
           other.tax == this.tax &&
@@ -5061,6 +5099,7 @@ class Sale extends DataClass implements Insertable<Sale> {
 class SalesCompanion extends UpdateCompanion<Sale> {
   final Value<String> id;
   final Value<String?> customerName;
+  final Value<String?> contactId;
   final Value<String> subtotal;
   final Value<String> discount;
   final Value<String> tax;
@@ -5074,6 +5113,7 @@ class SalesCompanion extends UpdateCompanion<Sale> {
   const SalesCompanion({
     this.id = const Value.absent(),
     this.customerName = const Value.absent(),
+    this.contactId = const Value.absent(),
     this.subtotal = const Value.absent(),
     this.discount = const Value.absent(),
     this.tax = const Value.absent(),
@@ -5088,6 +5128,7 @@ class SalesCompanion extends UpdateCompanion<Sale> {
   SalesCompanion.insert({
     required String id,
     this.customerName = const Value.absent(),
+    this.contactId = const Value.absent(),
     required String subtotal,
     this.discount = const Value.absent(),
     this.tax = const Value.absent(),
@@ -5105,6 +5146,7 @@ class SalesCompanion extends UpdateCompanion<Sale> {
   static Insertable<Sale> custom({
     Expression<String>? id,
     Expression<String>? customerName,
+    Expression<String>? contactId,
     Expression<String>? subtotal,
     Expression<String>? discount,
     Expression<String>? tax,
@@ -5119,6 +5161,7 @@ class SalesCompanion extends UpdateCompanion<Sale> {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (customerName != null) 'customer_name': customerName,
+      if (contactId != null) 'contact_id': contactId,
       if (subtotal != null) 'subtotal': subtotal,
       if (discount != null) 'discount': discount,
       if (tax != null) 'tax': tax,
@@ -5135,6 +5178,7 @@ class SalesCompanion extends UpdateCompanion<Sale> {
   SalesCompanion copyWith({
     Value<String>? id,
     Value<String?>? customerName,
+    Value<String?>? contactId,
     Value<String>? subtotal,
     Value<String>? discount,
     Value<String>? tax,
@@ -5149,6 +5193,7 @@ class SalesCompanion extends UpdateCompanion<Sale> {
     return SalesCompanion(
       id: id ?? this.id,
       customerName: customerName ?? this.customerName,
+      contactId: contactId ?? this.contactId,
       subtotal: subtotal ?? this.subtotal,
       discount: discount ?? this.discount,
       tax: tax ?? this.tax,
@@ -5170,6 +5215,9 @@ class SalesCompanion extends UpdateCompanion<Sale> {
     }
     if (customerName.present) {
       map['customer_name'] = Variable<String>(customerName.value);
+    }
+    if (contactId.present) {
+      map['contact_id'] = Variable<String>(contactId.value);
     }
     if (subtotal.present) {
       map['subtotal'] = Variable<String>(subtotal.value);
@@ -5209,6 +5257,7 @@ class SalesCompanion extends UpdateCompanion<Sale> {
     return (StringBuffer('SalesCompanion(')
           ..write('id: $id, ')
           ..write('customerName: $customerName, ')
+          ..write('contactId: $contactId, ')
           ..write('subtotal: $subtotal, ')
           ..write('discount: $discount, ')
           ..write('tax: $tax, ')
@@ -9289,6 +9338,15 @@ class $TransactionsTable extends Transactions
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _saleIdMeta = const VerificationMeta('saleId');
+  @override
+  late final GeneratedColumn<String> saleId = GeneratedColumn<String>(
+    'sale_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -9303,6 +9361,7 @@ class $TransactionsTable extends Transactions
     unitPrice,
     metadata,
     referenceId,
+    saleId,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -9404,6 +9463,12 @@ class $TransactionsTable extends Transactions
         ),
       );
     }
+    if (data.containsKey('sale_id')) {
+      context.handle(
+        _saleIdMeta,
+        saleId.isAcceptableOrUnknown(data['sale_id']!, _saleIdMeta),
+      );
+    }
     return context;
   }
 
@@ -9461,6 +9526,10 @@ class $TransactionsTable extends Transactions
         DriftSqlType.string,
         data['${effectivePrefix}reference_id'],
       ),
+      saleId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sale_id'],
+      ),
     );
   }
 
@@ -9483,6 +9552,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
   final String? unitPrice;
   final String? metadata;
   final String? referenceId;
+  final String? saleId;
   const Transaction({
     required this.id,
     required this.contactId,
@@ -9496,6 +9566,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     this.unitPrice,
     this.metadata,
     this.referenceId,
+    this.saleId,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -9523,6 +9594,9 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     }
     if (!nullToAbsent || referenceId != null) {
       map['reference_id'] = Variable<String>(referenceId);
+    }
+    if (!nullToAbsent || saleId != null) {
+      map['sale_id'] = Variable<String>(saleId);
     }
     return map;
   }
@@ -9553,6 +9627,9 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       referenceId: referenceId == null && nullToAbsent
           ? const Value.absent()
           : Value(referenceId),
+      saleId: saleId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(saleId),
     );
   }
 
@@ -9574,6 +9651,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       unitPrice: serializer.fromJson<String?>(json['unitPrice']),
       metadata: serializer.fromJson<String?>(json['metadata']),
       referenceId: serializer.fromJson<String?>(json['referenceId']),
+      saleId: serializer.fromJson<String?>(json['saleId']),
     );
   }
   @override
@@ -9592,6 +9670,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       'unitPrice': serializer.toJson<String?>(unitPrice),
       'metadata': serializer.toJson<String?>(metadata),
       'referenceId': serializer.toJson<String?>(referenceId),
+      'saleId': serializer.toJson<String?>(saleId),
     };
   }
 
@@ -9608,6 +9687,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     Value<String?> unitPrice = const Value.absent(),
     Value<String?> metadata = const Value.absent(),
     Value<String?> referenceId = const Value.absent(),
+    Value<String?> saleId = const Value.absent(),
   }) => Transaction(
     id: id ?? this.id,
     contactId: contactId ?? this.contactId,
@@ -9621,6 +9701,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     unitPrice: unitPrice.present ? unitPrice.value : this.unitPrice,
     metadata: metadata.present ? metadata.value : this.metadata,
     referenceId: referenceId.present ? referenceId.value : this.referenceId,
+    saleId: saleId.present ? saleId.value : this.saleId,
   );
   Transaction copyWithCompanion(TransactionsCompanion data) {
     return Transaction(
@@ -9642,6 +9723,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       referenceId: data.referenceId.present
           ? data.referenceId.value
           : this.referenceId,
+      saleId: data.saleId.present ? data.saleId.value : this.saleId,
     );
   }
 
@@ -9659,7 +9741,8 @@ class Transaction extends DataClass implements Insertable<Transaction> {
           ..write('qtyPerCarton: $qtyPerCarton, ')
           ..write('unitPrice: $unitPrice, ')
           ..write('metadata: $metadata, ')
-          ..write('referenceId: $referenceId')
+          ..write('referenceId: $referenceId, ')
+          ..write('saleId: $saleId')
           ..write(')'))
         .toString();
   }
@@ -9678,6 +9761,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     unitPrice,
     metadata,
     referenceId,
+    saleId,
   );
   @override
   bool operator ==(Object other) =>
@@ -9694,7 +9778,8 @@ class Transaction extends DataClass implements Insertable<Transaction> {
           other.qtyPerCarton == this.qtyPerCarton &&
           other.unitPrice == this.unitPrice &&
           other.metadata == this.metadata &&
-          other.referenceId == this.referenceId);
+          other.referenceId == this.referenceId &&
+          other.saleId == this.saleId);
 }
 
 class TransactionsCompanion extends UpdateCompanion<Transaction> {
@@ -9710,6 +9795,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
   final Value<String?> unitPrice;
   final Value<String?> metadata;
   final Value<String?> referenceId;
+  final Value<String?> saleId;
   final Value<int> rowid;
   const TransactionsCompanion({
     this.id = const Value.absent(),
@@ -9724,6 +9810,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     this.unitPrice = const Value.absent(),
     this.metadata = const Value.absent(),
     this.referenceId = const Value.absent(),
+    this.saleId = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   TransactionsCompanion.insert({
@@ -9739,6 +9826,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     this.unitPrice = const Value.absent(),
     this.metadata = const Value.absent(),
     this.referenceId = const Value.absent(),
+    this.saleId = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        contactId = Value(contactId),
@@ -9758,6 +9846,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     Expression<String>? unitPrice,
     Expression<String>? metadata,
     Expression<String>? referenceId,
+    Expression<String>? saleId,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -9773,6 +9862,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
       if (unitPrice != null) 'unit_price': unitPrice,
       if (metadata != null) 'metadata': metadata,
       if (referenceId != null) 'reference_id': referenceId,
+      if (saleId != null) 'sale_id': saleId,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -9790,6 +9880,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     Value<String?>? unitPrice,
     Value<String?>? metadata,
     Value<String?>? referenceId,
+    Value<String?>? saleId,
     Value<int>? rowid,
   }) {
     return TransactionsCompanion(
@@ -9805,6 +9896,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
       unitPrice: unitPrice ?? this.unitPrice,
       metadata: metadata ?? this.metadata,
       referenceId: referenceId ?? this.referenceId,
+      saleId: saleId ?? this.saleId,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -9848,6 +9940,9 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     if (referenceId.present) {
       map['reference_id'] = Variable<String>(referenceId.value);
     }
+    if (saleId.present) {
+      map['sale_id'] = Variable<String>(saleId.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -9869,6 +9964,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
           ..write('unitPrice: $unitPrice, ')
           ..write('metadata: $metadata, ')
           ..write('referenceId: $referenceId, ')
+          ..write('saleId: $saleId, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -12821,6 +12917,7 @@ typedef $$SalesTableCreateCompanionBuilder =
     SalesCompanion Function({
       required String id,
       Value<String?> customerName,
+      Value<String?> contactId,
       required String subtotal,
       Value<String> discount,
       Value<String> tax,
@@ -12836,6 +12933,7 @@ typedef $$SalesTableUpdateCompanionBuilder =
     SalesCompanion Function({
       Value<String> id,
       Value<String?> customerName,
+      Value<String?> contactId,
       Value<String> subtotal,
       Value<String> discount,
       Value<String> tax,
@@ -12914,6 +13012,11 @@ class $$SalesTableFilterComposer extends Composer<_$AppDatabase, $SalesTable> {
 
   ColumnFilters<String> get customerName => $composableBuilder(
     column: $table.customerName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get contactId => $composableBuilder(
+    column: $table.contactId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -13032,6 +13135,11 @@ class $$SalesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get contactId => $composableBuilder(
+    column: $table.contactId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get subtotal => $composableBuilder(
     column: $table.subtotal,
     builder: (column) => ColumnOrderings(column),
@@ -13094,6 +13202,9 @@ class $$SalesTableAnnotationComposer
     column: $table.customerName,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get contactId =>
+      $composableBuilder(column: $table.contactId, builder: (column) => column);
 
   GeneratedColumn<String> get subtotal =>
       $composableBuilder(column: $table.subtotal, builder: (column) => column);
@@ -13211,6 +13322,7 @@ class $$SalesTableTableManager
               ({
                 Value<String> id = const Value.absent(),
                 Value<String?> customerName = const Value.absent(),
+                Value<String?> contactId = const Value.absent(),
                 Value<String> subtotal = const Value.absent(),
                 Value<String> discount = const Value.absent(),
                 Value<String> tax = const Value.absent(),
@@ -13224,6 +13336,7 @@ class $$SalesTableTableManager
               }) => SalesCompanion(
                 id: id,
                 customerName: customerName,
+                contactId: contactId,
                 subtotal: subtotal,
                 discount: discount,
                 tax: tax,
@@ -13239,6 +13352,7 @@ class $$SalesTableTableManager
               ({
                 required String id,
                 Value<String?> customerName = const Value.absent(),
+                Value<String?> contactId = const Value.absent(),
                 required String subtotal,
                 Value<String> discount = const Value.absent(),
                 Value<String> tax = const Value.absent(),
@@ -13252,6 +13366,7 @@ class $$SalesTableTableManager
               }) => SalesCompanion.insert(
                 id: id,
                 customerName: customerName,
+                contactId: contactId,
                 subtotal: subtotal,
                 discount: discount,
                 tax: tax,
@@ -16444,6 +16559,7 @@ typedef $$TransactionsTableCreateCompanionBuilder =
       Value<String?> unitPrice,
       Value<String?> metadata,
       Value<String?> referenceId,
+      Value<String?> saleId,
       Value<int> rowid,
     });
 typedef $$TransactionsTableUpdateCompanionBuilder =
@@ -16460,6 +16576,7 @@ typedef $$TransactionsTableUpdateCompanionBuilder =
       Value<String?> unitPrice,
       Value<String?> metadata,
       Value<String?> referenceId,
+      Value<String?> saleId,
       Value<int> rowid,
     });
 
@@ -16551,6 +16668,11 @@ class $$TransactionsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get saleId => $composableBuilder(
+    column: $table.saleId,
+    builder: (column) => ColumnFilters(column),
+  );
+
   $$ContactsTableFilterComposer get contactId {
     final $$ContactsTableFilterComposer composer = $composerBuilder(
       composer: this,
@@ -16639,6 +16761,11 @@ class $$TransactionsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get saleId => $composableBuilder(
+    column: $table.saleId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$ContactsTableOrderingComposer get contactId {
     final $$ContactsTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -16711,6 +16838,9 @@ class $$TransactionsTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get saleId =>
+      $composableBuilder(column: $table.saleId, builder: (column) => column);
+
   $$ContactsTableAnnotationComposer get contactId {
     final $$ContactsTableAnnotationComposer composer = $composerBuilder(
       composer: this,
@@ -16775,6 +16905,7 @@ class $$TransactionsTableTableManager
                 Value<String?> unitPrice = const Value.absent(),
                 Value<String?> metadata = const Value.absent(),
                 Value<String?> referenceId = const Value.absent(),
+                Value<String?> saleId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => TransactionsCompanion(
                 id: id,
@@ -16789,6 +16920,7 @@ class $$TransactionsTableTableManager
                 unitPrice: unitPrice,
                 metadata: metadata,
                 referenceId: referenceId,
+                saleId: saleId,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -16805,6 +16937,7 @@ class $$TransactionsTableTableManager
                 Value<String?> unitPrice = const Value.absent(),
                 Value<String?> metadata = const Value.absent(),
                 Value<String?> referenceId = const Value.absent(),
+                Value<String?> saleId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => TransactionsCompanion.insert(
                 id: id,
@@ -16819,6 +16952,7 @@ class $$TransactionsTableTableManager
                 unitPrice: unitPrice,
                 metadata: metadata,
                 referenceId: referenceId,
+                saleId: saleId,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

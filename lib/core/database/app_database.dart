@@ -59,7 +59,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 22;
+  int get schemaVersion => 23;
 
   @override
   MigrationStrategy get migration {
@@ -186,11 +186,33 @@ class AppDatabase extends _$AppDatabase {
             await m.addColumn(contacts, contacts.isSupplier);
           }
         }
+        if (from < 23) {
+          if (!await _hasColumn('sales', 'contact_id')) {
+            await m.addColumn(sales, sales.contactId);
+          }
+          if (!await _hasColumn('transactions', 'sale_id')) {
+            await m.addColumn(transactions, transactions.saleId);
+          }
+        }
       },
       beforeOpen: (details) async {
         await customStatement('PRAGMA foreign_keys = ON');
       },
     );
+  }
+
+  /// Wipes all data from the database. Use with caution (e.g., when a user deletes their account).
+  Future<void> clearAllData() async {
+    await customStatement('PRAGMA foreign_keys = OFF');
+    try {
+      await transaction(() async {
+        for (final table in allTables) {
+          await delete(table).go();
+        }
+      });
+    } finally {
+      await customStatement('PRAGMA foreign_keys = ON');
+    }
   }
 }
 

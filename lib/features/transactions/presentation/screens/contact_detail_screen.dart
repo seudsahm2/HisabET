@@ -13,6 +13,7 @@ import 'package:hisabet/features/transactions/presentation/screens/add_transacti
 import 'package:hisabet/features/sync/presentation/screens/reconciliation_screen.dart';
 import 'package:hisabet/features/team/data/models/team_member_model.dart';
 import 'package:hisabet/features/team/presentation/providers/team_providers.dart';
+import 'package:hisabet/features/sales/presentation/screens/invoice_preview_screen.dart';
 
 class ContactDetailScreen extends ConsumerWidget {
   final ContactModel contact;
@@ -421,7 +422,7 @@ class _TransactionTile extends StatelessWidget {
     return AppListTile(
       leadingIcon: isPositive ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
       leadingColor: isPositive ? AppColors.give : AppColors.take,
-      title: _getTypeLabel(transaction.type),
+      title: '${transaction.saleId != null ? '[SALE] ' : ''}${_getTypeLabel(transaction.type)}',
       subtitle: '${DateFormat('MMM dd • hh:mm a').format(transaction.date)}${transaction.description != null ? '\n${transaction.description}' : ''}',
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
@@ -473,7 +474,13 @@ class _TransactionTile extends StatelessWidget {
           ),
         ],
       ),
-      onTap: () {},
+      onTap: () {
+        if (transaction.saleId != null) {
+          Navigator.of(context).push(MaterialPageRoute(builder: (_) => InvoicePreviewScreen(saleId: transaction.saleId!)));
+        } else {
+          Navigator.of(context).push(MaterialPageRoute(builder: (_) => AddTransactionScreen(contactId: contact.id, type: transaction.type, transactionToEdit: transaction)));
+        }
+      },
     );
   }
 }

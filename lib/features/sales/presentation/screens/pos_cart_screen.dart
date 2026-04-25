@@ -9,11 +9,16 @@ import 'package:hisabet/core/theme/theme.dart';
 import 'package:hisabet/features/inventory/data/models/product_model.dart';
 import 'package:hisabet/features/inventory/presentation/providers/products_providers.dart';
 import 'package:hisabet/features/promotions/presentation/providers/promotions_providers.dart';
+import 'package:hisabet/features/promotions/data/models/promotion_model.dart';
 import 'package:hisabet/features/sales/presentation/providers/pos_cart_provider.dart';
 import 'package:hisabet/features/sales/presentation/providers/sales_providers.dart';
 import 'package:hisabet/features/sales/presentation/screens/sales_history_screen.dart';
+import 'package:hisabet/features/contacts/data/models/contact_model.dart';
+import 'package:hisabet/features/contacts/presentation/providers/contacts_providers.dart';
 import 'package:hisabet/features/team/data/models/team_member_model.dart';
 import 'package:hisabet/features/team/presentation/providers/team_providers.dart';
+import 'package:hisabet/features/transactions/presentation/providers/transactions_providers.dart';
+import 'package:hisabet/features/sales/presentation/screens/invoice_preview_screen.dart';
 
 class PosCartScreen extends ConsumerStatefulWidget {
   const PosCartScreen({super.key});
@@ -318,20 +323,13 @@ class _CartBottomSheet extends ConsumerStatefulWidget {
 }
 
 class _CartBottomSheetState extends ConsumerState<_CartBottomSheet> {
-  late TextEditingController _discountController;
-  late TextEditingController _taxController;
-
   @override
   void initState() {
     super.initState();
-    _discountController = TextEditingController(text: widget.cart.discount == Decimal.zero ? '' : widget.cart.discount.toString());
-    _taxController = TextEditingController(text: widget.cart.tax == Decimal.zero ? '' : widget.cart.tax.toString());
   }
 
   @override
   void dispose() {
-    _discountController.dispose();
-    _taxController.dispose();
     super.dispose();
   }
 
@@ -436,43 +434,7 @@ class _CartBottomSheetState extends ConsumerState<_CartBottomSheet> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _discountController,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
-                        decoration: InputDecoration(
-                          labelText: 'Discount (ETB)',
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppDimensions.radiusMd)),
-                          isDense: true,
-                        ),
-                        onChanged: (value) {
-                          final amount = Decimal.tryParse(value) ?? Decimal.zero;
-                          ref.read(posCartProvider.notifier).setDiscount(amount);
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: AppDimensions.md),
-                    Expanded(
-                      child: TextField(
-                        controller: _taxController,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
-                        decoration: InputDecoration(
-                          labelText: 'Tax (ETB)',
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppDimensions.radiusMd)),
-                          isDense: true,
-                        ),
-                        onChanged: (value) {
-                          final amount = Decimal.tryParse(value) ?? Decimal.zero;
-                          ref.read(posCartProvider.notifier).setTax(amount);
-                        },
-                      ),
-                    ),
-                  ],
-                ),
+                // Removed tax and discount fields from here
                 const SizedBox(height: AppDimensions.lg),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -497,7 +459,6 @@ class _CartBottomSheetState extends ConsumerState<_CartBottomSheet> {
                     onPressed: cart.items.isEmpty
                         ? null
                         : () {
-                            Navigator.pop(context); // Close cart sheet
                             _showCheckoutDialog(context, ref, cart);
                           },
                     style: ElevatedButton.styleFrom(
@@ -518,14 +479,16 @@ class _CartBottomSheetState extends ConsumerState<_CartBottomSheet> {
 
 Future<void> _showCheckoutDialog(BuildContext context, WidgetRef ref, PosCartState cart) async {
   final customerNameCtrl = TextEditingController();
+  final taxCtrl = TextEditingController(text: cart.tax == Decimal.zero ? '' : cart.tax.toString());
   final paidCtrl = TextEditingController(text: cart.total.toString());
   final noteCtrl = TextEditingController();
-  final promoCodeCtrl = TextEditingController();
   String paymentMethod = 'cash';
   String? appliedPromotionId;
   String? appliedPromotionCode;
   String? promoMessage;
   bool promoApplied = false;
+  ContactModel? selectedContact;
+  PromotionModel? selectedPromotion;
 
   final result = await showModalBottomSheet<bool>(
     context: context,
@@ -566,6 +529,23 @@ Future<void> _showCheckoutDialog(BuildContext context, WidgetRef ref, PosCartSta
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: AppDimensions.xl, vertical: AppDimensions.sm),
                         child: TextField(
+                          controller: taxCtrl,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
+                          decoration: const InputDecoration(labelText: 'Tax (ETB)', border: InputBorder.none),
+                          onChanged: (value) {
+                            final amount = Decimal.tryParse(value) ?? Decimal.zero;
+                            ref.read(posCartProvider.notifier).setTax(amount);
+                            setState(() {
+                              paidCtrl.text = ref.read(posCartProvider).total.toString();
+                            });
+                          },
+                        ),
+                      ),
+                      const Divider(height: 1),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: AppDimensions.xl, vertical: AppDimensions.sm),
+                        child: TextField(
                           controller: paidCtrl,
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
                           inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
@@ -575,53 +555,120 @@ Future<void> _showCheckoutDialog(BuildContext context, WidgetRef ref, PosCartSta
                     ],
                   ),
                   const SizedBox(height: AppDimensions.lg),
-                  AppFormSection(
-                    title: 'Customer & Promotions',
-                    icon: Icons.person_outline,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: AppDimensions.xl, vertical: AppDimensions.sm),
-                        child: TextField(
-                          controller: customerNameCtrl,
-                          decoration: const InputDecoration(labelText: 'Customer Name (Optional)', border: InputBorder.none),
-                        ),
-                      ),
-                      const Divider(height: 1),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: AppDimensions.xl, vertical: AppDimensions.md),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: TextField(
-                                controller: promoCodeCtrl,
-                                textCapitalization: TextCapitalization.characters,
-                                decoration: const InputDecoration(labelText: 'Promo code', hintText: 'e.g. NEW10', border: InputBorder.none),
+                  Consumer(
+                    builder: (context, ref, child) {
+                      final contactsAsync = ref.watch(allContactsProvider);
+                      final contacts = contactsAsync.valueOrNull ?? [];
+                      final promotionsAsync = ref.watch(allPromotionsProvider);
+                      final activePromotions = promotionsAsync.valueOrNull?.where((p) => p.isActive).toList() ?? [];
+
+                      return AppFormSection(
+                        title: 'Customer & Promotions',
+                        icon: Icons.person_outline,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: AppDimensions.xl, vertical: AppDimensions.sm),
+                            child: DropdownButtonFormField<ContactModel>(
+                              value: selectedContact,
+                              decoration: const InputDecoration(
+                                labelText: 'Select Customer (Optional)',
+                                border: InputBorder.none,
                               ),
-                            ),
-                            ElevatedButton(
-                              onPressed: () async {
-                                final res = await ref.read(promotionsRepositoryProvider).evaluatePromotion(code: promoCodeCtrl.text, subtotal: cart.subtotal);
+                              items: [
+                                const DropdownMenuItem<ContactModel>(
+                                  value: null,
+                                  child: Text('Walk-in Customer'),
+                                ),
+                                ...contacts.map((c) => DropdownMenuItem(
+                                  value: c,
+                                  child: Text(c.name),
+                                )),
+                              ],
+                              onChanged: (val) {
                                 setState(() {
-                                  if (!res.isValid || res.promotion == null) {
-                                    promoApplied = false;
-                                    promoMessage = res.message ?? 'Invalid code.';
-                                    appliedPromotionId = null;
+                                  selectedContact = val;
+                                  if (val != null) {
+                                    customerNameCtrl.text = val.name;
                                   } else {
-                                    promoApplied = true;
-                                    appliedPromotionId = res.promotion!.id;
-                                    appliedPromotionCode = res.promotion!.code;
-                                    promoMessage = 'Applied ${res.promotion!.code} (- ETB ${res.discountAmount})';
-                                    ref.read(posCartProvider.notifier).setDiscount(res.discountAmount);
-                                    paidCtrl.text = (cart.total - res.discountAmount).toString(); // Update tendered
+                                    customerNameCtrl.clear();
                                   }
                                 });
                               },
-                              child: const Text('Apply'),
+                            ),
+                          ),
+                          if (selectedContact != null)
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(AppDimensions.xl, 0, AppDimensions.xl, AppDimensions.sm),
+                              child: Text(
+                                'Credit Limit: ETB ${selectedContact!.creditLimit} | Balance: ETB ${selectedContact!.netBalance}',
+                                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                              ),
+                            ),
+                          const Divider(height: 1),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: AppDimensions.xl, vertical: AppDimensions.sm),
+                            child: TextField(
+                              controller: customerNameCtrl,
+                              decoration: const InputDecoration(labelText: 'Customer Name (Override)', border: InputBorder.none),
+                            ),
+                          ),
+                          if (activePromotions.isNotEmpty) ...[
+                            const Divider(height: 1),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: AppDimensions.xl, vertical: AppDimensions.md),
+                              child: DropdownButtonFormField<PromotionModel>(
+                                value: selectedPromotion,
+                                decoration: const InputDecoration(
+                                  labelText: 'Apply Promotion',
+                                  border: InputBorder.none,
+                                ),
+                                items: [
+                                  const DropdownMenuItem<PromotionModel>(
+                                    value: null,
+                                    child: Text('No Promotion'),
+                                  ),
+                                  ...activePromotions.map((p) => DropdownMenuItem(
+                                    value: p,
+                                    child: Text('${p.code} - ${p.title}'),
+                                  )),
+                                ],
+                                onChanged: (val) async {
+                                  if (val == null) {
+                                    setState(() {
+                                      selectedPromotion = null;
+                                      promoApplied = false;
+                                      promoMessage = null;
+                                      appliedPromotionId = null;
+                                      appliedPromotionCode = null;
+                                      ref.read(posCartProvider.notifier).setDiscount(Decimal.zero);
+                                      paidCtrl.text = ref.read(posCartProvider).total.toString();
+                                    });
+                                    return;
+                                  }
+
+                                  final res = await ref.read(promotionsRepositoryProvider).evaluatePromotion(code: val.code, subtotal: cart.subtotal);
+                                  setState(() {
+                                    selectedPromotion = val;
+                                    if (!res.isValid || res.promotion == null) {
+                                      promoApplied = false;
+                                      promoMessage = res.message ?? 'Invalid code.';
+                                      appliedPromotionId = null;
+                                      appliedPromotionCode = null;
+                                      ref.read(posCartProvider.notifier).setDiscount(Decimal.zero);
+                                    } else {
+                                      promoApplied = true;
+                                      appliedPromotionId = res.promotion!.id;
+                                      appliedPromotionCode = res.promotion!.code;
+                                      promoMessage = 'Applied ${res.promotion!.code} (- ETB ${res.discountAmount})';
+                                      ref.read(posCartProvider.notifier).setDiscount(res.discountAmount);
+                                    }
+                                    paidCtrl.text = ref.read(posCartProvider).total.toString();
+                                  });
+                                },
+                              ),
                             ),
                           ],
-                        ),
-                      ),
-                      if (promoMessage != null)
+                          if (promoMessage != null)
                         Padding(
                           padding: const EdgeInsets.fromLTRB(AppDimensions.xl, 0, AppDimensions.xl, AppDimensions.sm),
                           child: Text(
@@ -630,8 +677,10 @@ Future<void> _showCheckoutDialog(BuildContext context, WidgetRef ref, PosCartSta
                           ),
                         ),
                     ],
-                  ),
-                  const SizedBox(height: AppDimensions.lg),
+                  );
+                },
+              ),
+              const SizedBox(height: AppDimensions.lg),
                   AppFormSection(
                     title: 'Additional Info',
                     icon: Icons.note_alt_outlined,
@@ -683,11 +732,20 @@ Future<void> _showCheckoutDialog(BuildContext context, WidgetRef ref, PosCartSta
     },
   );
 
-  if (result != true || !context.mounted) return;
+  if (result != true || !context.mounted) {
+    debugPrint('CHECKOUT TRACE: Dialog returned $result or context not mounted. Aborting.');
+    return;
+  }
 
   try {
-    await ref.read(salesRepositoryProvider).checkoutSale(
+    debugPrint('CHECKOUT TRACE: Starting checkoutSale repository call...');
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Processing checkout... Please wait.'), duration: Duration(seconds: 2)));
+    }
+    
+    final saleId = await ref.read(salesRepositoryProvider).checkoutSale(
           cartItems: cart.items,
+          contactId: selectedContact?.id,
           customerName: customerNameCtrl.text.trim().isEmpty ? null : customerNameCtrl.text.trim(),
           discount: cart.discount,
           tax: cart.tax,
@@ -710,12 +768,32 @@ Future<void> _showCheckoutDialog(BuildContext context, WidgetRef ref, PosCartSta
     ref.invalidate(lowStockProductsProvider);
     ref.invalidate(recentSalesProvider);
     ref.invalidate(recentAuditLogsProvider);
-
+    if (selectedContact != null) {
+      ref.invalidate(contactProvider(selectedContact!.id));
+      ref.invalidate(contactTransactionsProvider(selectedContact!.id));
+      ref.invalidate(allContactsProvider);
+    }
+    debugPrint('CHECKOUT TRACE: checkoutSale completed successfully. Sale ID: $saleId');
+    
+    debugPrint('CHECKOUT TRACE: Navigating to InvoicePreviewScreen...');
     if (context.mounted) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => InvoicePreviewScreen(saleId: saleId)),
+      );
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sale completed successfully! 🎉'), backgroundColor: AppColors.positive));
     }
-  } catch (e) {
-    if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Checkout failed: $e'), backgroundColor: AppColors.negative));
+  } catch (e, stackTrace) {
+    debugPrint('CHECKOUT ERROR: $e');
+    debugPrint('STACKTRACE: $stackTrace');
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Checkout failed: $e\nCheck console for details.'),
+          backgroundColor: AppColors.negative,
+          duration: const Duration(seconds: 10),
+        ),
+      );
+    }
   }
 }
 

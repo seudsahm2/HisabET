@@ -3,6 +3,7 @@ import 'package:drift/drift.dart';
 class Sales extends Table {
   TextColumn get id => text()();
   TextColumn get customerName => text().nullable()();
+  TextColumn get contactId => text().nullable()(); // Optional link to a saved contact
   TextColumn get subtotal => text()();
   TextColumn get discount => text().withDefault(const Constant('0.0'))();
   TextColumn get tax => text().withDefault(const Constant('0.0'))();

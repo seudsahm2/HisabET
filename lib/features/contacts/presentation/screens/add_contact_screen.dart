@@ -95,6 +95,21 @@ class _AddContactScreenState extends ConsumerState<AddContactScreen> {
     if (currentFromProfile != null) _supplierCurrentBalanceController.text = currentFromProfile.toString();
 
     _foundUserUid = userData['uid']?.toString();
+
+    final rolesList = userData['roles'] as List<dynamic>?;
+    if (rolesList != null) {
+      _isRetailer = rolesList.contains('Retailer');
+      _isWholesaler = rolesList.contains('Wholesaler');
+      _isBroker = rolesList.contains('Broker');
+      _isSupplier = rolesList.contains('Supplier');
+      
+      if (_isSupplier) {
+        _selectedRole = ContactRole.supplier;
+      } else {
+        _selectedRole = ContactRole.merchant;
+      }
+    }
+
     if (_selectedRole == ContactRole.supplier) {
       _supplierAutoFillLocked = true;
     }

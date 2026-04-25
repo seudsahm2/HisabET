@@ -1,5 +1,7 @@
 import 'package:decimal/decimal.dart';
 import 'package:drift/drift.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:hisabet/core/database/app_database.dart';
 import 'package:hisabet/features/sales/data/models/pos_cart_item.dart';
 import 'package:hisabet/features/sales/data/models/sale_line_item_model.dart';
@@ -7,8 +9,9 @@ import 'package:hisabet/features/sales/data/models/sale_model.dart';
 import 'package:uuid/uuid.dart';
 
 abstract class SalesRepository {
-  Future<void> checkoutSale({
+  Future<String> checkoutSale({
     required List<PosCartItem> cartItems,
+    String? contactId,
     String? customerName,
     Decimal discount,
     Decimal tax,
@@ -31,8 +34,9 @@ class SalesRepositoryImpl implements SalesRepository {
   SalesRepositoryImpl(this._db);
 
   @override
-  Future<void> checkoutSale({
+  Future<String> checkoutSale({
     required List<PosCartItem> cartItems,
+    String? contactId,
     String? customerName,
     Decimal? discount,
     Decimal? tax,
@@ -42,6 +46,7 @@ class SalesRepositoryImpl implements SalesRepository {
     String? promotionId,
     String? promotionCode,
   }) async {
+    debugPrint('CHECKOUT TRACE [Repo]: Inside checkoutSale. Generating IDs...');
     if (cartItems.isEmpty) {
       throw Exception('Cart is empty.');
     }
@@ -62,7 +67,9 @@ class SalesRepositoryImpl implements SalesRepository {
     final now = DateTime.now();
     final saleId = const Uuid().v4();
 
-    await _db.transaction(() async {
+    debugPrint('CHECKOUT TRACE [Repo]: Starting database transaction...');
+    try {
+      debugPrint('CHECKOUT TRACE [Repo]: Transaction started. Inserting Sale record...');
       for (final item in cartItems) {
         final product = await (_db.select(
           _db.products,
@@ -84,6 +91,7 @@ class SalesRepositoryImpl implements SalesRepository {
           .insert(
             SalesCompanion.insert(
               id: saleId,
+              contactId: Value(contactId),
               customerName: Value(customerName),
               subtotal: subtotal.toString(),
               discount: Value(discountValue.toString()),
@@ -126,7 +134,9 @@ class SalesRepositoryImpl implements SalesRepository {
         }
       }
 
+      debugPrint('CHECKOUT TRACE [Repo]: Processing ${cartItems.length} items...');
       for (final item in cartItems) {
+        debugPrint('CHECKOUT TRACE [Repo]: Inserting item ${item.product.name}...');
         final lineItemId = const Uuid().v4();
 
         await _db
@@ -146,6 +156,7 @@ class SalesRepositoryImpl implements SalesRepository {
               ),
             );
 
+        debugPrint('CHECKOUT TRACE [Repo]: Updating stock for ${item.product.name}...');
         final updatedStock = item.product.stockQuantity - item.quantity;
 
         await (_db.update(
@@ -157,6 +168,7 @@ class SalesRepositoryImpl implements SalesRepository {
           ),
         );
 
+        debugPrint('CHECKOUT TRACE [Repo]: Inserting stock movement for ${item.product.name}...');
         await _db
             .into(_db.stockMovements)
             .insert(
@@ -170,7 +182,49 @@ class SalesRepositoryImpl implements SalesRepository {
               ),
             );
       }
-    });
+
+      // If this sale is linked to a contact and is partially paid (credit), record a Transaction
+      if (contactId != null) {
+        final amountOwed = total - paidAmountValue;
+
+        if (amountOwed > Decimal.zero) {
+          final transactionId = const Uuid().v4();
+
+          await _db.into(_db.transactions).insert(
+            TransactionsCompanion.insert(
+              id: transactionId,
+              contactId: contactId,
+              type: 0, // goodsGiven (They owe me)
+              status: const Value(1), // confirmed
+              amount: amountOwed.toString(),
+              date: now,
+              description: Value('Unpaid balance from POS Sale #$saleId'),
+              saleId: Value(saleId),
+            ),
+          );
+
+          // Update the contact's netBalance
+          final contactRow = await (_db.select(_db.contacts)..where((tbl) => tbl.id.equals(contactId))).getSingleOrNull();
+          if (contactRow != null) {
+            final currentBalance = Decimal.tryParse(contactRow.netBalance) ?? Decimal.zero;
+            final newBalance = currentBalance + amountOwed;
+
+            await (_db.update(_db.contacts)..where((tbl) => tbl.id.equals(contactId))).write(
+              ContactsCompanion(
+                netBalance: Value(newBalance.toString()),
+              ),
+            );
+          }
+        }
+      }
+      debugPrint('CHECKOUT TRACE [Repo]: Transaction block finished.');
+    } catch (e) {
+      debugPrint('CHECKOUT TRACE [Repo]: Error during checkout execution: $e');
+      rethrow;
+    }
+
+    debugPrint('CHECKOUT TRACE [Repo]: checkoutSale successfully finished.');
+    return saleId;
   }
 
   @override

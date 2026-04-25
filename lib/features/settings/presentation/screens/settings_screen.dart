@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:hisabet/core/l10n/language_provider.dart';
+import 'package:hisabet/core/database/app_database.dart';
+import 'package:hisabet/features/contacts/presentation/providers/contacts_providers.dart';
 import 'package:hisabet/core/theme/app_colors.dart';
 import 'package:hisabet/features/settings/data/models/app_settings_model.dart';
 import 'package:hisabet/features/settings/presentation/providers/settings_providers.dart';
@@ -161,6 +166,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       title: const Text('Export Settings Snapshot'),
                       subtitle: const Text('Exports current settings to JSON'),
                       onTap: _exportSettings,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _sectionTitle('Danger Zone'),
+                _card(
+                  children: [
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.delete_forever_rounded, color: AppColors.negative),
+                      title: const Text('Delete Account', style: TextStyle(color: AppColors.negative, fontWeight: FontWeight.bold)),
+                      subtitle: const Text('Permanently delete your account and all data.'),
+                      onTap: () => _confirmDeleteAccount(context),
                     ),
                   ],
                 ),
@@ -349,6 +367,76 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Export failed: $e')));
+    }
+  }
+
+  Future<void> _confirmDeleteAccount(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        final ctrl = TextEditingController();
+        return AlertDialog(
+          title: const Text('Delete Account?'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'This action cannot be undone. All your data will be permanently deleted from our servers and this device.',
+                style: TextStyle(color: AppColors.negative),
+              ),
+              const SizedBox(height: 16),
+              const Text('Type "DELETE" to confirm:'),
+              const SizedBox(height: 8),
+              TextField(
+                controller: ctrl,
+                decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.negative),
+              onPressed: () {
+                if (ctrl.text.trim() == 'DELETE') {
+                  Navigator.pop(ctx, true);
+                } else {
+                  ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('You must type DELETE exactly.')));
+                }
+              },
+              child: const Text('DELETE', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true && mounted) {
+      setState(() => _saving = true);
+      try {
+        final user = FirebaseAuth.instance.currentUser;
+        if (user != null) {
+          // Delete from Firestore
+          await FirebaseFirestore.instance.collection('users').doc(user.uid).delete();
+          // Wipe local DB
+          await ref.read(appDatabaseProvider).clearAllData();
+          // Delete Auth User
+          await user.delete();
+          // Ensure Google Session is also cleared
+          try {
+            final googleSignIn = GoogleSignIn();
+            if (await googleSignIn.isSignedIn()) {
+              await googleSignIn.signOut();
+            }
+          } catch (_) {}
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to delete account: $e')));
+        }
+      } finally {
+        if (mounted) setState(() => _saving = false);
+      }
     }
   }
 }
