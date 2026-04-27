@@ -40,6 +40,10 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
   final _cartonsController = TextEditingController();
   final _qtyPerCartonController = TextEditingController();
   final _unitPriceController = TextEditingController();
+  // Extra fields for auto-product-creation when recording "goods taken"
+  final _barcodeController = TextEditingController();
+  final _categoryController = TextEditingController();
+  final _brandController = TextEditingController();
 
   late TransactionType _currentType;
   bool _isLoading = false;
@@ -186,17 +190,23 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
       final cartons = int.tryParse(_cartonsController.text.trim()) ?? 0;
       final qtyPerCarton = int.tryParse(_qtyPerCartonController.text.trim()) ?? 0;
       final unitPrice = Decimal.tryParse(_unitPriceController.text.trim()) ?? Decimal.zero;
-
-      return {
+      final meta = <String, dynamic>{
         'cartons': cartons,
         'qtyPerCarton': qtyPerCarton,
         'unitPrice': unitPrice.toString(),
       };
+      // Capture extra product details for auto-creation (goodsTaken)
+      if (!_isGoodsGive) {
+        final barcode = _barcodeController.text.trim();
+        final category = _categoryController.text.trim();
+        final brand = _brandController.text.trim();
+        if (barcode.isNotEmpty) meta['barcode'] = barcode;
+        if (category.isNotEmpty) meta['category'] = category;
+        if (brand.isNotEmpty) meta['brand'] = brand;
+      }
+      return meta;
     }
-
-    return {
-      'paymentMethod': _selectedPaymentMethod,
-    };
+    return {'paymentMethod': _selectedPaymentMethod};
   }
 
   Future<void> _saveTransaction() async {
@@ -357,6 +367,9 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
     _cartonsController.dispose();
     _qtyPerCartonController.dispose();
     _unitPriceController.dispose();
+    _barcodeController.dispose();
+    _categoryController.dispose();
+    _brandController.dispose();
     super.dispose();
   }
 
@@ -367,6 +380,15 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
     final currentContact = contactAsync.valueOrNull;
     final inventoryProducts = inventoryProductsAsync.maybeWhen(data: (products) => products.where((p) => p.stockQuantity > 0).toList(), orElse: () => <ProductModel>[]);
     _tryAutoSelectInventoryProduct(inventoryProducts);
+
+    final categories = inventoryProductsAsync.maybeWhen(
+      data: (products) => products.map((p) => p.category).where((c) => c != null && c.isNotEmpty).toSet().cast<String>().toList()..sort(), 
+      orElse: () => <String>[]
+    );
+    final brands = inventoryProductsAsync.maybeWhen(
+      data: (products) => products.map((p) => p.brand).where((b) => b != null && b.isNotEmpty).toSet().cast<String>().toList()..sort(), 
+      orElse: () => <String>[]
+    );
 
     final String typeTitle = _isGive
         ? (_isGoods ? 'You gave items to them' : 'You paid them money')
@@ -422,35 +444,6 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                       Text(typeTitle, style: TextStyle(color: _activeColor, fontWeight: FontWeight.w700, fontSize: 16)),
                       const SizedBox(height: AppDimensions.md),
 
-                      AppFormSection(
-                        title: 'Log Metrics',
-                        children: [
-                          TextFormField(
-                            controller: _descriptionController,
-                            readOnly: _isGoodsGive,
-                            decoration: InputDecoration(labelText: _isGoods ? 'Description' : 'Description (Optional)', prefixIcon: const Icon(Icons.notes_rounded)),
-                          ),
-                          const SizedBox(height: AppDimensions.md),
-                          TextFormField(
-                            controller: _referenceController,
-                            readOnly: _isGoodsGive,
-                            decoration: const InputDecoration(labelText: 'Reference ID', prefixIcon: Icon(Icons.tag_rounded)),
-                          ),
-                          const SizedBox(height: AppDimensions.md),
-                          InkWell(
-                            onTap: () async {
-                              final date = await showDatePicker(context: context, initialDate: _selectedDate, firstDate: DateTime(2020), lastDate: DateTime.now());
-                              if (date != null) setState(() => _selectedDate = date);
-                            },
-                            child: InputDecorator(
-                              decoration: const InputDecoration(labelText: 'Logged Date', prefixIcon: Icon(Icons.calendar_today_rounded)),
-                              child: Text(DateFormat('MMM dd, yyyy').format(_selectedDate)),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: AppDimensions.xl),
-
                       if (_isGoods) ...[
                         AppFormSection(
                           title: 'Item Breakdowns',
@@ -473,6 +466,43 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                               ),
                               const SizedBox(height: AppDimensions.md),
                             ],
+                            
+                            // Extra product detail fields (only for goodsTaken – new inventory creation)
+                            // Shown BEFORE Carton, Qty, Unit Price per user request
+                            if (!_isGoodsGive) ...[
+                              Padding(
+                                padding: const EdgeInsets.only(top: AppDimensions.sm, bottom: AppDimensions.md),
+                                child: Text(
+                                  'Product Details (for inventory record)',
+                                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary, fontStyle: FontStyle.italic),
+                                ),
+                              ),
+                              DropdownMenu<String>(
+                                controller: _categoryController,
+                                label: const Text('Category (Optional)'),
+                                leadingIcon: const Icon(Icons.category_outlined),
+                                dropdownMenuEntries: categories.map((c) => DropdownMenuEntry(value: c, label: c)).toList(),
+                                expandedInsets: EdgeInsets.zero,
+                              ),
+                              const SizedBox(height: AppDimensions.sm),
+                              DropdownMenu<String>(
+                                controller: _brandController,
+                                label: const Text('Brand (Optional)'),
+                                leadingIcon: const Icon(Icons.branding_watermark_outlined),
+                                dropdownMenuEntries: brands.map((b) => DropdownMenuEntry(value: b, label: b)).toList(),
+                                expandedInsets: EdgeInsets.zero,
+                              ),
+                              const SizedBox(height: AppDimensions.sm),
+                              TextFormField(
+                                controller: _barcodeController,
+                                keyboardType: TextInputType.number,
+                                decoration: const InputDecoration(labelText: 'Barcode (Optional)', prefixIcon: Icon(Icons.qr_code_rounded)),
+                              ),
+                              const SizedBox(height: AppDimensions.md),
+                              const Divider(height: 1),
+                              const SizedBox(height: AppDimensions.md),
+                            ],
+
                             Row(
                               children: [
                                 Expanded(
@@ -537,6 +567,35 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                               if (v <= Decimal.zero) return 'Invalid amount';
                               return null;
                             },
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: AppDimensions.xl),
+
+                      AppFormSection(
+                        title: 'Log Metrics',
+                        children: [
+                          TextFormField(
+                            controller: _descriptionController,
+                            readOnly: _isGoodsGive,
+                            decoration: InputDecoration(labelText: _isGoods ? 'Description' : 'Description (Optional)', prefixIcon: const Icon(Icons.notes_rounded)),
+                          ),
+                          const SizedBox(height: AppDimensions.md),
+                          TextFormField(
+                            controller: _referenceController,
+                            readOnly: _isGoodsGive,
+                            decoration: const InputDecoration(labelText: 'Reference ID', prefixIcon: Icon(Icons.tag_rounded)),
+                          ),
+                          const SizedBox(height: AppDimensions.md),
+                          InkWell(
+                            onTap: () async {
+                              final date = await showDatePicker(context: context, initialDate: _selectedDate, firstDate: DateTime(2020), lastDate: DateTime.now());
+                              if (date != null) setState(() => _selectedDate = date);
+                            },
+                            child: InputDecorator(
+                              decoration: const InputDecoration(labelText: 'Logged Date', prefixIcon: Icon(Icons.calendar_today_rounded)),
+                              child: Text(DateFormat('MMM dd, yyyy').format(_selectedDate)),
+                            ),
                           ),
                         ],
                       ),

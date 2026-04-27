@@ -24,6 +24,8 @@ abstract class TransactionsRepository {
   Future<Decimal> calculateNetBalance(String contactId);
   Future<List<TransactionModel>> getRecentTransactions({int limit = 10});
   Stream<List<TransactionModel>> watchTransactionsForContact(String contactId);
+  /// Re-uploads ALL local transactions for ALL linked contacts to Firestore.
+  Future<int> syncAllTransactionsToCloud();
 }
 
 class TransactionsRepositoryImpl implements TransactionsRepository {
@@ -54,46 +56,144 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
     Map<String, dynamic>? metadata,
     String? referenceId,
   }) async {
-    final id = const Uuid().v4();
-    final model = TransactionModel(
-      id: id,
-      contactId: contactId,
-      type: type,
-      status: TransactionStatus.pending,
-      amount: amount,
-      date: date,
-      description: description,
-      cartons: _extractCartonsFromPayload(metadata),
-      qtyPerCarton: _extractQtyPerCartonFromPayload(metadata),
-      unitPrice: _extractUnitPriceFromPayload(metadata),
-      metadata: metadata,
-      referenceId: referenceId,
-    );
+    // ── 1. Smart Daily Aggregation ──
+    final startOfDay = DateTime(date.year, date.month, date.day);
+    final endOfDay = startOfDay.add(const Duration(days: 1));
 
-    await _db.transaction(() async {
-      await _ensureCanGiveGoods(model);
-      await _db.into(_db.transactions).insert(model.toDbCompanion());
-      await _updateContactBalance(contactId);
-      await _applyInventoryEffect(model);
-    });
+    TransactionModel? existingParent;
+    if (referenceId != null && referenceId.trim().isNotEmpty) {
+      final rows = await (_db.select(_db.transactions)
+            ..where((t) =>
+                t.contactId.equals(contactId) &
+                t.type.equals(type.index) &
+                t.referenceId.equals(referenceId) &
+                t.date.isBetweenValues(startOfDay, endOfDay)))
+          .get();
+      if (rows.isNotEmpty) {
+        existingParent = TransactionModel.fromDb(rows.first);
+      }
+    } else if (description != null && description.trim().isNotEmpty) {
+      final rows = await (_db.select(_db.transactions)
+            ..where((t) =>
+                t.contactId.equals(contactId) &
+                t.type.equals(type.index) &
+                t.description.equals(description) &
+                t.date.isBetweenValues(startOfDay, endOfDay)))
+          .get();
+      if (rows.isNotEmpty) {
+        existingParent = TransactionModel.fromDb(rows.first);
+      }
+    }
+
+    TransactionModel modelToSync;
+
+    if (existingParent != null) {
+      // ── Aggregate into Parent ──
+      debugPrint('[TransactionsRepo] Smart Daily Aggregation: Merging with ${existingParent.id}');
+      final newTotalAmount = existingParent.amount + amount;
+      
+      final currentCartons = _extractCartonsFromPayload(metadata);
+      final newCartons = (existingParent.cartons ?? 0) + currentCartons;
+      final hasCartons = newCartons > 0;
+
+      final existingMeta = existingParent.metadata ?? {};
+      final List<dynamic> history = List<dynamic>.from(existingMeta['history'] ?? []);
+      
+      // If this is the first merge, we need to log the original parent into the history too
+      if (history.isEmpty) {
+         history.add({
+           'amount': existingParent.amount.toString(),
+           'date': existingParent.date.toIso8601String(),
+           'cartons': existingParent.cartons,
+           'metadata': {...existingMeta}..remove('history'),
+         });
+      }
+
+      // Add the new split to history
+      history.add({
+        'amount': amount.toString(),
+        'date': date.toIso8601String(),
+        'cartons': currentCartons,
+        'metadata': metadata,
+      });
+
+      final mergedMetadata = {
+        ...existingMeta,
+        ...metadata ?? {},
+        'history': history,
+        if (hasCartons) 'quantity': newCartons,
+      };
+
+      modelToSync = TransactionModel(
+        id: existingParent.id,
+        contactId: existingParent.contactId,
+        type: existingParent.type,
+        status: existingParent.status,
+        amount: newTotalAmount,
+        date: existingParent.date, // keep original date
+        description: existingParent.description,
+        cartons: hasCartons ? newCartons : null,
+        qtyPerCarton: existingParent.qtyPerCarton,
+        unitPrice: existingParent.unitPrice,
+        metadata: mergedMetadata,
+        referenceId: existingParent.referenceId,
+      );
+
+      await _db.transaction(() async {
+        await _applyInventoryEffect(existingParent!, reverse: true); // Reverse old
+        await _ensureCanGiveGoods(modelToSync);
+        await (_db.update(_db.transactions)..where((t) => t.id.equals(existingParent!.id)))
+            .write(modelToSync.toDbCompanion());
+        await _applyInventoryEffect(modelToSync); // Apply new aggregated
+        await _updateContactBalance(contactId);
+      });
+
+    } else {
+      // ── Normal Insert ──
+      final id = const Uuid().v4();
+      modelToSync = TransactionModel(
+        id: id,
+        contactId: contactId,
+        type: type,
+        status: TransactionStatus.pending,
+        amount: amount,
+        date: date,
+        description: description,
+        cartons: _extractCartonsFromPayload(metadata),
+        qtyPerCarton: _extractQtyPerCartonFromPayload(metadata),
+        unitPrice: _extractUnitPriceFromPayload(metadata),
+        metadata: metadata,
+        referenceId: referenceId,
+      );
+
+      await _db.transaction(() async {
+        await _ensureCanGiveGoods(modelToSync);
+        await _db.into(_db.transactions).insert(modelToSync.toDbCompanion());
+        await _updateContactBalance(contactId);
+        await _applyInventoryEffect(modelToSync);
+      });
+    }
 
     // --- Sync Logic ---
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user != null && user.phoneNumber != null) {
+      if (user != null) {
         // Fetch Contact details to get their phone number
         final contact = await (_db.select(
           _db.contacts,
         )..where((t) => t.id.equals(contactId))).getSingleOrNull();
 
+        // Sync as long as the contact is a verified user (has UID or phone)
         if (contact != null && (contact.phoneNumber != null || contact.linkedUserUid != null)) {
           await _syncService.saveTransactionToCloud(
-            transaction: model,
+            transaction: modelToSync,
             creatorUid: user.uid,
-            creatorPhone: user.phoneNumber!,
+            creatorPhone: user.phoneNumber ?? user.email ?? '',
             contactPhone: contact.phoneNumber,
             contactUid: contact.linkedUserUid,
           );
+        } else {
+          debugPrint('[SYNC] Skipping cloud sync: contact has no phone or linked UID.');
         }
       }
     } catch (e) {
@@ -138,13 +238,12 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
       )..where((t) => t.id.equals(transaction.contactId))).getSingleOrNull();
 
       if (user != null &&
-          user.phoneNumber != null &&
           contact != null &&
           (contact.phoneNumber != null || contact.linkedUserUid != null)) {
         await _syncService.saveTransactionToCloud(
           transaction: transaction,
           creatorUid: user.uid,
-          creatorPhone: user.phoneNumber!,
+          creatorPhone: user.phoneNumber ?? user.email ?? '',
           contactPhone: contact.phoneNumber,
           contactUid: contact.linkedUserUid,
         );
@@ -181,13 +280,12 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
           .getSingleOrNull();
 
       if (user != null &&
-          user.phoneNumber != null &&
           contact != null &&
           (contact.phoneNumber != null || contact.linkedUserUid != null)) {
         await _syncService.saveTransactionToCloud(
           transaction: txModel,
           creatorUid: user.uid,
-          creatorPhone: user.phoneNumber!,
+          creatorPhone: user.phoneNumber ?? user.email ?? '',
           contactPhone: contact.phoneNumber,
           contactUid: contact.linkedUserUid,
         );
@@ -343,8 +441,8 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
     if (reference != null) {
       final bySku = await (_db.select(_db.products)
             ..where((tbl) => tbl.sku.equals(reference)))
-          .getSingleOrNull();
-      if (bySku != null) return bySku;
+          .get();
+      if (bySku.isNotEmpty) return bySku.first;
     }
 
     final itemName = _transactionItemName(tx);
@@ -366,23 +464,30 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
     final reference = _transactionItemReference(tx);
     final itemName = _transactionItemName(tx);
     final unitPrice = _extractUnitPrice(tx) ?? Decimal.zero;
-    final cartons = _extractCartons(tx);
     final itemsPerCarton = _extractQtyPerCartonFromPayload(tx.metadata);
-    final unit = 'carton';
-    final name =
-        itemName ?? (reference != null ? 'Item $reference' : 'Transaction Item');
+    final name = itemName ?? (reference != null ? 'Item $reference' : 'Transaction Item');
+
+    // Optional product detail fields captured from the transaction form
+    final barcode = tx.metadata?['barcode']?.toString().trim();
+    final category = tx.metadata?['category']?.toString().trim();
+    final brand = tx.metadata?['brand']?.toString().trim();
 
     final newProductId = const Uuid().v4();
+    // stockQuantity is intentionally 0 here — _applyInventoryEffect will
+    // apply the delta immediately after, preventing a double-count.
     await _db.into(_db.products).insert(
           ProductsCompanion.insert(
             id: newProductId,
             name: name,
             sku: Value(reference),
-            unit: Value(unit),
+            barcode: Value(barcode?.isEmpty == true ? null : barcode),
+            category: Value(category?.isEmpty == true ? null : category),
+            brand: Value(brand?.isEmpty == true ? null : brand),
+            unit: const Value('carton'),
             itemsPerCarton: Value(itemsPerCarton > 0 ? itemsPerCarton : null),
             costPrice: Value(unitPrice.toString()),
             sellingPrice: Value(unitPrice.toString()),
-            stockQuantity: Value(cartons),
+            stockQuantity: const Value(0),
             reorderLevel: const Value(0),
             isActive: const Value(true),
             createdAt: now,
@@ -490,5 +595,55 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
             createdAt: now,
           ),
         );
+  }
+
+  @override
+  Future<int> syncAllTransactionsToCloud() async {
+    int uploadCount = 0;
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        debugPrint('[BULK SYNC] No logged-in user. Aborting.');
+        return 0;
+      }
+
+      final creatorPhone = user.phoneNumber ?? user.email ?? '';
+
+      // Fetch all local transactions
+      final allTxRows = await _db.select(_db.transactions).get();
+      debugPrint('[BULK SYNC] Found ${allTxRows.length} local transactions to sync.');
+
+      // Cache contacts to avoid repeated DB hits
+      final contactCache = <String, Contact?>{};
+
+      for (final row in allTxRows) {
+        try {
+          final contactId = row.contactId;
+          if (!contactCache.containsKey(contactId)) {
+            contactCache[contactId] = await (_db.select(_db.contacts)
+              ..where((t) => t.id.equals(contactId))).getSingleOrNull();
+          }
+          final contact = contactCache[contactId];
+
+          if (contact != null && (contact.phoneNumber != null || contact.linkedUserUid != null)) {
+            final model = TransactionModel.fromDb(row);
+            await _syncService.saveTransactionToCloud(
+              transaction: model,
+              creatorUid: user.uid,
+              creatorPhone: creatorPhone,
+              contactPhone: contact.phoneNumber,
+              contactUid: contact.linkedUserUid,
+            );
+            uploadCount++;
+          }
+        } catch (e) {
+          debugPrint('[BULK SYNC] Failed to sync tx ${row.id}: $e');
+        }
+      }
+      debugPrint('[BULK SYNC] ✅ Done! Uploaded $uploadCount transactions.');
+    } catch (e) {
+      debugPrint('[BULK SYNC] ❌ Fatal error: $e');
+    }
+    return uploadCount;
   }
 }

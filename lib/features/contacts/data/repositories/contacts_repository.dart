@@ -23,6 +23,7 @@ abstract class ContactsRepository {
     bool isWholesaler = false,
     bool isBroker = false,
     bool isSupplier = false,
+    bool sendConnectionNotification = true, // Set false when accepting to prevent cycle
   });
   Future<void> deleteContact(String id);
   Future<void> updateCustomerProfile({
@@ -85,6 +86,7 @@ class ContactsRepositoryImpl implements ContactsRepository {
     bool isWholesaler = false,
     bool isBroker = false,
     bool isSupplier = false,
+    bool sendConnectionNotification = true,
   }) async {
     final id = const Uuid().v4();
     final now = DateTime.now();
@@ -135,28 +137,104 @@ class ContactsRepositoryImpl implements ContactsRepository {
           ),
         );
 
-    // Send connection request
-    if (hasLinkedUser && currentUid != null) {
-      try {
-        final currentUserDoc = await FirebaseFirestore.instance.collection('users').doc(currentUid).get();
-        if (currentUserDoc.exists) {
-          final data = currentUserDoc.data()!;
-          await FirebaseFirestore.instance.collection('connection_requests').add({
-            'fromUid': currentUid,
-            'toUid': linkedUserUid,
-            'fromName': data['name'] ?? 'A HisabET User',
-            'fromPhone': data['phone'],
-            'fromEmail': data['email'],
-            'status': 'pending',
-            'timestamp': FieldValue.serverTimestamp(),
-          });
-        }
-      } catch (e) {
-        debugPrint('[ContactsRepo] Failed to send connection request: $e');
-      }
+    // ── Cloud sync (fire-and-forget; offline-safe via Firestore cache) ──────
+    if (hasLinkedUser && currentUid != null && sendConnectionNotification) {
+      _syncContactToCloud(
+        currentUid: currentUid,
+        linkedUserUid: linkedUserUid,
+      );
+    } else if (hasLinkedUser && currentUid != null) {
+      // Even when not sending a notification (accept flow), still record the
+      // new contact in our own contacts_uids array for future graph features.
+      _updateMyContactsUids(currentUid: currentUid, linkedUserUid: linkedUserUid);
     }
 
     return id;
+  }
+
+  /// Atomically adds [linkedUserUid] to the current user's `contacts_uids`
+  /// array in Firestore (idempotent, offline-queued by Firestore SDK).
+  void _updateMyContactsUids({
+    required String currentUid,
+    required String linkedUserUid,
+  }) {
+    FirebaseFirestore.instance
+        .collection('users')
+        .doc(currentUid)
+        .update({'contacts_uids': FieldValue.arrayUnion([linkedUserUid])})
+        .catchError((e) => debugPrint('[ContactsRepo] contacts_uids update failed (will retry): $e'));
+  }
+
+  /// Handles the full cloud sync for a new verified contact:
+  /// 1. Records the contact in MY `contacts_uids` array (graph data).
+  /// 2. Checks if THEY already have ME in their `contacts_uids`.
+  ///    - YES → they already know about me; no notification needed; mark any
+  ///      pending request as accepted.
+  ///    - NO  → send a fresh connection-request notification.
+  Future<void> _syncContactToCloud({
+    required String currentUid,
+    required String linkedUserUid,
+  }) async {
+    try {
+      // Step 1 – Update MY contacts_uids (atomic, idempotent).
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUid)
+          .update({'contacts_uids': FieldValue.arrayUnion([linkedUserUid])});
+
+      // Step 2 – Check if I am already in THEIR contacts list.
+      //          Single-document read → no composite index required.
+      final theirDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(linkedUserUid)
+          .get();
+
+      final theirContactUids = List<String>.from(
+        (theirDoc.data()?['contacts_uids'] as List<dynamic>?) ?? [],
+      );
+      final theyAlreadyHaveMe = theirContactUids.contains(currentUid);
+
+      if (theyAlreadyHaveMe) {
+        // ── Anti-cycle path ──────────────────────────────────────────────
+        // They already saved me; mark any pending request as accepted
+        // silently so their inbox clears up without a new ping to me.
+        debugPrint('[ContactsRepo] 🛡️ Cycle prevented: $linkedUserUid already has me. Marking pending request accepted.');
+        final pendingQuery = await FirebaseFirestore.instance
+            .collection('connection_requests')
+            .where('fromUid', isEqualTo: linkedUserUid)
+            .where('toUid', isEqualTo: currentUid)
+            .where('status', isEqualTo: 'pending')
+            .limit(1)
+            .get();
+
+        for (final doc in pendingQuery.docs) {
+          await doc.reference.update({'status': 'accepted'});
+        }
+      } else {
+        // ── Normal path ──────────────────────────────────────────────────
+        // They don't have me yet → send them a connection request.
+        final myDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(currentUid)
+            .get();
+
+        if (myDoc.exists) {
+          final me = myDoc.data()!;
+          await FirebaseFirestore.instance.collection('connection_requests').add({
+            'fromUid': currentUid,
+            'toUid': linkedUserUid,
+            'fromName': me['name'] ?? 'A HisabET User',
+            'fromPhone': me['phone'],
+            'fromEmail': me['email'],
+            'status': 'pending',
+            'timestamp': FieldValue.serverTimestamp(),
+          });
+          debugPrint('[ContactsRepo] ✅ Connection request sent to $linkedUserUid.');
+        }
+      }
+    } catch (e) {
+      debugPrint('[ContactsRepo] Cloud sync failed (will retry when online): $e');
+    }
   }
 
   @override

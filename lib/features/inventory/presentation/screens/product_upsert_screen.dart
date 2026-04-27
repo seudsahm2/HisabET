@@ -115,10 +115,9 @@ class _ProductUpsertScreenState extends ConsumerState<ProductUpsertScreen> {
           Decimal.zero;
       final sellingPrice =
           Decimal.tryParse(_sellingPriceController.text.trim()) ?? Decimal.zero;
-      final stockQuantity = int.tryParse(_stockQuantityController.text.trim()) ??
-          0;
-      final reorderLevel =
-          int.tryParse(_reorderLevelController.text.trim()) ?? 0;
+      final stockQuantity = int.tryParse(_stockQuantityController.text.trim()) ?? 0;
+      // reorderLevel is no longer per-product — a global threshold is set in Settings
+      const reorderLevel = 0;
       final actorRole = ref.read(currentRoleProvider);
 
       if (_isEditing) {
@@ -388,14 +387,7 @@ class _ProductUpsertScreenState extends ConsumerState<ProductUpsertScreen> {
                       keyboardType: TextInputType.number,
                       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     ),
-                    const Divider(height: 1),
-                    _buildTextFormField(
-                      controller: _reorderLevelController,
-                      label: 'Low Stock Alert Level',
-                      hintText: '0',
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    ),
+                    // Low stock threshold is now global — set in Profile > Inventory Settings
                   ],
                 ),
                 const SizedBox(height: AppDimensions.xl),

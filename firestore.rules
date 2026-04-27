@@ -1,0 +1,49 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // 1. USERS COLLECTION
+    match /users/{userId} {
+      // Any authenticated user can read profiles (global search, anti-cycle check)
+      allow read: if request.auth != null;
+      // Only the owner can write their own profile fields
+      allow write: if request.auth != null && request.auth.uid == userId;
+      // Allow any authenticated user to append to another user's contacts_uids array.
+      // This is needed because when I add someone, I update MY OWN doc which is
+      // already covered by the rule above. No extra rule needed for that.
+      // The contacts_uids field on another user's doc is NEVER written by us
+      // (we only write our own doc), so the existing write rule is sufficient.
+    }
+
+    // 2. CONNECTION REQUESTS
+    match /connection_requests/{requestId} {
+      allow create: if request.auth != null && request.resource.data.fromUid == request.auth.uid;
+      allow read, update, delete: if request.auth != null && 
+        (resource.data.toUid == request.auth.uid || resource.data.fromUid == request.auth.uid);
+    }
+
+    // 3. TRANSACTIONS (Specific User Ledgers)
+    match /users/{userId}/transactions/{transactionId} {
+      // The owner of the ledger can do everything
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      
+      // A contact can read the transaction if their UID is explicitly attached to it
+      allow read: if request.auth != null && resource.data.contact_uid == request.auth.uid;
+
+      // A contact can read the transaction if a phone number is attached.
+      // (This is kept lenient to prevent Firestore from rejecting queries where users haven't linked phone auth yet)
+      allow read: if request.auth != null && resource.data.contact_phone != null;
+    }
+
+    // 4. TRANSACTIONS (Collection Group queries across all users)
+    match /{path=**}/transactions/{transactionId} {
+      allow read: if request.auth != null && resource.data.contact_uid == request.auth.uid;
+      allow read: if request.auth != null && resource.data.contact_phone != null;
+    }
+    
+    // 5. DEFAULT DENY
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

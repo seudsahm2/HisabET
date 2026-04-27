@@ -1,10 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:hisabet/core/database/app_database.dart';
 import 'package:hisabet/features/contacts/presentation/providers/contacts_providers.dart';
 
 import 'package:hisabet/features/sync/presentation/screens/onboarding_screen.dart';
@@ -143,6 +141,16 @@ class _ProfileCheckGateState extends ConsumerState<ProfileCheckGate> {
                 .doc(user.uid)
                 .update(updates)
                 .catchError((e) => debugPrint('[ProfileCheckGate] Backfill error: $e'));
+          }
+
+          // Initialize contacts_uids field if it doesn't exist yet (existing users).
+          // Uses setData with merge so it never overwrites existing data.
+          if (data?['contacts_uids'] == null) {
+            FirebaseFirestore.instance
+                .collection('users')
+                .doc(user.uid)
+                .set({'contacts_uids': []}, SetOptions(merge: true))
+                .catchError((e) => debugPrint('[ProfileCheckGate] contacts_uids init error: $e'));
           }
 
           return const MainScaffold();

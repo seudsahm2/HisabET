@@ -17,7 +17,7 @@ class _ConnectionInboxScreenState extends ConsumerState<ConnectionInboxScreen> {
     try {
       final repo = ref.read(contactsRepositoryProvider);
       
-      // 1. Add them as a verified contact
+      // 1. Add them as a verified contact (NO notification back — prevents cycle!)
       final rolesList = (request['roles'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [];
       await repo.addContact(
         request['fromName']?.toString() ?? 'Unknown User',
@@ -29,6 +29,7 @@ class _ConnectionInboxScreenState extends ConsumerState<ConnectionInboxScreen> {
         isWholesaler: rolesList.contains('Wholesaler'),
         isBroker: rolesList.contains('Broker'),
         isSupplier: rolesList.contains('Supplier'),
+        sendConnectionNotification: false, // 🛡️ Prevents cyclic notification loop
       );
 
       // 2. Mark request as accepted in Firestore

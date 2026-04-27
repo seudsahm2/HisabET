@@ -4,8 +4,9 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter/foundation.dart';
 import 'package:hisabet/core/theme/theme.dart';
 import 'package:hisabet/core/l10n/generated/app_localizations.dart';
-import 'package:hisabet/core/l10n/language_provider.dart'; // Added
+import 'package:hisabet/core/l10n/language_provider.dart';
 import 'package:hisabet/core/auth/auth_gate.dart';
+import 'package:hisabet/features/inventory/presentation/providers/products_providers.dart';
 import 'package:hisabet/features/settings/data/repositories/app_settings_repository.dart';
 
 import 'package:firebase_core/firebase_core.dart';
@@ -22,11 +23,17 @@ Future<void> main() async {
   final initialLanguageCode =
       await AppSettingsRepository.readInitialLanguageCode();
 
+  final container = ProviderContainer(
+    overrides: [
+      initialLanguageCodeProvider.overrideWithValue(initialLanguageCode),
+    ],
+  );
+  // Pre-load saved threshold from SharedPreferences
+  await container.read(lowStockThresholdProvider.notifier).load();
+
   runApp(
-    ProviderScope(
-      overrides: [
-        initialLanguageCodeProvider.overrideWithValue(initialLanguageCode),
-      ],
+    UncontrolledProviderScope(
+      container: container,
       child: const MyApp(),
     ),
   );

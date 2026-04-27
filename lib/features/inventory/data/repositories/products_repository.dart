@@ -108,7 +108,11 @@ class ProductsRepositoryImpl implements ProductsRepository {
 
   @override
   Future<void> deleteProduct(String id) async {
-    await (_db.delete(_db.products)..where((tbl) => tbl.id.equals(id))).go();
+    await _db.transaction(() async {
+      // Must delete child records first due to foreign key constraint
+      await (_db.delete(_db.stockMovements)..where((tbl) => tbl.productId.equals(id))).go();
+      await (_db.delete(_db.products)..where((tbl) => tbl.id.equals(id))).go();
+    });
   }
 
   @override

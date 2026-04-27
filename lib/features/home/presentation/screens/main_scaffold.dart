@@ -9,6 +9,7 @@ import 'package:hisabet/features/contacts/presentation/screens/contacts_list_scr
 import 'package:hisabet/features/contacts/presentation/screens/add_contact_screen.dart';
 import 'package:hisabet/features/home/presentation/providers/dashboard_providers.dart';
 import 'package:hisabet/features/home/presentation/screens/merchant_modules_screen.dart';
+import 'package:hisabet/features/inventory/presentation/providers/products_providers.dart';
 import 'package:hisabet/features/inventory/presentation/screens/products_list_screen.dart';
 import 'package:hisabet/features/transactions/data/models/transaction_model.dart';
 import 'package:hisabet/core/l10n/language_provider.dart';
@@ -452,16 +453,39 @@ class _ProfileTab extends ConsumerWidget {
               ),
             
             const SizedBox(height: AppDimensions.xl),
-            
+
+            // ── Inventory Settings ──────────────────────────────────────────
             AppFormSection(
-              title: "Developer",
+              title: 'Inventory Settings',
+              icon: Icons.inventory_2_rounded,
+              children: [
+                Builder(builder: (context) {
+                  final threshold = ref.watch(lowStockThresholdProvider);
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.warning_amber_rounded, color: AppColors.warning),
+                    title: const Text('Low Stock Alert Threshold'),
+                    subtitle: Text(
+                      'Warn when stock ≤ $threshold units',
+                      style: const TextStyle(color: AppColors.textSecondary),
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => _showLowStockDialog(context, ref, threshold),
+                  );
+                }),
+              ],
+            ),
+
+            const SizedBox(height: AppDimensions.xl),
+            AppFormSection(
+              title: 'Developer',
               icon: Icons.bug_report,
               children: [
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.terminal, color: AppColors.primary),
-                  title: const Text("Debug Tools"),
-                  subtitle: const Text("Reconciliation & Logs"),
+                  title: const Text('Debug Tools'),
+                  subtitle: const Text('Reconciliation & Logs'),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () {},
                 ),
@@ -469,6 +493,50 @@ class _ProfileTab extends ConsumerWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+
+  void _showLowStockDialog(BuildContext context, WidgetRef ref, int current) {
+    final controller = TextEditingController(text: current.toString());
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Low Stock Alert Threshold'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Products with stock at or below this number will be highlighted as low stock across the entire inventory.',
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              keyboardType: TextInputType.number,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'Threshold (units)',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () {
+              final value = int.tryParse(controller.text.trim());
+              if (value != null && value >= 0) {
+                ref.read(lowStockThresholdProvider.notifier).setThreshold(value);
+              }
+              Navigator.pop(ctx);
+            },
+            child: const Text('Save'),
+          ),
+        ],
       ),
     );
   }
