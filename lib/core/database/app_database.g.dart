@@ -697,6 +697,32 @@ class $ContactsTable extends Contacts with TableInfo<$ContactsTable, Contact> {
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _isDeletedMeta = const VerificationMeta(
+    'isDeleted',
+  );
+  @override
+  late final GeneratedColumn<bool> isDeleted = GeneratedColumn<bool>(
+    'is_deleted',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_deleted" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -718,6 +744,8 @@ class $ContactsTable extends Contacts with TableInfo<$ContactsTable, Contact> {
     isWholesaler,
     isBroker,
     isSupplier,
+    isDeleted,
+    deletedAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -881,6 +909,18 @@ class $ContactsTable extends Contacts with TableInfo<$ContactsTable, Contact> {
         isSupplier.isAcceptableOrUnknown(data['is_supplier']!, _isSupplierMeta),
       );
     }
+    if (data.containsKey('is_deleted')) {
+      context.handle(
+        _isDeletedMeta,
+        isDeleted.isAcceptableOrUnknown(data['is_deleted']!, _isDeletedMeta),
+      );
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
     return context;
   }
 
@@ -966,6 +1006,14 @@ class $ContactsTable extends Contacts with TableInfo<$ContactsTable, Contact> {
         DriftSqlType.bool,
         data['${effectivePrefix}is_supplier'],
       )!,
+      isDeleted: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_deleted'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
     );
   }
 
@@ -999,6 +1047,8 @@ class Contact extends DataClass implements Insertable<Contact> {
   final bool isWholesaler;
   final bool isBroker;
   final bool isSupplier;
+  final bool isDeleted;
+  final DateTime? deletedAt;
   const Contact({
     required this.id,
     required this.name,
@@ -1019,6 +1069,8 @@ class Contact extends DataClass implements Insertable<Contact> {
     required this.isWholesaler,
     required this.isBroker,
     required this.isSupplier,
+    required this.isDeleted,
+    this.deletedAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1060,6 +1112,10 @@ class Contact extends DataClass implements Insertable<Contact> {
     map['is_wholesaler'] = Variable<bool>(isWholesaler);
     map['is_broker'] = Variable<bool>(isBroker);
     map['is_supplier'] = Variable<bool>(isSupplier);
+    map['is_deleted'] = Variable<bool>(isDeleted);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
     return map;
   }
 
@@ -1096,6 +1152,10 @@ class Contact extends DataClass implements Insertable<Contact> {
       isWholesaler: Value(isWholesaler),
       isBroker: Value(isBroker),
       isSupplier: Value(isSupplier),
+      isDeleted: Value(isDeleted),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
     );
   }
 
@@ -1134,6 +1194,8 @@ class Contact extends DataClass implements Insertable<Contact> {
       isWholesaler: serializer.fromJson<bool>(json['isWholesaler']),
       isBroker: serializer.fromJson<bool>(json['isBroker']),
       isSupplier: serializer.fromJson<bool>(json['isSupplier']),
+      isDeleted: serializer.fromJson<bool>(json['isDeleted']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
     );
   }
   @override
@@ -1165,6 +1227,8 @@ class Contact extends DataClass implements Insertable<Contact> {
       'isWholesaler': serializer.toJson<bool>(isWholesaler),
       'isBroker': serializer.toJson<bool>(isBroker),
       'isSupplier': serializer.toJson<bool>(isSupplier),
+      'isDeleted': serializer.toJson<bool>(isDeleted),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
     };
   }
 
@@ -1188,6 +1252,8 @@ class Contact extends DataClass implements Insertable<Contact> {
     bool? isWholesaler,
     bool? isBroker,
     bool? isSupplier,
+    bool? isDeleted,
+    Value<DateTime?> deletedAt = const Value.absent(),
   }) => Contact(
     id: id ?? this.id,
     name: name ?? this.name,
@@ -1217,6 +1283,8 @@ class Contact extends DataClass implements Insertable<Contact> {
     isWholesaler: isWholesaler ?? this.isWholesaler,
     isBroker: isBroker ?? this.isBroker,
     isSupplier: isSupplier ?? this.isSupplier,
+    isDeleted: isDeleted ?? this.isDeleted,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
   );
   Contact copyWithCompanion(ContactsCompanion data) {
     return Contact(
@@ -1269,6 +1337,8 @@ class Contact extends DataClass implements Insertable<Contact> {
       isSupplier: data.isSupplier.present
           ? data.isSupplier.value
           : this.isSupplier,
+      isDeleted: data.isDeleted.present ? data.isDeleted.value : this.isDeleted,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
     );
   }
 
@@ -1293,13 +1363,15 @@ class Contact extends DataClass implements Insertable<Contact> {
           ..write('isRetailer: $isRetailer, ')
           ..write('isWholesaler: $isWholesaler, ')
           ..write('isBroker: $isBroker, ')
-          ..write('isSupplier: $isSupplier')
+          ..write('isSupplier: $isSupplier, ')
+          ..write('isDeleted: $isDeleted, ')
+          ..write('deletedAt: $deletedAt')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     name,
     role,
@@ -1319,7 +1391,9 @@ class Contact extends DataClass implements Insertable<Contact> {
     isWholesaler,
     isBroker,
     isSupplier,
-  );
+    isDeleted,
+    deletedAt,
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1342,7 +1416,9 @@ class Contact extends DataClass implements Insertable<Contact> {
           other.isRetailer == this.isRetailer &&
           other.isWholesaler == this.isWholesaler &&
           other.isBroker == this.isBroker &&
-          other.isSupplier == this.isSupplier);
+          other.isSupplier == this.isSupplier &&
+          other.isDeleted == this.isDeleted &&
+          other.deletedAt == this.deletedAt);
 }
 
 class ContactsCompanion extends UpdateCompanion<Contact> {
@@ -1365,6 +1441,8 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
   final Value<bool> isWholesaler;
   final Value<bool> isBroker;
   final Value<bool> isSupplier;
+  final Value<bool> isDeleted;
+  final Value<DateTime?> deletedAt;
   final Value<int> rowid;
   const ContactsCompanion({
     this.id = const Value.absent(),
@@ -1386,6 +1464,8 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
     this.isWholesaler = const Value.absent(),
     this.isBroker = const Value.absent(),
     this.isSupplier = const Value.absent(),
+    this.isDeleted = const Value.absent(),
+    this.deletedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ContactsCompanion.insert({
@@ -1408,6 +1488,8 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
     this.isWholesaler = const Value.absent(),
     this.isBroker = const Value.absent(),
     this.isSupplier = const Value.absent(),
+    this.isDeleted = const Value.absent(),
+    this.deletedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        name = Value(name),
@@ -1432,6 +1514,8 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
     Expression<bool>? isWholesaler,
     Expression<bool>? isBroker,
     Expression<bool>? isSupplier,
+    Expression<bool>? isDeleted,
+    Expression<DateTime>? deletedAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -1458,6 +1542,8 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
       if (isWholesaler != null) 'is_wholesaler': isWholesaler,
       if (isBroker != null) 'is_broker': isBroker,
       if (isSupplier != null) 'is_supplier': isSupplier,
+      if (isDeleted != null) 'is_deleted': isDeleted,
+      if (deletedAt != null) 'deleted_at': deletedAt,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1482,6 +1568,8 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
     Value<bool>? isWholesaler,
     Value<bool>? isBroker,
     Value<bool>? isSupplier,
+    Value<bool>? isDeleted,
+    Value<DateTime?>? deletedAt,
     Value<int>? rowid,
   }) {
     return ContactsCompanion(
@@ -1507,6 +1595,8 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
       isWholesaler: isWholesaler ?? this.isWholesaler,
       isBroker: isBroker ?? this.isBroker,
       isSupplier: isSupplier ?? this.isSupplier,
+      isDeleted: isDeleted ?? this.isDeleted,
+      deletedAt: deletedAt ?? this.deletedAt,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1579,6 +1669,12 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
     if (isSupplier.present) {
       map['is_supplier'] = Variable<bool>(isSupplier.value);
     }
+    if (isDeleted.present) {
+      map['is_deleted'] = Variable<bool>(isDeleted.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1607,6 +1703,8 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
           ..write('isWholesaler: $isWholesaler, ')
           ..write('isBroker: $isBroker, ')
           ..write('isSupplier: $isSupplier, ')
+          ..write('isDeleted: $isDeleted, ')
+          ..write('deletedAt: $deletedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -3015,6 +3113,32 @@ class $ProductsTable extends Products with TableInfo<$ProductsTable, Product> {
     type: DriftSqlType.dateTime,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _isDeletedMeta = const VerificationMeta(
+    'isDeleted',
+  );
+  @override
+  late final GeneratedColumn<bool> isDeleted = GeneratedColumn<bool>(
+    'is_deleted',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_deleted" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -3032,6 +3156,8 @@ class $ProductsTable extends Products with TableInfo<$ProductsTable, Product> {
     isActive,
     createdAt,
     updatedAt,
+    isDeleted,
+    deletedAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -3152,6 +3278,18 @@ class $ProductsTable extends Products with TableInfo<$ProductsTable, Product> {
     } else if (isInserting) {
       context.missing(_updatedAtMeta);
     }
+    if (data.containsKey('is_deleted')) {
+      context.handle(
+        _isDeletedMeta,
+        isDeleted.isAcceptableOrUnknown(data['is_deleted']!, _isDeletedMeta),
+      );
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
     return context;
   }
 
@@ -3221,6 +3359,14 @@ class $ProductsTable extends Products with TableInfo<$ProductsTable, Product> {
         DriftSqlType.dateTime,
         data['${effectivePrefix}updated_at'],
       )!,
+      isDeleted: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_deleted'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
     );
   }
 
@@ -3246,6 +3392,8 @@ class Product extends DataClass implements Insertable<Product> {
   final bool isActive;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final bool isDeleted;
+  final DateTime? deletedAt;
   const Product({
     required this.id,
     required this.name,
@@ -3262,6 +3410,8 @@ class Product extends DataClass implements Insertable<Product> {
     required this.isActive,
     required this.createdAt,
     required this.updatedAt,
+    required this.isDeleted,
+    this.deletedAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -3291,6 +3441,10 @@ class Product extends DataClass implements Insertable<Product> {
     map['is_active'] = Variable<bool>(isActive);
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
+    map['is_deleted'] = Variable<bool>(isDeleted);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
     return map;
   }
 
@@ -3319,6 +3473,10 @@ class Product extends DataClass implements Insertable<Product> {
       isActive: Value(isActive),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
+      isDeleted: Value(isDeleted),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
     );
   }
 
@@ -3343,6 +3501,8 @@ class Product extends DataClass implements Insertable<Product> {
       isActive: serializer.fromJson<bool>(json['isActive']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      isDeleted: serializer.fromJson<bool>(json['isDeleted']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
     );
   }
   @override
@@ -3364,6 +3524,8 @@ class Product extends DataClass implements Insertable<Product> {
       'isActive': serializer.toJson<bool>(isActive),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'isDeleted': serializer.toJson<bool>(isDeleted),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
     };
   }
 
@@ -3383,6 +3545,8 @@ class Product extends DataClass implements Insertable<Product> {
     bool? isActive,
     DateTime? createdAt,
     DateTime? updatedAt,
+    bool? isDeleted,
+    Value<DateTime?> deletedAt = const Value.absent(),
   }) => Product(
     id: id ?? this.id,
     name: name ?? this.name,
@@ -3401,6 +3565,8 @@ class Product extends DataClass implements Insertable<Product> {
     isActive: isActive ?? this.isActive,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
+    isDeleted: isDeleted ?? this.isDeleted,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
   );
   Product copyWithCompanion(ProductsCompanion data) {
     return Product(
@@ -3427,6 +3593,8 @@ class Product extends DataClass implements Insertable<Product> {
       isActive: data.isActive.present ? data.isActive.value : this.isActive,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      isDeleted: data.isDeleted.present ? data.isDeleted.value : this.isDeleted,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
     );
   }
 
@@ -3447,7 +3615,9 @@ class Product extends DataClass implements Insertable<Product> {
           ..write('reorderLevel: $reorderLevel, ')
           ..write('isActive: $isActive, ')
           ..write('createdAt: $createdAt, ')
-          ..write('updatedAt: $updatedAt')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('isDeleted: $isDeleted, ')
+          ..write('deletedAt: $deletedAt')
           ..write(')'))
         .toString();
   }
@@ -3469,6 +3639,8 @@ class Product extends DataClass implements Insertable<Product> {
     isActive,
     createdAt,
     updatedAt,
+    isDeleted,
+    deletedAt,
   );
   @override
   bool operator ==(Object other) =>
@@ -3488,7 +3660,9 @@ class Product extends DataClass implements Insertable<Product> {
           other.reorderLevel == this.reorderLevel &&
           other.isActive == this.isActive &&
           other.createdAt == this.createdAt &&
-          other.updatedAt == this.updatedAt);
+          other.updatedAt == this.updatedAt &&
+          other.isDeleted == this.isDeleted &&
+          other.deletedAt == this.deletedAt);
 }
 
 class ProductsCompanion extends UpdateCompanion<Product> {
@@ -3507,6 +3681,8 @@ class ProductsCompanion extends UpdateCompanion<Product> {
   final Value<bool> isActive;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
+  final Value<bool> isDeleted;
+  final Value<DateTime?> deletedAt;
   final Value<int> rowid;
   const ProductsCompanion({
     this.id = const Value.absent(),
@@ -3524,6 +3700,8 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     this.isActive = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
+    this.isDeleted = const Value.absent(),
+    this.deletedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ProductsCompanion.insert({
@@ -3542,6 +3720,8 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     this.isActive = const Value.absent(),
     required DateTime createdAt,
     required DateTime updatedAt,
+    this.isDeleted = const Value.absent(),
+    this.deletedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        name = Value(name),
@@ -3563,6 +3743,8 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     Expression<bool>? isActive,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
+    Expression<bool>? isDeleted,
+    Expression<DateTime>? deletedAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -3581,6 +3763,8 @@ class ProductsCompanion extends UpdateCompanion<Product> {
       if (isActive != null) 'is_active': isActive,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
+      if (isDeleted != null) 'is_deleted': isDeleted,
+      if (deletedAt != null) 'deleted_at': deletedAt,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -3601,6 +3785,8 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     Value<bool>? isActive,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
+    Value<bool>? isDeleted,
+    Value<DateTime?>? deletedAt,
     Value<int>? rowid,
   }) {
     return ProductsCompanion(
@@ -3619,6 +3805,8 @@ class ProductsCompanion extends UpdateCompanion<Product> {
       isActive: isActive ?? this.isActive,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      isDeleted: isDeleted ?? this.isDeleted,
+      deletedAt: deletedAt ?? this.deletedAt,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -3671,6 +3859,12 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
     }
+    if (isDeleted.present) {
+      map['is_deleted'] = Variable<bool>(isDeleted.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -3695,6 +3889,8 @@ class ProductsCompanion extends UpdateCompanion<Product> {
           ..write('isActive: $isActive, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
+          ..write('isDeleted: $isDeleted, ')
+          ..write('deletedAt: $deletedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -9362,6 +9558,32 @@ class $TransactionsTable extends Transactions
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _isDeletedMeta = const VerificationMeta(
+    'isDeleted',
+  );
+  @override
+  late final GeneratedColumn<bool> isDeleted = GeneratedColumn<bool>(
+    'is_deleted',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_deleted" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -9378,6 +9600,8 @@ class $TransactionsTable extends Transactions
     referenceId,
     saleId,
     isSynced,
+    isDeleted,
+    deletedAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -9491,6 +9715,18 @@ class $TransactionsTable extends Transactions
         isSynced.isAcceptableOrUnknown(data['is_synced']!, _isSyncedMeta),
       );
     }
+    if (data.containsKey('is_deleted')) {
+      context.handle(
+        _isDeletedMeta,
+        isDeleted.isAcceptableOrUnknown(data['is_deleted']!, _isDeletedMeta),
+      );
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
     return context;
   }
 
@@ -9556,6 +9792,14 @@ class $TransactionsTable extends Transactions
         DriftSqlType.bool,
         data['${effectivePrefix}is_synced'],
       )!,
+      isDeleted: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_deleted'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
     );
   }
 
@@ -9580,6 +9824,8 @@ class Transaction extends DataClass implements Insertable<Transaction> {
   final String? referenceId;
   final String? saleId;
   final bool isSynced;
+  final bool isDeleted;
+  final DateTime? deletedAt;
   const Transaction({
     required this.id,
     required this.contactId,
@@ -9595,6 +9841,8 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     this.referenceId,
     this.saleId,
     required this.isSynced,
+    required this.isDeleted,
+    this.deletedAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -9627,6 +9875,10 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       map['sale_id'] = Variable<String>(saleId);
     }
     map['is_synced'] = Variable<bool>(isSynced);
+    map['is_deleted'] = Variable<bool>(isDeleted);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
     return map;
   }
 
@@ -9660,6 +9912,10 @@ class Transaction extends DataClass implements Insertable<Transaction> {
           ? const Value.absent()
           : Value(saleId),
       isSynced: Value(isSynced),
+      isDeleted: Value(isDeleted),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
     );
   }
 
@@ -9683,6 +9939,8 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       referenceId: serializer.fromJson<String?>(json['referenceId']),
       saleId: serializer.fromJson<String?>(json['saleId']),
       isSynced: serializer.fromJson<bool>(json['isSynced']),
+      isDeleted: serializer.fromJson<bool>(json['isDeleted']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
     );
   }
   @override
@@ -9703,6 +9961,8 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       'referenceId': serializer.toJson<String?>(referenceId),
       'saleId': serializer.toJson<String?>(saleId),
       'isSynced': serializer.toJson<bool>(isSynced),
+      'isDeleted': serializer.toJson<bool>(isDeleted),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
     };
   }
 
@@ -9721,6 +9981,8 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     Value<String?> referenceId = const Value.absent(),
     Value<String?> saleId = const Value.absent(),
     bool? isSynced,
+    bool? isDeleted,
+    Value<DateTime?> deletedAt = const Value.absent(),
   }) => Transaction(
     id: id ?? this.id,
     contactId: contactId ?? this.contactId,
@@ -9736,6 +9998,8 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     referenceId: referenceId.present ? referenceId.value : this.referenceId,
     saleId: saleId.present ? saleId.value : this.saleId,
     isSynced: isSynced ?? this.isSynced,
+    isDeleted: isDeleted ?? this.isDeleted,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
   );
   Transaction copyWithCompanion(TransactionsCompanion data) {
     return Transaction(
@@ -9759,6 +10023,8 @@ class Transaction extends DataClass implements Insertable<Transaction> {
           : this.referenceId,
       saleId: data.saleId.present ? data.saleId.value : this.saleId,
       isSynced: data.isSynced.present ? data.isSynced.value : this.isSynced,
+      isDeleted: data.isDeleted.present ? data.isDeleted.value : this.isDeleted,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
     );
   }
 
@@ -9778,7 +10044,9 @@ class Transaction extends DataClass implements Insertable<Transaction> {
           ..write('metadata: $metadata, ')
           ..write('referenceId: $referenceId, ')
           ..write('saleId: $saleId, ')
-          ..write('isSynced: $isSynced')
+          ..write('isSynced: $isSynced, ')
+          ..write('isDeleted: $isDeleted, ')
+          ..write('deletedAt: $deletedAt')
           ..write(')'))
         .toString();
   }
@@ -9799,6 +10067,8 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     referenceId,
     saleId,
     isSynced,
+    isDeleted,
+    deletedAt,
   );
   @override
   bool operator ==(Object other) =>
@@ -9817,7 +10087,9 @@ class Transaction extends DataClass implements Insertable<Transaction> {
           other.metadata == this.metadata &&
           other.referenceId == this.referenceId &&
           other.saleId == this.saleId &&
-          other.isSynced == this.isSynced);
+          other.isSynced == this.isSynced &&
+          other.isDeleted == this.isDeleted &&
+          other.deletedAt == this.deletedAt);
 }
 
 class TransactionsCompanion extends UpdateCompanion<Transaction> {
@@ -9835,6 +10107,8 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
   final Value<String?> referenceId;
   final Value<String?> saleId;
   final Value<bool> isSynced;
+  final Value<bool> isDeleted;
+  final Value<DateTime?> deletedAt;
   final Value<int> rowid;
   const TransactionsCompanion({
     this.id = const Value.absent(),
@@ -9851,6 +10125,8 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     this.referenceId = const Value.absent(),
     this.saleId = const Value.absent(),
     this.isSynced = const Value.absent(),
+    this.isDeleted = const Value.absent(),
+    this.deletedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   TransactionsCompanion.insert({
@@ -9868,6 +10144,8 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     this.referenceId = const Value.absent(),
     this.saleId = const Value.absent(),
     this.isSynced = const Value.absent(),
+    this.isDeleted = const Value.absent(),
+    this.deletedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        contactId = Value(contactId),
@@ -9889,6 +10167,8 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     Expression<String>? referenceId,
     Expression<String>? saleId,
     Expression<bool>? isSynced,
+    Expression<bool>? isDeleted,
+    Expression<DateTime>? deletedAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -9906,6 +10186,8 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
       if (referenceId != null) 'reference_id': referenceId,
       if (saleId != null) 'sale_id': saleId,
       if (isSynced != null) 'is_synced': isSynced,
+      if (isDeleted != null) 'is_deleted': isDeleted,
+      if (deletedAt != null) 'deleted_at': deletedAt,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -9925,6 +10207,8 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     Value<String?>? referenceId,
     Value<String?>? saleId,
     Value<bool>? isSynced,
+    Value<bool>? isDeleted,
+    Value<DateTime?>? deletedAt,
     Value<int>? rowid,
   }) {
     return TransactionsCompanion(
@@ -9942,6 +10226,8 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
       referenceId: referenceId ?? this.referenceId,
       saleId: saleId ?? this.saleId,
       isSynced: isSynced ?? this.isSynced,
+      isDeleted: isDeleted ?? this.isDeleted,
+      deletedAt: deletedAt ?? this.deletedAt,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -9991,6 +10277,12 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     if (isSynced.present) {
       map['is_synced'] = Variable<bool>(isSynced.value);
     }
+    if (isDeleted.present) {
+      map['is_deleted'] = Variable<bool>(isDeleted.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -10014,6 +10306,8 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
           ..write('referenceId: $referenceId, ')
           ..write('saleId: $saleId, ')
           ..write('isSynced: $isSynced, ')
+          ..write('isDeleted: $isDeleted, ')
+          ..write('deletedAt: $deletedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -10319,6 +10613,8 @@ typedef $$ContactsTableCreateCompanionBuilder =
       Value<bool> isWholesaler,
       Value<bool> isBroker,
       Value<bool> isSupplier,
+      Value<bool> isDeleted,
+      Value<DateTime?> deletedAt,
       Value<int> rowid,
     });
 typedef $$ContactsTableUpdateCompanionBuilder =
@@ -10342,6 +10638,8 @@ typedef $$ContactsTableUpdateCompanionBuilder =
       Value<bool> isWholesaler,
       Value<bool> isBroker,
       Value<bool> isSupplier,
+      Value<bool> isDeleted,
+      Value<DateTime?> deletedAt,
       Value<int> rowid,
     });
 
@@ -10469,6 +10767,16 @@ class $$ContactsTableFilterComposer
 
   ColumnFilters<bool> get isSupplier => $composableBuilder(
     column: $table.isSupplier,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isDeleted => $composableBuilder(
+    column: $table.isDeleted,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -10601,6 +10909,16 @@ class $$ContactsTableOrderingComposer
     column: $table.isSupplier,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<bool> get isDeleted => $composableBuilder(
+    column: $table.isDeleted,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$ContactsTableAnnotationComposer
@@ -10699,6 +11017,12 @@ class $$ContactsTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get isDeleted =>
+      $composableBuilder(column: $table.isDeleted, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
   Expression<T> transactionsRefs<T extends Object>(
     Expression<T> Function($$TransactionsTableAnnotationComposer a) f,
   ) {
@@ -10772,6 +11096,8 @@ class $$ContactsTableTableManager
                 Value<bool> isWholesaler = const Value.absent(),
                 Value<bool> isBroker = const Value.absent(),
                 Value<bool> isSupplier = const Value.absent(),
+                Value<bool> isDeleted = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ContactsCompanion(
                 id: id,
@@ -10793,6 +11119,8 @@ class $$ContactsTableTableManager
                 isWholesaler: isWholesaler,
                 isBroker: isBroker,
                 isSupplier: isSupplier,
+                isDeleted: isDeleted,
+                deletedAt: deletedAt,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -10816,6 +11144,8 @@ class $$ContactsTableTableManager
                 Value<bool> isWholesaler = const Value.absent(),
                 Value<bool> isBroker = const Value.absent(),
                 Value<bool> isSupplier = const Value.absent(),
+                Value<bool> isDeleted = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ContactsCompanion.insert(
                 id: id,
@@ -10837,6 +11167,8 @@ class $$ContactsTableTableManager
                 isWholesaler: isWholesaler,
                 isBroker: isBroker,
                 isSupplier: isSupplier,
+                isDeleted: isDeleted,
+                deletedAt: deletedAt,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -11750,6 +12082,8 @@ typedef $$ProductsTableCreateCompanionBuilder =
       Value<bool> isActive,
       required DateTime createdAt,
       required DateTime updatedAt,
+      Value<bool> isDeleted,
+      Value<DateTime?> deletedAt,
       Value<int> rowid,
     });
 typedef $$ProductsTableUpdateCompanionBuilder =
@@ -11769,6 +12103,8 @@ typedef $$ProductsTableUpdateCompanionBuilder =
       Value<bool> isActive,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
+      Value<bool> isDeleted,
+      Value<DateTime?> deletedAt,
       Value<int> rowid,
     });
 
@@ -11925,6 +12261,16 @@ class $$ProductsTableFilterComposer
 
   ColumnFilters<DateTime> get updatedAt => $composableBuilder(
     column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isDeleted => $composableBuilder(
+    column: $table.isDeleted,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -12088,6 +12434,16 @@ class $$ProductsTableOrderingComposer
     column: $table.updatedAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<bool> get isDeleted => $composableBuilder(
+    column: $table.isDeleted,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$ProductsTableAnnotationComposer
@@ -12151,6 +12507,12 @@ class $$ProductsTableAnnotationComposer
 
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<bool> get isDeleted =>
+      $composableBuilder(column: $table.isDeleted, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
 
   Expression<T> purchaseOrderLineItemsRefs<T extends Object>(
     Expression<T> Function($$PurchaseOrderLineItemsTableAnnotationComposer a) f,
@@ -12276,6 +12638,8 @@ class $$ProductsTableTableManager
                 Value<bool> isActive = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
+                Value<bool> isDeleted = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ProductsCompanion(
                 id: id,
@@ -12293,6 +12657,8 @@ class $$ProductsTableTableManager
                 isActive: isActive,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
+                isDeleted: isDeleted,
+                deletedAt: deletedAt,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -12312,6 +12678,8 @@ class $$ProductsTableTableManager
                 Value<bool> isActive = const Value.absent(),
                 required DateTime createdAt,
                 required DateTime updatedAt,
+                Value<bool> isDeleted = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ProductsCompanion.insert(
                 id: id,
@@ -12329,6 +12697,8 @@ class $$ProductsTableTableManager
                 isActive: isActive,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
+                isDeleted: isDeleted,
+                deletedAt: deletedAt,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -16610,6 +16980,8 @@ typedef $$TransactionsTableCreateCompanionBuilder =
       Value<String?> referenceId,
       Value<String?> saleId,
       Value<bool> isSynced,
+      Value<bool> isDeleted,
+      Value<DateTime?> deletedAt,
       Value<int> rowid,
     });
 typedef $$TransactionsTableUpdateCompanionBuilder =
@@ -16628,6 +17000,8 @@ typedef $$TransactionsTableUpdateCompanionBuilder =
       Value<String?> referenceId,
       Value<String?> saleId,
       Value<bool> isSynced,
+      Value<bool> isDeleted,
+      Value<DateTime?> deletedAt,
       Value<int> rowid,
     });
 
@@ -16729,6 +17103,16 @@ class $$TransactionsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<bool> get isDeleted => $composableBuilder(
+    column: $table.isDeleted,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
   $$ContactsTableFilterComposer get contactId {
     final $$ContactsTableFilterComposer composer = $composerBuilder(
       composer: this,
@@ -16827,6 +17211,16 @@ class $$TransactionsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get isDeleted => $composableBuilder(
+    column: $table.isDeleted,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$ContactsTableOrderingComposer get contactId {
     final $$ContactsTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -16905,6 +17299,12 @@ class $$TransactionsTableAnnotationComposer
   GeneratedColumn<bool> get isSynced =>
       $composableBuilder(column: $table.isSynced, builder: (column) => column);
 
+  GeneratedColumn<bool> get isDeleted =>
+      $composableBuilder(column: $table.isDeleted, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
   $$ContactsTableAnnotationComposer get contactId {
     final $$ContactsTableAnnotationComposer composer = $composerBuilder(
       composer: this,
@@ -16971,6 +17371,8 @@ class $$TransactionsTableTableManager
                 Value<String?> referenceId = const Value.absent(),
                 Value<String?> saleId = const Value.absent(),
                 Value<bool> isSynced = const Value.absent(),
+                Value<bool> isDeleted = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => TransactionsCompanion(
                 id: id,
@@ -16987,6 +17389,8 @@ class $$TransactionsTableTableManager
                 referenceId: referenceId,
                 saleId: saleId,
                 isSynced: isSynced,
+                isDeleted: isDeleted,
+                deletedAt: deletedAt,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -17005,6 +17409,8 @@ class $$TransactionsTableTableManager
                 Value<String?> referenceId = const Value.absent(),
                 Value<String?> saleId = const Value.absent(),
                 Value<bool> isSynced = const Value.absent(),
+                Value<bool> isDeleted = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => TransactionsCompanion.insert(
                 id: id,
@@ -17021,6 +17427,8 @@ class $$TransactionsTableTableManager
                 referenceId: referenceId,
                 saleId: saleId,
                 isSynced: isSynced,
+                isDeleted: isDeleted,
+                deletedAt: deletedAt,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

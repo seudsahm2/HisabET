@@ -59,7 +59,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 24;
+  int get schemaVersion => 25;
 
   @override
   MigrationStrategy get migration {
@@ -197,6 +197,26 @@ class AppDatabase extends _$AppDatabase {
         if (from < 24) {
           if (!await _hasColumn('transactions', 'is_synced')) {
             await m.addColumn(transactions, transactions.isSynced);
+          }
+        }
+        if (from < 25) {
+          if (!await _hasColumn('transactions', 'is_deleted')) {
+            await m.addColumn(transactions, transactions.isDeleted);
+          }
+          if (!await _hasColumn('transactions', 'deleted_at')) {
+            await m.addColumn(transactions, transactions.deletedAt);
+          }
+          if (!await _hasColumn('contacts', 'is_deleted')) {
+            await m.addColumn(contacts, contacts.isDeleted);
+          }
+          if (!await _hasColumn('contacts', 'deleted_at')) {
+            await m.addColumn(contacts, contacts.deletedAt);
+          }
+          if (!await _hasColumn('products', 'is_deleted')) {
+            await m.addColumn(products, products.isDeleted);
+          }
+          if (!await _hasColumn('products', 'deleted_at')) {
+            await m.addColumn(products, products.deletedAt);
           }
         }
       },

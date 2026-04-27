@@ -31,6 +31,10 @@ class Transactions extends Table {
   // Tracks if the transaction has been pushed to the cloud
   BoolColumn get isSynced => boolean().withDefault(const Constant(false))();
 
+  // Soft-delete tracking
+  BoolColumn get isDeleted => boolean().withDefault(const Constant(false))();
+  DateTimeColumn get deletedAt => dateTime().nullable()();
+
   @override
   Set<Column> get primaryKey => {id};
 }

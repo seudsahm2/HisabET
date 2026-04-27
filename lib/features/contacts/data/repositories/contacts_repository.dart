@@ -39,6 +39,11 @@ abstract class ContactsRepository {
   Future<Map<String, dynamic>?> searchUserByEmail(String email);
   Future<List<Map<String, dynamic>>> searchNetwork(String query);
   Stream<ContactModel?> watchContact(String id);
+
+  // Soft-delete extensions
+  Future<List<ContactModel>> getDeletedContacts();
+  Future<void> restoreContact(String id);
+  Future<void> permanentlyDeleteExpiredContacts({int days = 30});
 }
 
 class ContactsRepositoryImpl implements ContactsRepository {
@@ -48,21 +53,26 @@ class ContactsRepositoryImpl implements ContactsRepository {
 
   @override
   Future<List<ContactModel>> getAllContacts() async {
-    final rows = await _db.select(_db.contacts).get();
+    final rows = await (_db.select(_db.contacts)
+          ..where((tbl) => tbl.isDeleted.equals(false)))
+        .get();
     return rows.map((e) => ContactModel.fromDb(e)).toList();
   }
 
   @override
   Future<List<ContactModel>> getCustomerContacts() async {
     final rows =
-        await (_db.select(_db.contacts)
-              ..where(
-                (tbl) =>
-                    tbl.role.equals(ContactRole.merchant.index) |
-                    tbl.role.equals(ContactRole.both.index),
-              )
-              ..orderBy([(tbl) => OrderingTerm.asc(tbl.name)]))
-            .get();
+      await (_db.select(_db.contacts)
+            ..where(
+              (tbl) =>
+                  tbl.isDeleted.equals(false) &
+                  (tbl.isRetailer.equals(true) |
+                  tbl.isWholesaler.equals(true) |
+                  tbl.isBroker.equals(true) |
+                  tbl.role.equals(ContactRole.both.index) |
+                  tbl.role.equals(ContactRole.merchant.index)),
+            ))
+          .get();
     return rows.map(ContactModel.fromDb).toList();
   }
 
@@ -239,13 +249,50 @@ class ContactsRepositoryImpl implements ContactsRepository {
 
   @override
   Future<void> deleteContact(String id) async {
+    // Soft delete
+    await (_db.update(_db.contacts)..where((c) => c.id.equals(id))).write(
+      ContactsCompanion(
+        isDeleted: const Value(true),
+        deletedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  @override
+  Future<List<ContactModel>> getDeletedContacts() async {
+    final rows = await (_db.select(_db.contacts)
+          ..where((tbl) => tbl.isDeleted.equals(true))
+          ..orderBy([(t) => OrderingTerm.desc(t.deletedAt)]))
+        .get();
+    return rows.map((e) => ContactModel.fromDb(e)).toList();
+  }
+
+  @override
+  Future<void> restoreContact(String id) async {
+    await (_db.update(_db.contacts)..where((c) => c.id.equals(id))).write(
+      const ContactsCompanion(
+        isDeleted: Value(false),
+        deletedAt: Value(null),
+      ),
+    );
+  }
+
+  @override
+  Future<void> permanentlyDeleteExpiredContacts({int days = 30}) async {
+    final cutoff = DateTime.now().subtract(Duration(days: days));
+    final expiredContacts = await (_db.select(_db.contacts)
+          ..where((tbl) =>
+              tbl.isDeleted.equals(true) &
+              tbl.deletedAt.isSmallerThanValue(cutoff)))
+        .get();
+
     await _db.transaction(() async {
-      // 1. Delete all transactions for this contact
-      await (_db.delete(
-        _db.transactions,
-      )..where((t) => t.contactId.equals(id))).go();
-      // 2. Delete the contact
-      await (_db.delete(_db.contacts)..where((c) => c.id.equals(id))).go();
+      for (final contact in expiredContacts) {
+        await (_db.delete(_db.transactions)
+              ..where((t) => t.contactId.equals(contact.id)))
+            .go();
+        await (_db.delete(_db.contacts)..where((c) => c.id.equals(contact.id))).go();
+      }
     });
   }
 
@@ -378,7 +425,8 @@ class ContactsRepositoryImpl implements ContactsRepository {
 
   @override
   Stream<ContactModel?> watchContact(String id) {
-    return (_db.select(_db.contacts)..where((tbl) => tbl.id.equals(id)))
+    return (_db.select(_db.contacts)
+          ..where((tbl) => tbl.id.equals(id) & tbl.isDeleted.equals(false)))
         .watchSingleOrNull()
         .map((row) {
           if (row == null) return null;

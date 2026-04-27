@@ -35,6 +35,10 @@ class ContactModel {
   final bool isBroker;
   final bool isSupplier;
 
+  // Soft-delete flags
+  final bool isDeleted;
+  final DateTime? deletedAt;
+
   ContactModel({
     required this.id,
     required this.name,
@@ -55,7 +59,57 @@ class ContactModel {
     this.isWholesaler = false,
     this.isBroker = false,
     this.isSupplier = false,
+    this.isDeleted = false,
+    this.deletedAt,
   }) : creditLimit = creditLimit ?? Decimal.zero;
+
+  ContactModel copyWith({
+    String? id,
+    String? name,
+    ContactRole? role,
+    ContactVerificationStatus? verificationStatus,
+    DateTime? verificationRequestedAt,
+    DateTime? verificationDeadlineAt,
+    VerificationTimeoutPolicy? verificationTimeoutPolicy,
+    String? phoneNumber,
+    String? shopNumber,
+    Decimal? netBalance,
+    Decimal? creditLimit,
+    int? loyaltyPoints,
+    DateTime? lastTransactionDate,
+    String? linkedUserUid,
+    String? verificationMethod,
+    bool? isRetailer,
+    bool? isWholesaler,
+    bool? isBroker,
+    bool? isSupplier,
+    bool? isDeleted,
+    DateTime? deletedAt,
+  }) {
+    return ContactModel(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      role: role ?? this.role,
+      verificationStatus: verificationStatus ?? this.verificationStatus,
+      verificationRequestedAt: verificationRequestedAt ?? this.verificationRequestedAt,
+      verificationDeadlineAt: verificationDeadlineAt ?? this.verificationDeadlineAt,
+      verificationTimeoutPolicy: verificationTimeoutPolicy ?? this.verificationTimeoutPolicy,
+      phoneNumber: phoneNumber ?? this.phoneNumber,
+      shopNumber: shopNumber ?? this.shopNumber,
+      netBalance: netBalance ?? this.netBalance,
+      creditLimit: creditLimit ?? this.creditLimit,
+      loyaltyPoints: loyaltyPoints ?? this.loyaltyPoints,
+      lastTransactionDate: lastTransactionDate ?? this.lastTransactionDate,
+      linkedUserUid: linkedUserUid ?? this.linkedUserUid,
+      verificationMethod: verificationMethod ?? this.verificationMethod,
+      isRetailer: isRetailer ?? this.isRetailer,
+      isWholesaler: isWholesaler ?? this.isWholesaler,
+      isBroker: isBroker ?? this.isBroker,
+      isSupplier: isSupplier ?? this.isSupplier,
+      isDeleted: isDeleted ?? this.isDeleted,
+      deletedAt: deletedAt ?? this.deletedAt,
+    );
+  }
 
   /// From database row (Drift generated class)
   factory ContactModel.fromDb(Contact dbContact) {
@@ -81,6 +135,8 @@ class ContactModel {
       isWholesaler: dbContact.isWholesaler,
       isBroker: dbContact.isBroker,
       isSupplier: dbContact.isSupplier,
+      isDeleted: dbContact.isDeleted,
+      deletedAt: dbContact.deletedAt,
     );
   }
 
@@ -106,6 +162,8 @@ class ContactModel {
       isWholesaler: drift.Value(isWholesaler),
       isBroker: drift.Value(isBroker),
       isSupplier: drift.Value(isSupplier),
+      isDeleted: drift.Value(isDeleted),
+      deletedAt: drift.Value(deletedAt),
     );
   }
 

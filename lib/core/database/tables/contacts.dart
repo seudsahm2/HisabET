@@ -32,6 +32,10 @@ class Contacts extends Table {
   BoolColumn get isBroker => boolean().withDefault(const Constant(false))();
   BoolColumn get isSupplier => boolean().withDefault(const Constant(false))();
 
+  // Soft-delete tracking
+  BoolColumn get isDeleted => boolean().withDefault(const Constant(false))();
+  DateTimeColumn get deletedAt => dateTime().nullable()();
+
   @override
   Set<Column> get primaryKey => {id};
 }

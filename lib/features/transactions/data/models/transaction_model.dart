@@ -33,6 +33,8 @@ class TransactionModel {
   final String? referenceId; // Shared Bill # / Ticket #
   final String? saleId; // Originating sale if auto-generated
   final bool isSynced; // Whether it has been pushed to the cloud
+  final bool isDeleted; // Soft-delete flag
+  final DateTime? deletedAt; // When it was soft-deleted
 
   TransactionModel({
     required this.id,
@@ -49,6 +51,8 @@ class TransactionModel {
     this.referenceId,
     this.saleId,
     this.isSynced = false,
+    this.isDeleted = false,
+    this.deletedAt,
   });
 
   TransactionModel copyWith({
@@ -66,6 +70,8 @@ class TransactionModel {
     String? referenceId,
     String? saleId,
     bool? isSynced,
+    bool? isDeleted,
+    DateTime? deletedAt,
   }) {
     return TransactionModel(
       id: id ?? this.id,
@@ -82,6 +88,8 @@ class TransactionModel {
       referenceId: referenceId ?? this.referenceId,
       saleId: saleId ?? this.saleId,
       isSynced: isSynced ?? this.isSynced,
+      isDeleted: isDeleted ?? this.isDeleted,
+      deletedAt: deletedAt ?? this.deletedAt,
     );
   }
 
@@ -127,6 +135,8 @@ class TransactionModel {
       referenceId: dbTransaction.referenceId,
       saleId: dbTransaction.saleId,
       isSynced: dbTransaction.isSynced,
+      isDeleted: dbTransaction.isDeleted,
+      deletedAt: dbTransaction.deletedAt,
     );
   }
 
@@ -147,6 +157,8 @@ class TransactionModel {
       referenceId: drift.Value(referenceId),
       saleId: drift.Value(saleId),
       isSynced: drift.Value(isSynced),
+      isDeleted: drift.Value(isDeleted),
+      deletedAt: drift.Value(deletedAt),
     );
   }
 

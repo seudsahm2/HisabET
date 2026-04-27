@@ -34,6 +34,11 @@ abstract class ProductsRepository {
   });
   Future<List<StockMovementModel>> getMovementsForProduct(String productId);
   Stream<List<ProductModel>> watchAllProducts();
+
+  // Soft-delete extensions
+  Future<List<ProductModel>> getDeletedProducts();
+  Future<void> restoreProduct(String id);
+  Future<void> permanentlyDeleteExpiredProducts({int days = 30});
 }
 
 class ProductsRepositoryImpl implements ProductsRepository {
@@ -44,14 +49,21 @@ class ProductsRepositoryImpl implements ProductsRepository {
   @override
   Future<List<ProductModel>> getAllProducts() async {
     final rows = await (_db.select(_db.products)
-          ..orderBy([(t) => OrderingTerm.asc(t.name)])).get();
-    return rows.map(ProductModel.fromDb).toList();
+          ..where((tbl) => tbl.isDeleted.equals(false))
+          ..orderBy([(t) => OrderingTerm.asc(t.name)]))
+        .get();
+    return rows.map((e) => ProductModel.fromDb(e)).toList();
   }
 
   @override
   Future<List<ProductModel>> getLowStockProducts() async {
-    final products = await getAllProducts();
-    return products.where((product) => product.isLowStock).toList();
+    final rows = await (_db.select(_db.products)
+          ..where((tbl) =>
+              tbl.isDeleted.equals(false) &
+              tbl.stockQuantity.isSmallerOrEqual(tbl.reorderLevel))
+          ..orderBy([(t) => OrderingTerm.asc(t.stockQuantity)]))
+        .get();
+    return rows.map((e) => ProductModel.fromDb(e)).toList();
   }
 
   @override
@@ -108,10 +120,49 @@ class ProductsRepositoryImpl implements ProductsRepository {
 
   @override
   Future<void> deleteProduct(String id) async {
+    await (_db.update(_db.products)..where((tbl) => tbl.id.equals(id))).write(
+      ProductsCompanion(
+        isDeleted: const Value(true),
+        deletedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  @override
+  Future<List<ProductModel>> getDeletedProducts() async {
+    final rows = await (_db.select(_db.products)
+          ..where((tbl) => tbl.isDeleted.equals(true))
+          ..orderBy([(t) => OrderingTerm.desc(t.deletedAt)]))
+        .get();
+    return rows.map((e) => ProductModel.fromDb(e)).toList();
+  }
+
+  @override
+  Future<void> restoreProduct(String id) async {
+    await (_db.update(_db.products)..where((tbl) => tbl.id.equals(id))).write(
+      const ProductsCompanion(
+        isDeleted: Value(false),
+        deletedAt: Value(null),
+      ),
+    );
+  }
+
+  @override
+  Future<void> permanentlyDeleteExpiredProducts({int days = 30}) async {
+    final cutoff = DateTime.now().subtract(Duration(days: days));
+    final expiredProducts = await (_db.select(_db.products)
+          ..where((tbl) =>
+              tbl.isDeleted.equals(true) &
+              tbl.deletedAt.isSmallerThanValue(cutoff)))
+        .get();
+
     await _db.transaction(() async {
-      // Must delete child records first due to foreign key constraint
-      await (_db.delete(_db.stockMovements)..where((tbl) => tbl.productId.equals(id))).go();
-      await (_db.delete(_db.products)..where((tbl) => tbl.id.equals(id))).go();
+      for (final product in expiredProducts) {
+        await (_db.delete(_db.stockMovements)
+              ..where((tbl) => tbl.productId.equals(product.id)))
+            .go();
+        await (_db.delete(_db.products)..where((tbl) => tbl.id.equals(product.id))).go();
+      }
     });
   }
 
@@ -179,8 +230,9 @@ class ProductsRepositoryImpl implements ProductsRepository {
   @override
   Stream<List<ProductModel>> watchAllProducts() {
     return (_db.select(_db.products)
+          ..where((tbl) => tbl.isDeleted.equals(false))
           ..orderBy([(t) => OrderingTerm.asc(t.name)]))
         .watch()
-        .map((rows) => rows.map(ProductModel.fromDb).toList());
+        .map((rows) => rows.map((e) => ProductModel.fromDb(e)).toList());
   }
 }

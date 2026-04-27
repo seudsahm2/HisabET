@@ -19,6 +19,10 @@ class ProductModel {
   final DateTime createdAt;
   final DateTime updatedAt;
 
+  // Soft-delete tracking
+  final bool isDeleted;
+  final DateTime? deletedAt;
+
   const ProductModel({
     required this.id,
     required this.name,
@@ -35,6 +39,8 @@ class ProductModel {
     required this.isActive,
     required this.createdAt,
     required this.updatedAt,
+    this.isDeleted = false,
+    this.deletedAt,
   });
 
   factory ProductModel.fromDb(Product dbProduct) {
@@ -54,6 +60,8 @@ class ProductModel {
       isActive: dbProduct.isActive,
       createdAt: dbProduct.createdAt,
       updatedAt: dbProduct.updatedAt,
+      isDeleted: dbProduct.isDeleted,
+      deletedAt: dbProduct.deletedAt,
     );
   }
 
@@ -73,6 +81,8 @@ class ProductModel {
     bool? isActive,
     DateTime? createdAt,
     DateTime? updatedAt,
+    bool? isDeleted,
+    DateTime? deletedAt,
   }) {
     return ProductModel(
       id: id ?? this.id,
@@ -90,6 +100,8 @@ class ProductModel {
       isActive: isActive ?? this.isActive,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      isDeleted: isDeleted ?? this.isDeleted,
+      deletedAt: deletedAt ?? this.deletedAt,
     );
   }
 
@@ -110,6 +122,8 @@ class ProductModel {
       isActive: drift.Value(isActive),
       createdAt: createdAt,
       updatedAt: updatedAt,
+      isDeleted: drift.Value(isDeleted),
+      deletedAt: drift.Value(deletedAt),
     );
   }
 

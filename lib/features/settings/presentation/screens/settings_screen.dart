@@ -12,6 +12,7 @@ import 'package:hisabet/features/settings/data/models/app_settings_model.dart';
 import 'package:hisabet/features/settings/presentation/providers/settings_providers.dart';
 import 'package:hisabet/features/team/data/models/team_member_model.dart';
 import 'package:hisabet/features/team/presentation/providers/team_providers.dart';
+import 'package:hisabet/features/settings/presentation/screens/trash_screen.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -150,6 +151,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 _sectionTitle('Backup Options'),
                 _card(
                   children: [
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.delete_outline, color: AppColors.primary),
+                      title: const Text('Trash / Recovery'),
+                      subtitle: const Text('View and restore deleted items (30 days)'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const TrashScreen()),
+                        );
+                      },
+                    ),
+                    const Divider(height: 12),
                     ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: const Icon(Icons.backup_outlined),

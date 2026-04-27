@@ -23,13 +23,25 @@ abstract class TransactionsRepository {
   Future<void> deleteTransaction(String id);
   Future<Decimal> calculateNetBalance(String contactId);
   Future<List<TransactionModel>> getRecentTransactions({int limit = 10});
+
   /// Watches the most recent transactions
   Stream<List<TransactionModel>> watchRecentTransactions({int limit = 10});
   Stream<List<TransactionModel>> watchTransactionsForContact(String contactId);
+
   /// Re-uploads ALL local transactions for ALL linked contacts to Firestore.
   Future<int> syncAllTransactionsToCloud();
+
   /// Re-uploads only UNSYNCED local transactions to Firestore.
   Future<int> syncAllUnsyncedTransactionsToCloud();
+
+  /// Returns all soft-deleted transactions for the Trash screen.
+  Future<List<TransactionModel>> getDeletedTransactions();
+
+  /// Restores a soft-deleted transaction.
+  Future<void> restoreTransaction(String id);
+
+  /// Hard-deletes transactions that have been in the trash for [days] days.
+  Future<void> permanentlyDeleteExpiredTransactions({int days = 30});
 }
 
 class TransactionsRepositoryImpl implements TransactionsRepository {
@@ -44,7 +56,7 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
   ) async {
     final rows =
         await (_db.select(_db.transactions)
-              ..where((tbl) => tbl.contactId.equals(contactId))
+              ..where((tbl) => tbl.contactId.equals(contactId) & tbl.isDeleted.equals(false))
               ..orderBy([(t) => OrderingTerm.desc(t.date)]))
             .get();
     return rows.map((e) => TransactionModel.fromDb(e)).toList();
@@ -66,24 +78,28 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
 
     TransactionModel? existingParent;
     if (referenceId != null && referenceId.trim().isNotEmpty) {
-      final rows = await (_db.select(_db.transactions)
-            ..where((t) =>
-                t.contactId.equals(contactId) &
-                t.type.equals(type.index) &
-                t.referenceId.equals(referenceId) &
-                t.date.isBetweenValues(startOfDay, endOfDay)))
-          .get();
+      final rows =
+          await (_db.select(_db.transactions)..where(
+                (t) =>
+                    t.contactId.equals(contactId) &
+                    t.type.equals(type.index) &
+                    t.referenceId.equals(referenceId) &
+                    t.date.isBetweenValues(startOfDay, endOfDay),
+              ))
+              .get();
       if (rows.isNotEmpty) {
         existingParent = TransactionModel.fromDb(rows.first);
       }
     } else if (description != null && description.trim().isNotEmpty) {
-      final rows = await (_db.select(_db.transactions)
-            ..where((t) =>
-                t.contactId.equals(contactId) &
-                t.type.equals(type.index) &
-                t.description.equals(description) &
-                t.date.isBetweenValues(startOfDay, endOfDay)))
-          .get();
+      final rows =
+          await (_db.select(_db.transactions)..where(
+                (t) =>
+                    t.contactId.equals(contactId) &
+                    t.type.equals(type.index) &
+                    t.description.equals(description) &
+                    t.date.isBetweenValues(startOfDay, endOfDay),
+              ))
+              .get();
       if (rows.isNotEmpty) {
         existingParent = TransactionModel.fromDb(rows.first);
       }
@@ -93,24 +109,28 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
 
     if (existingParent != null) {
       // ── Aggregate into Parent ──
-      debugPrint('[TransactionsRepo] Smart Daily Aggregation: Merging with ${existingParent.id}');
+      debugPrint(
+        '[TransactionsRepo] Smart Daily Aggregation: Merging with ${existingParent.id}',
+      );
       final newTotalAmount = existingParent.amount + amount;
-      
+
       final currentCartons = _extractCartonsFromPayload(metadata);
       final newCartons = (existingParent.cartons ?? 0) + currentCartons;
       final hasCartons = newCartons > 0;
 
       final existingMeta = existingParent.metadata ?? {};
-      final List<dynamic> history = List<dynamic>.from(existingMeta['history'] ?? []);
-      
+      final List<dynamic> history = List<dynamic>.from(
+        existingMeta['history'] ?? [],
+      );
+
       // If this is the first merge, we need to log the original parent into the history too
       if (history.isEmpty) {
-         history.add({
-           'amount': existingParent.amount.toString(),
-           'date': existingParent.date.toIso8601String(),
-           'cartons': existingParent.cartons,
-           'metadata': {...existingMeta}..remove('history'),
-         });
+        history.add({
+          'amount': existingParent.amount.toString(),
+          'date': existingParent.date.toIso8601String(),
+          'cartons': existingParent.cartons,
+          'metadata': {...existingMeta}..remove('history'),
+        });
       }
 
       // Add the new split to history
@@ -144,14 +164,17 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
       );
 
       await _db.transaction(() async {
-        await _applyInventoryEffect(existingParent!, reverse: true); // Reverse old
+        await _applyInventoryEffect(
+          existingParent!,
+          reverse: true,
+        ); // Reverse old
         await _ensureCanGiveGoods(modelToSync);
-        await (_db.update(_db.transactions)..where((t) => t.id.equals(existingParent!.id)))
+        await (_db.update(_db.transactions)
+              ..where((t) => t.id.equals(existingParent!.id)))
             .write(modelToSync.toDbCompanion());
         await _applyInventoryEffect(modelToSync); // Apply new aggregated
         await _updateContactBalance(contactId);
       });
-
     } else {
       // ── Normal Insert ──
       final id = const Uuid().v4();
@@ -188,7 +211,8 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
         )..where((t) => t.id.equals(contactId))).getSingleOrNull();
 
         // Sync as long as the contact is a verified user (has UID or phone)
-        if (contact != null && (contact.phoneNumber != null || contact.linkedUserUid != null)) {
+        if (contact != null &&
+            (contact.phoneNumber != null || contact.linkedUserUid != null)) {
           final isSynced = await _syncService.saveTransactionToCloud(
             transaction: modelToSync,
             creatorUid: user.uid,
@@ -197,11 +221,14 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
             contactUid: contact.linkedUserUid,
           );
           if (isSynced) {
-            await (_db.update(_db.transactions)..where((t) => t.id.equals(modelToSync.id)))
+            await (_db.update(_db.transactions)
+                  ..where((t) => t.id.equals(modelToSync.id)))
                 .write(const TransactionsCompanion(isSynced: Value(true)));
           }
         } else {
-          debugPrint('[SYNC] Skipping cloud sync: contact has no phone or linked UID.');
+          debugPrint(
+            '[SYNC] Skipping cloud sync: contact has no phone or linked UID.',
+          );
         }
       }
     } catch (e) {
@@ -212,9 +239,9 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
 
   @override
   Future<void> updateTransaction(TransactionModel transaction) async {
-    final existing = await (_db.select(_db.transactions)
-          ..where((t) => t.id.equals(transaction.id)))
-        .getSingleOrNull();
+    final existing = await (_db.select(
+      _db.transactions,
+    )..where((t) => t.id.equals(transaction.id))).getSingleOrNull();
 
     if (existing == null) {
       throw Exception('Transaction not found. Please refresh and try again.');
@@ -256,7 +283,8 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
           contactUid: contact.linkedUserUid,
         );
         if (isSynced) {
-          await (_db.update(_db.transactions)..where((t) => t.id.equals(transaction.id)))
+          await (_db.update(_db.transactions)
+                ..where((t) => t.id.equals(transaction.id)))
               .write(const TransactionsCompanion(isSynced: Value(true)));
         }
       }
@@ -266,30 +294,33 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
   }
 
   @override
-  Future<void> updateTransactionStatus(String id, TransactionStatus status) async {
-    final tx = await (_db.select(_db.transactions)
-          ..where((t) => t.id.equals(id)))
-        .getSingleOrNull();
+  Future<void> updateTransactionStatus(
+    String id,
+    TransactionStatus status,
+  ) async {
+    final tx = await (_db.select(
+      _db.transactions,
+    )..where((t) => t.id.equals(id))).getSingleOrNull();
 
     if (tx == null) {
       throw Exception('Transaction not found.');
     }
 
-    await (_db.update(_db.transactions)
-          ..where((t) => t.id.equals(id)))
-        .write(TransactionsCompanion(status: Value(status.index)));
+    await (_db.update(_db.transactions)..where((t) => t.id.equals(id))).write(
+      TransactionsCompanion(status: Value(status.index)),
+    );
 
     try {
-      final updated = await (_db.select(_db.transactions)
-            ..where((t) => t.id.equals(id)))
-          .getSingleOrNull();
+      final updated = await (_db.select(
+        _db.transactions,
+      )..where((t) => t.id.equals(id))).getSingleOrNull();
       if (updated == null) return;
 
       final txModel = TransactionModel.fromDb(updated);
       final user = FirebaseAuth.instance.currentUser;
-      final contact = await (_db.select(_db.contacts)
-            ..where((t) => t.id.equals(txModel.contactId)))
-          .getSingleOrNull();
+      final contact = await (_db.select(
+        _db.contacts,
+      )..where((t) => t.id.equals(txModel.contactId))).getSingleOrNull();
 
       if (user != null &&
           contact != null &&
@@ -302,7 +333,8 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
           contactUid: contact.linkedUserUid,
         );
         if (isSynced) {
-          await (_db.update(_db.transactions)..where((t) => t.id.equals(txModel.id)))
+          await (_db.update(_db.transactions)
+                ..where((t) => t.id.equals(txModel.id)))
               .write(const TransactionsCompanion(isSynced: Value(true)));
         }
       }
@@ -313,7 +345,7 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
 
   @override
   Future<void> deleteTransaction(String id) async {
-    // Get the transaction first to know the contactId
+    // SOFT DELETE: marks as deleted for 30-day recovery window
     final tx = await (_db.select(
       _db.transactions,
     )..where((tbl) => tbl.id.equals(id))).getSingleOrNull();
@@ -321,14 +353,58 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
     if (tx != null) {
       final txModel = TransactionModel.fromDb(tx);
       await _db.transaction(() async {
-        await (_db.delete(
-          _db.transactions,
-        )..where((tbl) => tbl.id.equals(id))).go();
-
+        // Reverse balance/inventory since it's now treated as deleted
         await _applyInventoryEffect(txModel, reverse: true);
+        await _updateContactBalance(tx.contactId);
+        // Stamp deleted flags (does NOT hard-delete the row)
+        await (_db.update(_db.transactions)..where((t) => t.id.equals(id))).write(
+          TransactionsCompanion(
+            isDeleted: const Value(true),
+            deletedAt: Value(DateTime.now()),
+          ),
+        );
+      });
+    }
+  }
+
+  @override
+  Future<List<TransactionModel>> getDeletedTransactions() async {
+    final rows = await (_db.select(_db.transactions)
+          ..where((tbl) => tbl.isDeleted.equals(true))
+          ..orderBy([(t) => OrderingTerm.desc(t.deletedAt)]))
+        .get();
+    return rows.map((e) => TransactionModel.fromDb(e)).toList();
+  }
+
+  @override
+  Future<void> restoreTransaction(String id) async {
+    final tx = await (_db.select(_db.transactions)
+      ..where((tbl) => tbl.id.equals(id))).getSingleOrNull();
+
+    if (tx != null) {
+      final txModel = TransactionModel.fromDb(tx);
+      await _db.transaction(() async {
+        await (_db.update(_db.transactions)..where((t) => t.id.equals(id))).write(
+          const TransactionsCompanion(
+            isDeleted: Value(false),
+            deletedAt: Value(null),
+          ),
+        );
+        // Re-apply the balance/inventory effect since it's now active again
+        await _applyInventoryEffect(txModel, reverse: false);
         await _updateContactBalance(tx.contactId);
       });
     }
+  }
+
+  @override
+  Future<void> permanentlyDeleteExpiredTransactions({int days = 30}) async {
+    final cutoff = DateTime.now().subtract(Duration(days: days));
+    await (_db.delete(_db.transactions)
+          ..where((tbl) =>
+              tbl.isDeleted.equals(true) &
+              tbl.deletedAt.isSmallerThanValue(cutoff)))
+        .go();
   }
 
   @override
@@ -343,9 +419,9 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
   }
 
   @override
-  @override
   Stream<List<TransactionModel>> watchRecentTransactions({int limit = 10}) {
     return (_db.select(_db.transactions)
+          ..where((tbl) => tbl.isDeleted.equals(false))
           ..orderBy([(t) => OrderingTerm.desc(t.date)])
           ..limit(limit))
         .watch()
@@ -356,6 +432,7 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
   Future<List<TransactionModel>> getRecentTransactions({int limit = 10}) async {
     final rows =
         await (_db.select(_db.transactions)
+              ..where((tbl) => tbl.isDeleted.equals(false))
               ..orderBy([(t) => OrderingTerm.desc(t.date)])
               ..limit(limit))
             .get();
@@ -363,11 +440,9 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
   }
 
   @override
-  Stream<List<TransactionModel>> watchTransactionsForContact(
-    String contactId,
-  ) {
+  Stream<List<TransactionModel>> watchTransactionsForContact(String contactId) {
     return (_db.select(_db.transactions)
-          ..where((tbl) => tbl.contactId.equals(contactId))
+          ..where((tbl) => tbl.contactId.equals(contactId) & tbl.isDeleted.equals(false))
           ..orderBy([(t) => OrderingTerm.desc(t.date)]))
         .watch()
         .map((rows) => rows.map((e) => TransactionModel.fromDb(e)).toList());
@@ -387,7 +462,8 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
   }
 
   bool _isGoodsTransaction(TransactionType type) {
-    return type == TransactionType.goodsGiven || type == TransactionType.goodsTaken;
+    return type == TransactionType.goodsGiven ||
+        type == TransactionType.goodsTaken;
   }
 
   int _toPositiveInt(dynamic raw) {
@@ -404,7 +480,8 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
   }
 
   int _extractQtyPerCarton(TransactionModel tx) {
-    final qtyPerCarton = tx.qtyPerCarton ?? _extractQtyPerCartonFromPayload(tx.metadata);
+    final qtyPerCarton =
+        tx.qtyPerCarton ?? _extractQtyPerCartonFromPayload(tx.metadata);
     return qtyPerCarton > 0 ? qtyPerCarton : 0;
   }
 
@@ -436,7 +513,9 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
       return cartons;
     }
 
-    final legacyQuantity = tx.metadata == null ? 0 : _toPositiveInt(tx.metadata!['quantity']);
+    final legacyQuantity = tx.metadata == null
+        ? 0
+        : _toPositiveInt(tx.metadata!['quantity']);
     return legacyQuantity > 0 ? legacyQuantity : 1;
   }
 
@@ -462,20 +541,22 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
     return trimmed;
   }
 
-  Future<Product?> _findInventoryProductForTransaction(TransactionModel tx) async {
+  Future<Product?> _findInventoryProductForTransaction(
+    TransactionModel tx,
+  ) async {
     final reference = _transactionItemReference(tx);
     if (reference != null) {
-      final bySku = await (_db.select(_db.products)
-            ..where((tbl) => tbl.sku.equals(reference)))
-          .get();
+      final bySku = await (_db.select(
+        _db.products,
+      )..where((tbl) => tbl.sku.equals(reference))).get();
       if (bySku.isNotEmpty) return bySku.first;
     }
 
     final itemName = _transactionItemName(tx);
     if (itemName != null) {
-      final candidates = await (_db.select(_db.products)
-            ..where((tbl) => tbl.name.equals(itemName)))
-          .get();
+      final candidates = await (_db.select(
+        _db.products,
+      )..where((tbl) => tbl.name.equals(itemName))).get();
 
       if (candidates.isNotEmpty) {
         return candidates.first;
@@ -485,13 +566,17 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
     return null;
   }
 
-  Future<Product> _createInventoryProductForTransaction(TransactionModel tx) async {
+  Future<Product> _createInventoryProductForTransaction(
+    TransactionModel tx,
+  ) async {
     final now = DateTime.now();
     final reference = _transactionItemReference(tx);
     final itemName = _transactionItemName(tx);
     final unitPrice = _extractUnitPrice(tx) ?? Decimal.zero;
     final itemsPerCarton = _extractQtyPerCartonFromPayload(tx.metadata);
-    final name = itemName ?? (reference != null ? 'Item $reference' : 'Transaction Item');
+    final name =
+        itemName ??
+        (reference != null ? 'Item $reference' : 'Transaction Item');
 
     // Optional product detail fields captured from the transaction form
     final barcode = tx.metadata?['barcode']?.toString().trim();
@@ -501,7 +586,9 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
     final newProductId = const Uuid().v4();
     // stockQuantity is intentionally 0 here — _applyInventoryEffect will
     // apply the delta immediately after, preventing a double-count.
-    await _db.into(_db.products).insert(
+    await _db
+        .into(_db.products)
+        .insert(
           ProductsCompanion.insert(
             id: newProductId,
             name: name,
@@ -521,15 +608,13 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
           ),
         );
 
-    final created = await (_db.select(_db.products)
-          ..where((tbl) => tbl.id.equals(newProductId)))
-        .getSingle();
+    final created = await (_db.select(
+      _db.products,
+    )..where((tbl) => tbl.id.equals(newProductId))).getSingle();
     return created;
   }
 
-  Future<void> _ensureCanGiveGoods(
-    TransactionModel tx,
-  ) async {
+  Future<void> _ensureCanGiveGoods(TransactionModel tx) async {
     if (tx.type != TransactionType.goodsGiven) return;
 
     final cartons = _extractCartons(tx);
@@ -593,21 +678,28 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
     final companion = unitPrice != null && !reverse
         ? ProductsCompanion(
             stockQuantity: Value(targetStock),
-            itemsPerCarton: Value(_extractQtyPerCarton(tx) > 0 ? _extractQtyPerCarton(tx) : null),
+            itemsPerCarton: Value(
+              _extractQtyPerCarton(tx) > 0 ? _extractQtyPerCarton(tx) : null,
+            ),
             costPrice: Value(unitPrice.toString()),
             sellingPrice: Value(unitPrice.toString()),
             updatedAt: Value(now),
           )
         : ProductsCompanion(
             stockQuantity: Value(targetStock),
-            itemsPerCarton: Value(_extractQtyPerCarton(tx) > 0 ? _extractQtyPerCarton(tx) : null),
+            itemsPerCarton: Value(
+              _extractQtyPerCarton(tx) > 0 ? _extractQtyPerCarton(tx) : null,
+            ),
             updatedAt: Value(now),
           );
 
-    await (_db.update(_db.products)..where((tbl) => tbl.id.equals(resolvedProduct.id)))
-        .write(companion);
+    await (_db.update(
+      _db.products,
+    )..where((tbl) => tbl.id.equals(resolvedProduct.id))).write(companion);
 
-    await _db.into(_db.stockMovements).insert(
+    await _db
+        .into(_db.stockMovements)
+        .insert(
           StockMovementsCompanion.insert(
             id: const Uuid().v4(),
             productId: resolvedProduct.id,
@@ -637,7 +729,9 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
 
       // Fetch all local transactions
       final allTxRows = await _db.select(_db.transactions).get();
-      debugPrint('[BULK SYNC] Found ${allTxRows.length} local transactions to sync.');
+      debugPrint(
+        '[BULK SYNC] Found ${allTxRows.length} local transactions to sync.',
+      );
 
       // Cache contacts to avoid repeated DB hits
       final contactCache = <String, Contact?>{};
@@ -646,12 +740,14 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
         try {
           final contactId = row.contactId;
           if (!contactCache.containsKey(contactId)) {
-            contactCache[contactId] = await (_db.select(_db.contacts)
-              ..where((t) => t.id.equals(contactId))).getSingleOrNull();
+            contactCache[contactId] = await (_db.select(
+              _db.contacts,
+            )..where((t) => t.id.equals(contactId))).getSingleOrNull();
           }
           final contact = contactCache[contactId];
 
-          if (contact != null && (contact.phoneNumber != null || contact.linkedUserUid != null)) {
+          if (contact != null &&
+              (contact.phoneNumber != null || contact.linkedUserUid != null)) {
             final model = TransactionModel.fromDb(row);
             await _syncService.saveTransactionToCloud(
               transaction: model,
@@ -683,12 +779,14 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
       final creatorPhone = user.phoneNumber ?? user.email ?? '';
 
       // Fetch only unsynced transactions
-      final unsyncedRows = await (_db.select(_db.transactions)
-            ..where((t) => t.isSynced.equals(false)))
-          .get();
+      final unsyncedRows = await (_db.select(
+        _db.transactions,
+      )..where((t) => t.isSynced.equals(false))).get();
 
       if (unsyncedRows.isEmpty) return 0;
-      debugPrint('📡 [AUTO SYNC] Found ${unsyncedRows.length} unsynced transactions.');
+      debugPrint(
+        '📡 [AUTO SYNC] Found ${unsyncedRows.length} unsynced transactions.',
+      );
 
       final contactCache = <String, Contact?>{};
 
@@ -696,12 +794,14 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
         try {
           final contactId = row.contactId;
           if (!contactCache.containsKey(contactId)) {
-            contactCache[contactId] = await (_db.select(_db.contacts)
-              ..where((t) => t.id.equals(contactId))).getSingleOrNull();
+            contactCache[contactId] = await (_db.select(
+              _db.contacts,
+            )..where((t) => t.id.equals(contactId))).getSingleOrNull();
           }
           final contact = contactCache[contactId];
 
-          if (contact != null && (contact.phoneNumber != null || contact.linkedUserUid != null)) {
+          if (contact != null &&
+              (contact.phoneNumber != null || contact.linkedUserUid != null)) {
             final model = TransactionModel.fromDb(row);
             final isSynced = await _syncService.saveTransactionToCloud(
               transaction: model,
@@ -711,7 +811,8 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
               contactUid: contact.linkedUserUid,
             );
             if (isSynced) {
-              await (_db.update(_db.transactions)..where((t) => t.id.equals(row.id)))
+              await (_db.update(_db.transactions)
+                    ..where((t) => t.id.equals(row.id)))
                   .write(const TransactionsCompanion(isSynced: Value(true)));
               uploadCount++;
             }
@@ -720,10 +821,12 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
           debugPrint('📡 [AUTO SYNC] Failed to sync tx ${row.id}: $e');
         }
       }
-      debugPrint('📡 [AUTO SYNC] ✅ Uploaded $uploadCount unsynced transactions.');
+      debugPrint(
+        '📡 [AUTO SYNC] ✅ Uploaded $uploadCount unsynced transactions.',
+      );
     } catch (e) {
       debugPrint('📡 [AUTO SYNC] ❌ Fatal error: $e');
     }
     return uploadCount;
-}
+  }
 }

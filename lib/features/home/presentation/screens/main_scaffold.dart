@@ -4,6 +4,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hisabet/core/presentation/widgets/widgets.dart';
 import 'package:hisabet/core/theme/theme.dart';
+import 'package:hisabet/core/auth/providers/auth_providers.dart';
 
 import 'package:hisabet/features/contacts/presentation/screens/contacts_list_screen.dart';
 import 'package:hisabet/features/contacts/presentation/screens/add_contact_screen.dart';
@@ -218,11 +219,18 @@ class _HomeDashboard extends ConsumerWidget {
   }
 }
 
-class _DashboardHeader extends StatelessWidget {
+class _DashboardHeader extends ConsumerWidget {
   const _DashboardHeader();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final userProfileAsync = ref.watch(userProfileProvider);
+    final String userName = userProfileAsync.when(
+      data: (profile) => profile?.displayName ?? 'Merchant',
+      loading: () => 'Merchant',
+      error: (_, __) => 'Merchant',
+    );
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -234,7 +242,7 @@ class _DashboardHeader extends StatelessWidget {
               style: AppTextStyles.sectionLabel,
             ),
             const SizedBox(height: 4),
-            Text("Hello, Merchant", style: AppTextStyles.headlineSmall),
+            Text("Hello, $userName", style: AppTextStyles.headlineSmall),
           ],
         ),
         Container(
