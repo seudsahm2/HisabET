@@ -10,6 +10,13 @@ import 'package:hisabet/features/contacts/presentation/providers/contacts_provid
 // Define family typedef
 typedef ReconciliationParams = ({String contactId, String? contactPhone});
 
+final unsyncedTransactionsCountProvider = StreamProvider<int>((ref) {
+  final db = ref.watch(appDatabaseProvider);
+  return (db.select(db.transactions)..where((t) => t.isSynced.equals(false)))
+      .watch()
+      .map((list) => list.length);
+});
+
 final reconciliationProvider =
     StreamProvider.family<ReconciliationResult, ReconciliationParams>((
       ref,

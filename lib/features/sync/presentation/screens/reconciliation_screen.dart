@@ -10,8 +10,8 @@ import 'package:hisabet/features/transactions/data/models/transaction_model.dart
 import 'package:hisabet/features/transactions/presentation/providers/transactions_providers.dart';
 import 'package:hisabet/features/team/data/models/team_member_model.dart';
 import 'package:hisabet/features/team/presentation/providers/team_providers.dart';
-
-class ReconciliationScreen extends ConsumerWidget {
+import 'package:hisabet/features/contacts/presentation/providers/contacts_providers.dart';
+class ReconciliationScreen extends ConsumerStatefulWidget {
   final String contactId;
   final String contactName;
   final String? contactPhone;
@@ -24,8 +24,29 @@ class ReconciliationScreen extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final diffAsync = ref.watch(reconciliationProvider((contactId: contactId, contactPhone: contactPhone)));
+  ConsumerState<ReconciliationScreen> createState() => _ReconciliationScreenState();
+}
+
+class _ReconciliationScreenState extends ConsumerState<ReconciliationScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Automatically trigger auto-sync for any pending transactions in the background
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(transactionsRepositoryProvider).syncAllUnsyncedTransactionsToCloud();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final diffAsync = ref.watch(reconciliationProvider((contactId: widget.contactId, contactPhone: widget.contactPhone)));
+    final unsyncedCountAsync = ref.watch(unsyncedTransactionsCountProvider);
+    final unsyncedCount = unsyncedCountAsync.value ?? 0;
+    
+    // Fetch the contact to know if it has a linkedUid even without a phone number
+    final contactAsync = ref.watch(contactProvider(widget.contactId));
+    final linkedUid = contactAsync.value?.linkedUserUid;
+
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
@@ -47,22 +68,46 @@ class ReconciliationScreen extends ConsumerWidget {
                 ),
               ),
             )
+          else if (unsyncedCount > 0)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.warning.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.warning.withOpacity(0.5)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.cloud_upload_outlined, size: 14, color: AppColors.warning),
+                      const SizedBox(width: 4),
+                      Text('$unsyncedCount Pending', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.warning)),
+                    ],
+                  ),
+                ),
+              ),
+            )
           else
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 16.0),
               child: Center(
                 child: Row(
                   children: [
-                    Icon(Icons.check_circle, size: 14, color: AppColors.positive),
+                    Icon(Icons.cloud_done_rounded, size: 16, color: AppColors.positive),
                     SizedBox(width: 4),
-                    Text('Latest', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.positive)),
+                    Text('Synced', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.positive)),
                   ],
                 ),
               ),
             ),
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
-            onPressed: () => ref.refresh(reconciliationProvider((contactId: contactId, contactPhone: contactPhone))),
+            onPressed: () {
+               ref.read(transactionsRepositoryProvider).syncAllUnsyncedTransactionsToCloud();
+               ref.refresh(reconciliationProvider((contactId: widget.contactId, contactPhone: widget.contactPhone)));
+            },
             tooltip: 'Force Sync',
           ),
           PopupMenuButton<String>(
@@ -86,7 +131,7 @@ class ReconciliationScreen extends ConsumerWidget {
                   backgroundColor: AppColors.positive,
                 ));
                 // Refresh the reconciliation view
-                ref.invalidate(reconciliationProvider((contactId: contactId, contactPhone: contactPhone)));
+                ref.invalidate(reconciliationProvider((contactId: widget.contactId, contactPhone: widget.contactPhone)));
               }
             },
             itemBuilder: (context) => [
@@ -127,7 +172,8 @@ class ReconciliationScreen extends ConsumerWidget {
 
           return RefreshIndicator(
             onRefresh: () async {
-              ref.invalidate(reconciliationProvider((contactId: contactId, contactPhone: contactPhone)));
+              await ref.read(transactionsRepositoryProvider).syncAllUnsyncedTransactionsToCloud();
+              ref.invalidate(reconciliationProvider((contactId: widget.contactId, contactPhone: widget.contactPhone)));
             },
             child: CustomScrollView(
             physics: const BouncingScrollPhysics(),
@@ -136,10 +182,16 @@ class ReconciliationScreen extends ConsumerWidget {
                 child: Container(
                   padding: const EdgeInsets.all(AppDimensions.pagePaddingH),
                   decoration: BoxDecoration(
-                    color: isDark ? Theme.of(context).cardColor : Colors.white,
-                    borderRadius: const BorderRadius.vertical(bottom: Radius.circular(30)),
+                    gradient: LinearGradient(
+                      colors: isDark 
+                          ? [Theme.of(context).cardColor, Theme.of(context).cardColor.withOpacity(0.8)]
+                          : [Colors.white, const Color(0xFFF8FAFC)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: const BorderRadius.vertical(bottom: Radius.circular(32)),
                     boxShadow: [
-                      BoxShadow(color: AppColors.shadowMedium, blurRadius: 20, offset: const Offset(0, 10)),
+                      BoxShadow(color: AppColors.primary.withOpacity(0.08), blurRadius: 24, offset: const Offset(0, 12)),
                     ],
                   ),
                   child: Column(
@@ -148,12 +200,19 @@ class ReconciliationScreen extends ConsumerWidget {
                       Row(
                         children: [
                           Container(
-                            padding: const EdgeInsets.all(12),
+                            padding: const EdgeInsets.all(14),
                             decoration: BoxDecoration(
-                              color: AppColors.primary.withOpacity(0.1),
-                              shape: BoxShape.circle,
+                              gradient: const LinearGradient(
+                                colors: [AppColors.primary, Color(0xFF6B4EE6)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: [
+                                BoxShadow(color: AppColors.primary.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4)),
+                              ],
                             ),
-                            child: const Icon(Icons.sync_rounded, color: AppColors.primary, size: 28),
+                            child: const Icon(Icons.sync_alt_rounded, color: Colors.white, size: 26),
                           ),
                           const SizedBox(width: AppDimensions.md),
                           Expanded(
@@ -161,46 +220,75 @@ class ReconciliationScreen extends ConsumerWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  contactName,
+                                  widget.contactName,
                                   style: TextStyle(
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.w800,
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.w900,
                                     color: isDark ? Colors.white : AppColors.textPrimary,
                                     letterSpacing: -0.5,
                                   ),
                                 ),
-                                Text(
-                                  contactPhone ?? "No Linked Account",
-                                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                                const SizedBox(height: 2),
+                                Row(
+                                  children: [
+                                    if (widget.contactPhone != null || linkedUid != null)
+                                      Icon(Icons.cloud_done_rounded, size: 14, color: AppColors.positive.withOpacity(0.8)),
+                                    if (widget.contactPhone != null || linkedUid != null)
+                                      const SizedBox(width: 4),
+                                    Text(
+                                      widget.contactPhone != null
+                                          ? widget.contactPhone!
+                                          : (linkedUid != null ? "Cloud Linked" : "Local Account"),
+                                      style: TextStyle(
+                                        color: (widget.contactPhone != null || linkedUid != null) ? AppColors.textSecondary : AppColors.warning, 
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),
                           ),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                             decoration: BoxDecoration(
-                              color: syncPercentage == 100 ? AppColors.positive.withOpacity(0.1) : AppColors.warning.withOpacity(0.1),
+                              color: syncPercentage == 100 ? AppColors.positive.withOpacity(0.15) : AppColors.warning.withOpacity(0.15),
                               borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                              '$syncPercentage% Sync',
-                              style: TextStyle(
-                                color: syncPercentage == 100 ? AppColors.positive : AppColors.warning,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
+                              border: Border.all(
+                                color: syncPercentage == 100 ? AppColors.positive.withOpacity(0.3) : AppColors.warning.withOpacity(0.3),
                               ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  syncPercentage == 100 ? Icons.verified_rounded : Icons.info_outline_rounded,
+                                  size: 16,
+                                  color: syncPercentage == 100 ? AppColors.positive : AppColors.warning,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '$syncPercentage%',
+                                  style: TextStyle(
+                                    color: syncPercentage == 100 ? AppColors.positive : AppColors.warning,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: AppDimensions.xl),
+                      const SizedBox(height: 24),
                       Row(
                         children: [
-                          Expanded(child: _StatPill(label: 'Matched', count: matchCount, color: AppColors.positive)),
-                          const SizedBox(width: 8),
-                          Expanded(child: _StatPill(label: 'Conflicts', count: conflictCount, color: AppColors.negative)),
-                          const SizedBox(width: 8),
-                          Expanded(child: _StatPill(label: 'Missing', count: missingCount, color: AppColors.warning)),
+                          Expanded(child: _StatPill(label: 'Matched', count: matchCount, color: AppColors.positive, icon: Icons.check_circle_rounded)),
+                          const SizedBox(width: 12),
+                          Expanded(child: _StatPill(label: 'Conflicts', count: conflictCount, color: AppColors.negative, icon: Icons.error_rounded)),
+                          const SizedBox(width: 12),
+                          Expanded(child: _StatPill(label: 'Missing', count: missingCount, color: AppColors.warning, icon: Icons.help_rounded)),
                         ],
                       ),
                     ],
@@ -229,7 +317,7 @@ class ReconciliationScreen extends ConsumerWidget {
                       (context, index) {
                         return Padding(
                           padding: const EdgeInsets.only(bottom: AppDimensions.lg),
-                          child: _TimelineItem(diff: sortedDiffs[index], contactId: contactId, contactPhone: contactPhone),
+                          child: _TimelineItem(diff: sortedDiffs[index], contactId: widget.contactId, contactPhone: widget.contactPhone),
                         );
                       },
                       childCount: sortedDiffs.length,
@@ -248,23 +336,45 @@ class _StatPill extends StatelessWidget {
   final String label;
   final int count;
   final Color color;
+  final IconData icon;
 
-  const _StatPill({required this.label, required this.count, required this.color});
+  const _StatPill({required this.label, required this.count, required this.color, required this.icon});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12),
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
-        border: Border.all(color: color.withOpacity(0.3)),
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withOpacity(0.2)),
+        boxShadow: [
+          BoxShadow(color: color.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4)),
+        ],
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Text(count.toString(), style: TextStyle(color: color, fontSize: 20, fontWeight: FontWeight.w900)),
+          Icon(icon, color: color, size: 22),
+          const SizedBox(height: 8),
+          Text(
+            count.toString(),
+            style: TextStyle(
+              color: color,
+              fontSize: 24,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
           const SizedBox(height: 2),
-          Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+          Text(
+            label,
+            style: TextStyle(
+              color: color.withOpacity(0.8),
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 0.2,
+            ),
+          ),
         ],
       ),
     );

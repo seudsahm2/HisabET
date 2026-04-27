@@ -9347,6 +9347,21 @@ class $TransactionsTable extends Transactions
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _isSyncedMeta = const VerificationMeta(
+    'isSynced',
+  );
+  @override
+  late final GeneratedColumn<bool> isSynced = GeneratedColumn<bool>(
+    'is_synced',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_synced" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -9362,6 +9377,7 @@ class $TransactionsTable extends Transactions
     metadata,
     referenceId,
     saleId,
+    isSynced,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -9469,6 +9485,12 @@ class $TransactionsTable extends Transactions
         saleId.isAcceptableOrUnknown(data['sale_id']!, _saleIdMeta),
       );
     }
+    if (data.containsKey('is_synced')) {
+      context.handle(
+        _isSyncedMeta,
+        isSynced.isAcceptableOrUnknown(data['is_synced']!, _isSyncedMeta),
+      );
+    }
     return context;
   }
 
@@ -9530,6 +9552,10 @@ class $TransactionsTable extends Transactions
         DriftSqlType.string,
         data['${effectivePrefix}sale_id'],
       ),
+      isSynced: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_synced'],
+      )!,
     );
   }
 
@@ -9553,6 +9579,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
   final String? metadata;
   final String? referenceId;
   final String? saleId;
+  final bool isSynced;
   const Transaction({
     required this.id,
     required this.contactId,
@@ -9567,6 +9594,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     this.metadata,
     this.referenceId,
     this.saleId,
+    required this.isSynced,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -9598,6 +9626,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     if (!nullToAbsent || saleId != null) {
       map['sale_id'] = Variable<String>(saleId);
     }
+    map['is_synced'] = Variable<bool>(isSynced);
     return map;
   }
 
@@ -9630,6 +9659,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       saleId: saleId == null && nullToAbsent
           ? const Value.absent()
           : Value(saleId),
+      isSynced: Value(isSynced),
     );
   }
 
@@ -9652,6 +9682,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       metadata: serializer.fromJson<String?>(json['metadata']),
       referenceId: serializer.fromJson<String?>(json['referenceId']),
       saleId: serializer.fromJson<String?>(json['saleId']),
+      isSynced: serializer.fromJson<bool>(json['isSynced']),
     );
   }
   @override
@@ -9671,6 +9702,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       'metadata': serializer.toJson<String?>(metadata),
       'referenceId': serializer.toJson<String?>(referenceId),
       'saleId': serializer.toJson<String?>(saleId),
+      'isSynced': serializer.toJson<bool>(isSynced),
     };
   }
 
@@ -9688,6 +9720,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     Value<String?> metadata = const Value.absent(),
     Value<String?> referenceId = const Value.absent(),
     Value<String?> saleId = const Value.absent(),
+    bool? isSynced,
   }) => Transaction(
     id: id ?? this.id,
     contactId: contactId ?? this.contactId,
@@ -9702,6 +9735,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     metadata: metadata.present ? metadata.value : this.metadata,
     referenceId: referenceId.present ? referenceId.value : this.referenceId,
     saleId: saleId.present ? saleId.value : this.saleId,
+    isSynced: isSynced ?? this.isSynced,
   );
   Transaction copyWithCompanion(TransactionsCompanion data) {
     return Transaction(
@@ -9724,6 +9758,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
           ? data.referenceId.value
           : this.referenceId,
       saleId: data.saleId.present ? data.saleId.value : this.saleId,
+      isSynced: data.isSynced.present ? data.isSynced.value : this.isSynced,
     );
   }
 
@@ -9742,7 +9777,8 @@ class Transaction extends DataClass implements Insertable<Transaction> {
           ..write('unitPrice: $unitPrice, ')
           ..write('metadata: $metadata, ')
           ..write('referenceId: $referenceId, ')
-          ..write('saleId: $saleId')
+          ..write('saleId: $saleId, ')
+          ..write('isSynced: $isSynced')
           ..write(')'))
         .toString();
   }
@@ -9762,6 +9798,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     metadata,
     referenceId,
     saleId,
+    isSynced,
   );
   @override
   bool operator ==(Object other) =>
@@ -9779,7 +9816,8 @@ class Transaction extends DataClass implements Insertable<Transaction> {
           other.unitPrice == this.unitPrice &&
           other.metadata == this.metadata &&
           other.referenceId == this.referenceId &&
-          other.saleId == this.saleId);
+          other.saleId == this.saleId &&
+          other.isSynced == this.isSynced);
 }
 
 class TransactionsCompanion extends UpdateCompanion<Transaction> {
@@ -9796,6 +9834,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
   final Value<String?> metadata;
   final Value<String?> referenceId;
   final Value<String?> saleId;
+  final Value<bool> isSynced;
   final Value<int> rowid;
   const TransactionsCompanion({
     this.id = const Value.absent(),
@@ -9811,6 +9850,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     this.metadata = const Value.absent(),
     this.referenceId = const Value.absent(),
     this.saleId = const Value.absent(),
+    this.isSynced = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   TransactionsCompanion.insert({
@@ -9827,6 +9867,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     this.metadata = const Value.absent(),
     this.referenceId = const Value.absent(),
     this.saleId = const Value.absent(),
+    this.isSynced = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        contactId = Value(contactId),
@@ -9847,6 +9888,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     Expression<String>? metadata,
     Expression<String>? referenceId,
     Expression<String>? saleId,
+    Expression<bool>? isSynced,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -9863,6 +9905,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
       if (metadata != null) 'metadata': metadata,
       if (referenceId != null) 'reference_id': referenceId,
       if (saleId != null) 'sale_id': saleId,
+      if (isSynced != null) 'is_synced': isSynced,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -9881,6 +9924,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     Value<String?>? metadata,
     Value<String?>? referenceId,
     Value<String?>? saleId,
+    Value<bool>? isSynced,
     Value<int>? rowid,
   }) {
     return TransactionsCompanion(
@@ -9897,6 +9941,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
       metadata: metadata ?? this.metadata,
       referenceId: referenceId ?? this.referenceId,
       saleId: saleId ?? this.saleId,
+      isSynced: isSynced ?? this.isSynced,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -9943,6 +9988,9 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     if (saleId.present) {
       map['sale_id'] = Variable<String>(saleId.value);
     }
+    if (isSynced.present) {
+      map['is_synced'] = Variable<bool>(isSynced.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -9965,6 +10013,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
           ..write('metadata: $metadata, ')
           ..write('referenceId: $referenceId, ')
           ..write('saleId: $saleId, ')
+          ..write('isSynced: $isSynced, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -16560,6 +16609,7 @@ typedef $$TransactionsTableCreateCompanionBuilder =
       Value<String?> metadata,
       Value<String?> referenceId,
       Value<String?> saleId,
+      Value<bool> isSynced,
       Value<int> rowid,
     });
 typedef $$TransactionsTableUpdateCompanionBuilder =
@@ -16577,6 +16627,7 @@ typedef $$TransactionsTableUpdateCompanionBuilder =
       Value<String?> metadata,
       Value<String?> referenceId,
       Value<String?> saleId,
+      Value<bool> isSynced,
       Value<int> rowid,
     });
 
@@ -16673,6 +16724,11 @@ class $$TransactionsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<bool> get isSynced => $composableBuilder(
+    column: $table.isSynced,
+    builder: (column) => ColumnFilters(column),
+  );
+
   $$ContactsTableFilterComposer get contactId {
     final $$ContactsTableFilterComposer composer = $composerBuilder(
       composer: this,
@@ -16766,6 +16822,11 @@ class $$TransactionsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get isSynced => $composableBuilder(
+    column: $table.isSynced,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$ContactsTableOrderingComposer get contactId {
     final $$ContactsTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -16841,6 +16902,9 @@ class $$TransactionsTableAnnotationComposer
   GeneratedColumn<String> get saleId =>
       $composableBuilder(column: $table.saleId, builder: (column) => column);
 
+  GeneratedColumn<bool> get isSynced =>
+      $composableBuilder(column: $table.isSynced, builder: (column) => column);
+
   $$ContactsTableAnnotationComposer get contactId {
     final $$ContactsTableAnnotationComposer composer = $composerBuilder(
       composer: this,
@@ -16906,6 +16970,7 @@ class $$TransactionsTableTableManager
                 Value<String?> metadata = const Value.absent(),
                 Value<String?> referenceId = const Value.absent(),
                 Value<String?> saleId = const Value.absent(),
+                Value<bool> isSynced = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => TransactionsCompanion(
                 id: id,
@@ -16921,6 +16986,7 @@ class $$TransactionsTableTableManager
                 metadata: metadata,
                 referenceId: referenceId,
                 saleId: saleId,
+                isSynced: isSynced,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -16938,6 +17004,7 @@ class $$TransactionsTableTableManager
                 Value<String?> metadata = const Value.absent(),
                 Value<String?> referenceId = const Value.absent(),
                 Value<String?> saleId = const Value.absent(),
+                Value<bool> isSynced = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => TransactionsCompanion.insert(
                 id: id,
@@ -16953,6 +17020,7 @@ class $$TransactionsTableTableManager
                 metadata: metadata,
                 referenceId: referenceId,
                 saleId: saleId,
+                isSynced: isSynced,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

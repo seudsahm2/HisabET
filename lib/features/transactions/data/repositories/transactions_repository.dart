@@ -26,6 +26,8 @@ abstract class TransactionsRepository {
   Stream<List<TransactionModel>> watchTransactionsForContact(String contactId);
   /// Re-uploads ALL local transactions for ALL linked contacts to Firestore.
   Future<int> syncAllTransactionsToCloud();
+  /// Re-uploads only UNSYNCED local transactions to Firestore.
+  Future<int> syncAllUnsyncedTransactionsToCloud();
 }
 
 class TransactionsRepositoryImpl implements TransactionsRepository {
@@ -185,13 +187,17 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
 
         // Sync as long as the contact is a verified user (has UID or phone)
         if (contact != null && (contact.phoneNumber != null || contact.linkedUserUid != null)) {
-          await _syncService.saveTransactionToCloud(
+          final isSynced = await _syncService.saveTransactionToCloud(
             transaction: modelToSync,
             creatorUid: user.uid,
             creatorPhone: user.phoneNumber ?? user.email ?? '',
             contactPhone: contact.phoneNumber,
             contactUid: contact.linkedUserUid,
           );
+          if (isSynced) {
+            await (_db.update(_db.transactions)..where((t) => t.id.equals(modelToSync.id)))
+                .write(const TransactionsCompanion(isSynced: Value(true)));
+          }
         } else {
           debugPrint('[SYNC] Skipping cloud sync: contact has no phone or linked UID.');
         }
@@ -240,13 +246,17 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
       if (user != null &&
           contact != null &&
           (contact.phoneNumber != null || contact.linkedUserUid != null)) {
-        await _syncService.saveTransactionToCloud(
+        final isSynced = await _syncService.saveTransactionToCloud(
           transaction: transaction,
           creatorUid: user.uid,
           creatorPhone: user.phoneNumber ?? user.email ?? '',
           contactPhone: contact.phoneNumber,
           contactUid: contact.linkedUserUid,
         );
+        if (isSynced) {
+          await (_db.update(_db.transactions)..where((t) => t.id.equals(transaction.id)))
+              .write(const TransactionsCompanion(isSynced: Value(true)));
+        }
       }
     } catch (e) {
       debugPrint('Update Sync Failed: $e');
@@ -282,13 +292,17 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
       if (user != null &&
           contact != null &&
           (contact.phoneNumber != null || contact.linkedUserUid != null)) {
-        await _syncService.saveTransactionToCloud(
+        final isSynced = await _syncService.saveTransactionToCloud(
           transaction: txModel,
           creatorUid: user.uid,
           creatorPhone: user.phoneNumber ?? user.email ?? '',
           contactPhone: contact.phoneNumber,
           contactUid: contact.linkedUserUid,
         );
+        if (isSynced) {
+          await (_db.update(_db.transactions)..where((t) => t.id.equals(txModel.id)))
+              .write(const TransactionsCompanion(isSynced: Value(true)));
+        }
       }
     } catch (e) {
       debugPrint('Status Sync Failed: $e');
@@ -646,4 +660,58 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
     }
     return uploadCount;
   }
+
+  @override
+  Future<int> syncAllUnsyncedTransactionsToCloud() async {
+    int uploadCount = 0;
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return 0;
+
+      final creatorPhone = user.phoneNumber ?? user.email ?? '';
+
+      // Fetch only unsynced transactions
+      final unsyncedRows = await (_db.select(_db.transactions)
+            ..where((t) => t.isSynced.equals(false)))
+          .get();
+
+      if (unsyncedRows.isEmpty) return 0;
+      debugPrint('📡 [AUTO SYNC] Found ${unsyncedRows.length} unsynced transactions.');
+
+      final contactCache = <String, Contact?>{};
+
+      for (final row in unsyncedRows) {
+        try {
+          final contactId = row.contactId;
+          if (!contactCache.containsKey(contactId)) {
+            contactCache[contactId] = await (_db.select(_db.contacts)
+              ..where((t) => t.id.equals(contactId))).getSingleOrNull();
+          }
+          final contact = contactCache[contactId];
+
+          if (contact != null && (contact.phoneNumber != null || contact.linkedUserUid != null)) {
+            final model = TransactionModel.fromDb(row);
+            final isSynced = await _syncService.saveTransactionToCloud(
+              transaction: model,
+              creatorUid: user.uid,
+              creatorPhone: creatorPhone,
+              contactPhone: contact.phoneNumber,
+              contactUid: contact.linkedUserUid,
+            );
+            if (isSynced) {
+              await (_db.update(_db.transactions)..where((t) => t.id.equals(row.id)))
+                  .write(const TransactionsCompanion(isSynced: Value(true)));
+              uploadCount++;
+            }
+          }
+        } catch (e) {
+          debugPrint('📡 [AUTO SYNC] Failed to sync tx ${row.id}: $e');
+        }
+      }
+      debugPrint('📡 [AUTO SYNC] ✅ Uploaded $uploadCount unsynced transactions.');
+    } catch (e) {
+      debugPrint('📡 [AUTO SYNC] ❌ Fatal error: $e');
+    }
+    return uploadCount;
+}
 }

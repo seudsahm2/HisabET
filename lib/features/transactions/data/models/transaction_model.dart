@@ -32,6 +32,7 @@ class TransactionModel {
   final Map<String, dynamic>? metadata; // {quantity, unitPrice, batchCount}
   final String? referenceId; // Shared Bill # / Ticket #
   final String? saleId; // Originating sale if auto-generated
+  final bool isSynced; // Whether it has been pushed to the cloud
 
   TransactionModel({
     required this.id,
@@ -47,6 +48,7 @@ class TransactionModel {
     this.metadata,
     this.referenceId,
     this.saleId,
+    this.isSynced = false,
   });
 
   TransactionModel copyWith({
@@ -63,6 +65,7 @@ class TransactionModel {
     Map<String, dynamic>? metadata,
     String? referenceId,
     String? saleId,
+    bool? isSynced,
   }) {
     return TransactionModel(
       id: id ?? this.id,
@@ -78,6 +81,7 @@ class TransactionModel {
       metadata: metadata ?? this.metadata,
       referenceId: referenceId ?? this.referenceId,
       saleId: saleId ?? this.saleId,
+      isSynced: isSynced ?? this.isSynced,
     );
   }
 
@@ -122,6 +126,7 @@ class TransactionModel {
           : null,
       referenceId: dbTransaction.referenceId,
       saleId: dbTransaction.saleId,
+      isSynced: dbTransaction.isSynced,
     );
   }
 
@@ -141,6 +146,7 @@ class TransactionModel {
       metadata: drift.Value(metadata != null ? jsonEncode(metadata) : null),
       referenceId: drift.Value(referenceId),
       saleId: drift.Value(saleId),
+      isSynced: drift.Value(isSynced),
     );
   }
 

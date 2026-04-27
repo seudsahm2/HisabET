@@ -59,7 +59,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 23;
+  int get schemaVersion => 24;
 
   @override
   MigrationStrategy get migration {
@@ -192,6 +192,11 @@ class AppDatabase extends _$AppDatabase {
           }
           if (!await _hasColumn('transactions', 'sale_id')) {
             await m.addColumn(transactions, transactions.saleId);
+          }
+        }
+        if (from < 24) {
+          if (!await _hasColumn('transactions', 'is_synced')) {
+            await m.addColumn(transactions, transactions.isSynced);
           }
         }
       },

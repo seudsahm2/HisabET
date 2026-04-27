@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:decimal/decimal.dart';
 import 'package:flutter/foundation.dart';
 import 'package:hisabet/core/utils/phone_util.dart';
+import 'package:hisabet/core/utils/internet_util.dart';
 import 'package:hisabet/features/transactions/data/models/transaction_model.dart';
 
 class TransactionSyncService {
@@ -11,7 +12,7 @@ class TransactionSyncService {
   TransactionSyncService(this._firestore);
 
   /// Pushes a local transaction to the cloud (user's private collection)
-  Future<void> saveTransactionToCloud({
+  Future<bool> saveTransactionToCloud({
     required TransactionModel transaction,
     required String creatorUid,
     required String creatorPhone,
@@ -19,8 +20,14 @@ class TransactionSyncService {
     String? contactUid,
   }) async {
     try {
+      final hasInternet = await InternetUtil.hasInternet();
+      if (!hasInternet) {
+        debugPrint('📡 [SYNC SAVE] Offline. Queued for later, but marked as unsynced locally.');
+        // We still write to Firestore so its internal offline queue holds it,
+        // but we return false to tell the repository it's not officially synced yet.
+      }
+
       debugPrint('🚀 [SYNC SAVE] Saving Tx: ${transaction.id} to /users/$creatorUid/transactions');
-      debugPrint('🚀 [SYNC SAVE] -> contactUid: $contactUid, contactPhone: $contactPhone');
 
       final docRef = _firestore
           .collection('users')
@@ -31,7 +38,7 @@ class TransactionSyncService {
       final data = {
         'id': transaction.id,
         'amount': transaction.amount.toString(),
-        'type': transaction.type.index, // Store as Int index
+        'type': transaction.type.index,
         'status': transaction.status.index,
         'date': transaction.date.toIso8601String(),
         'description': transaction.description,
@@ -47,9 +54,12 @@ class TransactionSyncService {
       };
 
       await docRef.set(data, SetOptions(merge: true));
-      debugPrint('🚀 [SYNC SAVE] ✅ Success!');
+      debugPrint('🚀 [SYNC SAVE] ✅ Success (Firestore write completed)');
+      
+      return hasInternet; // Only true if we actually hit the network
     } catch (e) {
       debugPrint('❌ [SYNC SAVE] ERROR: $e');
+      return false;
     }
   }
 
