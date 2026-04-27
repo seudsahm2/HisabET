@@ -49,9 +49,9 @@ final dashboardStatsProvider = FutureProvider<DashboardStats>((ref) async {
   );
 });
 
-final recentActivityProvider = FutureProvider<List<TransactionModel>>((
+final recentActivityProvider = StreamProvider<List<TransactionModel>>((
   ref,
-) async {
+) {
   final repo = ref.watch(transactionsRepositoryProvider);
-  return repo.getRecentTransactions(limit: 5);
+  return repo.watchRecentTransactions(limit: 5);
 });

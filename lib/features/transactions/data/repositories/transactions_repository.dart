@@ -23,6 +23,8 @@ abstract class TransactionsRepository {
   Future<void> deleteTransaction(String id);
   Future<Decimal> calculateNetBalance(String contactId);
   Future<List<TransactionModel>> getRecentTransactions({int limit = 10});
+  /// Watches the most recent transactions
+  Stream<List<TransactionModel>> watchRecentTransactions({int limit = 10});
   Stream<List<TransactionModel>> watchTransactionsForContact(String contactId);
   /// Re-uploads ALL local transactions for ALL linked contacts to Firestore.
   Future<int> syncAllTransactionsToCloud();
@@ -338,6 +340,16 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
       balance += tx.balanceEffect;
     }
     return balance;
+  }
+
+  @override
+  @override
+  Stream<List<TransactionModel>> watchRecentTransactions({int limit = 10}) {
+    return (_db.select(_db.transactions)
+          ..orderBy([(t) => OrderingTerm.desc(t.date)])
+          ..limit(limit))
+        .watch()
+        .map((rows) => rows.map((e) => TransactionModel.fromDb(e)).toList());
   }
 
   @override

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -44,10 +45,6 @@ class _ContactDetailScreenState extends ConsumerState<ContactDetailScreen> {
           badge: _buildVerificationBadge(currentContact.verificationStatus),
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.sync_alt_rounded),
-            onPressed: () => _openReconciliation(context, currentContact),
-          ),
           IconButton(
             icon: const Icon(Icons.delete_outline_rounded, color: AppColors.negative),
             onPressed: () => _confirmDelete(context, ref, currentContact),
@@ -112,6 +109,25 @@ class _ContactDetailScreenState extends ConsumerState<ContactDetailScreen> {
                   isPositive: isPositive,
                   balanceColor: balanceColor,
                 ),
+                const SizedBox(height: AppDimensions.lg),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () => _openReconciliation(context, currentContact),
+                    icon: const Icon(Icons.sync_rounded),
+                    label: const Text('Reconcile Ledger'),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      backgroundColor: Theme.of(context).cardColor,
+                      foregroundColor: AppColors.primary,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
+                        side: BorderSide(color: AppColors.primary.withOpacity(0.3), width: 1.5),
+                      ),
+                    ),
+                  ),
+                ),
                 const SizedBox(height: AppDimensions.xl),
                 const AppSectionHeader(title: 'Transaction History', uppercase: true),
                 const SizedBox(height: AppDimensions.sm),
@@ -119,8 +135,10 @@ class _ContactDetailScreenState extends ConsumerState<ContactDetailScreen> {
                   children: [
                     _buildTab('ALL', 'All'),
                     const SizedBox(width: AppDimensions.sm),
-                    _buildTab('SALES', 'Sales'),
-                    const SizedBox(width: AppDimensions.sm),
+                    if (kDebugMode) ...[
+                      _buildTab('SALES', 'Sales', isDevMode: true),
+                      const SizedBox(width: AppDimensions.sm),
+                    ],
                     _buildTab('MANUAL', 'Manual'),
                   ],
                 ),
@@ -146,23 +164,44 @@ class _ContactDetailScreenState extends ConsumerState<ContactDetailScreen> {
     );
   }
 
-  Widget _buildTab(String key, String label) {
-    final isSelected = _selectedTab == key;
-    return GestureDetector(
-      onTap: () => setState(() => _selectedTab = key),
+  Widget _buildTab(String id, String label, {bool isDevMode = false}) {
+    final isSelected = _selectedTab == id;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    return InkWell(
+      onTap: () {
+        setState(() {
+          _selectedTab = id;
+        });
+      },
+      borderRadius: BorderRadius.circular(20),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary.withOpacity(0.1) : Colors.transparent,
+          color: isSelected ? AppColors.primary : (isDark ? Theme.of(context).cardColor : AppColors.surfaceVariant),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: isSelected ? AppColors.primary : AppColors.border),
+          border: isSelected ? null : Border.all(color: AppColors.border),
         ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: isSelected ? AppColors.primary : AppColors.textSecondary,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-          ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? Colors.white : AppColors.textSecondary,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                fontSize: 13,
+              ),
+            ),
+            if (isDevMode) ...[
+              const SizedBox(width: 4),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                decoration: BoxDecoration(color: AppColors.warning, borderRadius: BorderRadius.circular(4)),
+                child: const Text('DEV', style: TextStyle(fontSize: 8, color: Colors.black, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ],
         ),
       ),
     );
@@ -214,18 +253,9 @@ class _ContactDetailScreenState extends ConsumerState<ContactDetailScreen> {
 
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Contact?'),
-        content: Text('Are you sure you want to delete "${contact.name}" and ALL their transactions?\n\nThis cannot be undone.', style: const TextStyle(color: AppColors.negative)),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppDimensions.radiusLg)),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.negative, foregroundColor: Colors.white),
-            child: const Text('Delete Permanently'),
-          ),
-        ],
+      builder: (context) => AppDeleteDialog(
+        title: 'Delete Contact?',
+        content: 'Are you sure you want to delete "${contact.name}" and ALL their transactions?\n\nThis cannot be undone.',
       ),
     );
 
@@ -501,11 +531,20 @@ class _TransactionTile extends StatelessWidget {
               if (value == 'edit') {
                 Navigator.of(context).push(MaterialPageRoute(builder: (_) => AddTransactionScreen(contactId: contact.id, type: transaction.type, transactionToEdit: transaction)));
               } else if (value == 'delete') {
-                final repo = ref.read(transactionsRepositoryProvider);
-                await repo.deleteTransaction(transaction.id);
-                ref.invalidate(contactTransactionsProvider(contact.id));
-                ref.invalidate(contactProvider(contact.id));
-                ref.invalidate(allContactsProvider);
+                final confirmed = await showDialog<bool>(
+                  context: context,
+                  builder: (context) => AppDeleteDialog(
+                    title: 'Delete Transaction?',
+                    content: 'Are you sure you want to delete this ${transaction.type == TransactionType.goodsGiven ? 'give' : 'take'} transaction of ${transaction.amount}?\n\nThis cannot be undone.',
+                  ),
+                );
+                if (confirmed == true) {
+                  final repo = ref.read(transactionsRepositoryProvider);
+                  await repo.deleteTransaction(transaction.id);
+                  ref.invalidate(contactTransactionsProvider(contact.id));
+                  ref.invalidate(contactProvider(contact.id));
+                  ref.invalidate(allContactsProvider);
+                }
               } else if (value == 'pending') {
                 final repo = ref.read(transactionsRepositoryProvider);
                 await repo.updateTransaction(transaction.copyWith(status: TransactionStatus.pending));

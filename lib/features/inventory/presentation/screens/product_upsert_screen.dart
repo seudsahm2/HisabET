@@ -201,25 +201,10 @@ class _ProductUpsertScreenState extends ConsumerState<ProductUpsertScreen> {
 
     final shouldDelete = await showDialog<bool>(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Delete product?'),
-          content: Text('This will permanently delete "${product.name}".'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text(
-                'Delete',
-                style: TextStyle(color: Colors.redAccent),
-              ),
-            ),
-          ],
-        );
-      },
+      builder: (context) => AppDeleteDialog(
+        title: 'Delete Product?',
+        content: 'Are you sure you want to delete "${product.name}"?\n\nThis cannot be undone.',
+      ),
     );
 
     if (shouldDelete != true) {
