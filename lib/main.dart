@@ -75,7 +75,7 @@ class MyApp extends ConsumerWidget {
       // Theme Configuration
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
-      themeMode: ThemeMode.light, // Locked to Light Theme until Dark Mode design tokens are fully finalized.
+      themeMode: ThemeMode.system,
 
       // Localization Configuration
       locale: language, // Reactive Locale

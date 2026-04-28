@@ -33,33 +33,28 @@ abstract final class AppTextStyles {
   static final TextStyle headlineLarge = GoogleFonts.inter(
     fontSize: 32,
     fontWeight: FontWeight.w700,
-    color: AppColors.textPrimary,
     letterSpacing: -0.5,
   );
 
   static final TextStyle headlineSmall = GoogleFonts.inter(
     fontSize: 24,
     fontWeight: FontWeight.w600,
-    color: AppColors.textPrimary,
   );
 
   static final TextStyle titleLarge = GoogleFonts.inter(
     fontSize: 22,
     fontWeight: FontWeight.w600,
-    color: AppColors.textPrimary,
   );
 
   static final TextStyle bodyMedium = GoogleFonts.inter(
     fontSize: 14,
     fontWeight: FontWeight.w400,
-    color: AppColors.textPrimary,
   );
 
   /// Screen title in AppBar
   static final TextStyle screenTitle = GoogleFonts.inter(
     fontSize: 18,
     fontWeight: FontWeight.w700,
-    color: AppColors.textPrimary,
     letterSpacing: -0.3,
   );
 
@@ -75,7 +70,6 @@ abstract final class AppTextStyles {
   static final TextStyle cardTitle = GoogleFonts.inter(
     fontSize: 16,
     fontWeight: FontWeight.w700,
-    color: AppColors.textPrimary,
     letterSpacing: -0.2,
   );
 
@@ -83,14 +77,12 @@ abstract final class AppTextStyles {
   static final TextStyle cardSubtitle = GoogleFonts.inter(
     fontSize: 13,
     fontWeight: FontWeight.w400,
-    color: AppColors.textSecondary,
   );
 
   /// Section label (ALL CAPS small text above sections)
   static final TextStyle sectionLabel = GoogleFonts.inter(
     fontSize: 11,
     fontWeight: FontWeight.w700,
-    color: AppColors.textSecondary,
     letterSpacing: 1.2,
   );
 
@@ -98,7 +90,6 @@ abstract final class AppTextStyles {
   static final TextStyle statValue = GoogleFonts.inter(
     fontSize: 22,
     fontWeight: FontWeight.w800,
-    color: AppColors.textPrimary,
     letterSpacing: -0.5,
   );
 
@@ -106,7 +97,6 @@ abstract final class AppTextStyles {
   static final TextStyle statLabel = GoogleFonts.inter(
     fontSize: 12,
     fontWeight: FontWeight.w500,
-    color: AppColors.textSecondary,
   );
 
   /// Amount in transaction / sale tiles
@@ -125,7 +115,6 @@ abstract final class AppTextStyles {
   static final TextStyle amountNeutral = GoogleFonts.inter(
     fontSize: 16,
     fontWeight: FontWeight.w700,
-    color: AppColors.textPrimary,
   );
 
   /// Badge / chip label
@@ -146,21 +135,18 @@ abstract final class AppTextStyles {
   static final TextStyle formLabel = GoogleFonts.inter(
     fontSize: 13,
     fontWeight: FontWeight.w600,
-    color: AppColors.textSecondary,
   );
 
   /// Empty state title
   static final TextStyle emptyTitle = GoogleFonts.inter(
     fontSize: 17,
     fontWeight: FontWeight.w600,
-    color: AppColors.textSecondary,
   );
 
   /// Empty state subtitle
   static final TextStyle emptySubtitle = GoogleFonts.inter(
     fontSize: 14,
     fontWeight: FontWeight.w400,
-    color: AppColors.textHint,
   );
 
   /// On dark (white text for gradient cards)
@@ -181,7 +167,6 @@ abstract final class AppTextStyles {
   static final TextStyle moduleTitle = GoogleFonts.inter(
     fontSize: 15,
     fontWeight: FontWeight.w700,
-    color: AppColors.textPrimary,
     letterSpacing: -0.2,
   );
 
@@ -189,7 +174,6 @@ abstract final class AppTextStyles {
   static final TextStyle moduleStat = GoogleFonts.inter(
     fontSize: 12,
     fontWeight: FontWeight.w500,
-    color: AppColors.textSecondary,
   );
 
   /// MonoSpace for codes (promo codes, invoices)

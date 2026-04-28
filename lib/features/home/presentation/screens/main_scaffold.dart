@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hisabet/core/presentation/widgets/widgets.dart';
 import 'package:hisabet/core/theme/theme.dart';
 import 'package:hisabet/core/auth/providers/auth_providers.dart';
+import 'package:hisabet/features/settings/presentation/screens/trash_screen.dart';
+import 'package:hisabet/features/settings/presentation/screens/profile_edit_screen.dart';
 
 import 'package:hisabet/features/contacts/presentation/screens/contacts_list_screen.dart';
 import 'package:hisabet/features/contacts/presentation/screens/add_contact_screen.dart';
@@ -110,9 +112,9 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
               label: 'Business',
             ),
             NavigationDestination(
-              icon: Icon(Icons.person_outline),
-              selectedIcon: Icon(Icons.person_rounded),
-              label: 'Profile',
+              icon: Icon(Icons.settings_outlined),
+              selectedIcon: Icon(Icons.settings_rounded),
+              label: 'Settings',
             ),
           ],
         ),
@@ -245,22 +247,38 @@ class _DashboardHeader extends ConsumerWidget {
             Text("Hello, $userName", style: AppTextStyles.headlineSmall),
           ],
         ),
-        Container(
-          width: AppDimensions.avatarMd,
-          height: AppDimensions.avatarMd,
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            shape: BoxShape.circle,
-            border: Border.all(color: AppColors.border),
-            boxShadow: const [
-              BoxShadow(
-                color: AppColors.shadowLight,
-                blurRadius: 10,
-                offset: Offset(0, 4),
-              ),
-            ],
+        GestureDetector(
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const ProfileEditScreen()),
           ),
-          child: const Icon(Icons.person, color: AppColors.primary),
+          child: Builder(
+            builder: (ctx) {
+              final photoUrl = FirebaseAuth.instance.currentUser?.photoURL;
+              return Container(
+                width: AppDimensions.avatarMd,
+                height: AppDimensions.avatarMd,
+                decoration: BoxDecoration(
+                  color: AppColors.primaryContainer,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: AppColors.primary.withOpacity(0.4), width: 2),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: AppColors.shadowLight,
+                      blurRadius: 10,
+                      offset: Offset(0, 4),
+                    ),
+                  ],
+                  image: photoUrl != null
+                      ? DecorationImage(image: NetworkImage(photoUrl), fit: BoxFit.cover)
+                      : null,
+                ),
+                child: photoUrl == null
+                    ? Icon(Icons.person, color: AppColors.primary)
+                    : null,
+              );
+            },
+          ),
         ),
       ],
     );
@@ -318,16 +336,18 @@ class _PremiumQuickActions extends ConsumerWidget {
             context: context,
             icon: Icons.receipt_long,
             label: "Add Expense",
-            bg: AppColors.negativeLight,
-            iconColor: AppColors.negative,
+            bg: AppColors.neutral200,
+            iconColor: AppColors.neutral400,
+            disabled: true,
             onTap: () => _showComingSoon(context, 'Expense Tracking'),
           ),
           _buildActionItem(
             context: context,
             icon: Icons.bar_chart,
             label: "Reports",
-            bg: AppColors.warningLight,
-            iconColor: AppColors.warning,
+            bg: AppColors.neutral200,
+            iconColor: AppColors.neutral400,
+            disabled: true,
             onTap: () => _showComingSoon(context, 'Analytics & Reports'),
           ),
         ],
@@ -342,36 +362,40 @@ class _PremiumQuickActions extends ConsumerWidget {
     required Color bg,
     required Color iconColor,
     required VoidCallback onTap,
+    bool disabled = false,
   }) {
     return GestureDetector(
       onTap: onTap,
-      child: Column(
-        children: [
-          Container(
-            height: 64,
-            width: 64,
-            decoration: BoxDecoration(
-              color: bg,
-              borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
-              boxShadow: [
-                BoxShadow(
-                  color: bg.withOpacity(0.5),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
+      child: Opacity(
+        opacity: disabled ? 0.5 : 1.0,
+        child: Column(
+          children: [
+            Container(
+              height: 64,
+              width: 64,
+              decoration: BoxDecoration(
+                color: bg,
+                borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
+                boxShadow: disabled ? [] : [
+                  BoxShadow(
+                    color: bg.withOpacity(0.5),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Icon(icon, color: iconColor, size: 28),
             ),
-            child: Icon(icon, color: iconColor, size: 28),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            label,
-            style: AppTextStyles.badgeLabel.copyWith(
-              color: AppColors.textPrimary,
-              fontSize: 12,
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: AppTextStyles.badgeLabel.copyWith(
+                color: disabled ? AppColors.textHint : AppColors.textPrimary,
+                fontSize: 12,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -417,52 +441,98 @@ class _ProfileTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final userProfileAsync = ref.watch(userProfileProvider);
+    final user = FirebaseAuth.instance.currentUser;
+    final displayName = userProfileAsync.value?.displayName ?? user?.displayName ?? 'Merchant';
+    final email = user?.email ?? '';
+    final photoUrl = user?.photoURL;
+
     return SafeArea(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(AppDimensions.xxl),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text("Settings & Tools", style: AppTextStyles.headlineLarge),
-            const SizedBox(height: AppDimensions.xxxl),
-            
-              AppFormSection(
-                title: "General",
-                icon: Icons.tune,
-                children: [
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.language, color: AppColors.primary),
-                    title: const Text("Language / ቋንቋ"),
-                    subtitle: const Text("English / አማርኛ"),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => _showLanguageSheet(context, ref),
-                  ),
-                  const Divider(),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.security, color: AppColors.primary),
-                    title: const Text("Permissions"),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () {},
-                  ),
-                  const Divider(),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.logout, color: AppColors.negative),
-                    title: const Text("Logout", style: TextStyle(color: AppColors.negative)),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () async {
-                      await FirebaseAuth.instance.signOut();
-                      await GoogleSignIn().signOut();
-                    },
-                  ),
-                ],
+            Text('Settings', style: AppTextStyles.headlineLarge),
+            const SizedBox(height: AppDimensions.xxl),
+
+            // ── Profile Card ───────────────────────────────────────────────
+            GestureDetector(
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ProfileEditScreen()),
               ),
-            
+              child: Container(
+                padding: const EdgeInsets.all(AppDimensions.lg),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).cardColor,
+                  borderRadius: BorderRadius.circular(AppDimensions.cardRadius),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 28,
+                      backgroundColor: AppColors.primaryContainer,
+                      backgroundImage: photoUrl != null ? NetworkImage(photoUrl) : null,
+                      child: photoUrl == null
+                          ? Text(
+                              displayName.substring(0, 1).toUpperCase(),
+                              style: const TextStyle(fontSize: 22, color: AppColors.primary, fontWeight: FontWeight.bold),
+                            )
+                          : null,
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(displayName, style: AppTextStyles.cardTitle),
+                          if (email.isNotEmpty)
+                            Text(email, style: AppTextStyles.cardSubtitle),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right, color: AppColors.textSecondary),
+                  ],
+                ),
+              ),
+            ),
+
             const SizedBox(height: AppDimensions.xl),
 
-            // ── Inventory Settings ──────────────────────────────────────────
+            // ── Account & Data ─────────────────────────────────────────────
+            AppFormSection(
+              title: 'Account & Data',
+              icon: Icons.manage_accounts_outlined,
+              children: [
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.delete_outlined, color: AppColors.primary),
+                  title: const Text('Trash & Recovery'),
+                  subtitle: const Text('Restore deleted items (30 days)'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const TrashScreen()),
+                  ),
+                ),
+                const Divider(),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.logout, color: AppColors.negative),
+                  title: const Text('Logout', style: TextStyle(color: AppColors.negative)),
+                  onTap: () async {
+                    await FirebaseAuth.instance.signOut();
+                    await GoogleSignIn().signOut();
+                  },
+                ),
+              ],
+            ),
+
+            const SizedBox(height: AppDimensions.xl),
+
+            // ── Inventory Settings ─────────────────────────────────────────
             AppFormSection(
               title: 'Inventory Settings',
               icon: Icons.inventory_2_rounded,
@@ -484,21 +554,7 @@ class _ProfileTab extends ConsumerWidget {
               ],
             ),
 
-            const SizedBox(height: AppDimensions.xl),
-            AppFormSection(
-              title: 'Developer',
-              icon: Icons.bug_report,
-              children: [
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.terminal, color: AppColors.primary),
-                  title: const Text('Debug Tools'),
-                  subtitle: const Text('Reconciliation & Logs'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () {},
-                ),
-              ],
-            ),
+            const SizedBox(height: AppDimensions.xxxl),
           ],
         ),
       ),

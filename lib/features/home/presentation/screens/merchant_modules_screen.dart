@@ -107,7 +107,7 @@ class MerchantModulesScreen extends ConsumerWidget {
                   childAspectRatio: 1.35,
                 ),
                 delegate: SliverChildListDelegate([
-                  AppModuleTile.hero(
+                  _DisabledModuleTile.hero(
                     title: 'Sales',
                     description: 'POS · Invoices · Carts',
                     icon: Icons.point_of_sale_rounded,
@@ -123,14 +123,14 @@ class MerchantModulesScreen extends ConsumerWidget {
                       onTap: () => _navigate(context, ref, 'Inventory', const ProductsListScreen()),
                       badge: const AppStatusBadgeData(label: 'DEV ONLY', color: AppColors.negative),
                     ),
-                  AppModuleTile.hero(
+                  _DisabledModuleTile.hero(
                     title: 'Orders',
                     description: 'Fulfillment · Delivery',
                     icon: Icons.receipt_rounded,
                     accentColor: AppColors.moduleOrders,
                     onTap: () => _showComingSoon(context, 'Order Fulfillment'),
                   ),
-                  AppModuleTile.hero(
+                  _DisabledModuleTile.hero(
                     title: 'Purchases',
                     description: 'Supplier bills · Buying',
                     icon: Icons.shopping_bag_rounded,
@@ -150,7 +150,7 @@ class MerchantModulesScreen extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(horizontal: AppDimensions.pagePaddingH),
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
-                  AppModuleTile.compact(
+                  _DisabledModuleTile.compact(
                     title: 'Expenses',
                     description: 'Operating costs & recurring bills',
                     icon: Icons.receipt_long_rounded,
@@ -158,7 +158,7 @@ class MerchantModulesScreen extends ConsumerWidget {
                     onTap: () => _showComingSoon(context, 'Expense Tracking'),
                   ),
                   const SizedBox(height: AppDimensions.sm),
-                  AppModuleTile.compact(
+                  _DisabledModuleTile.compact(
                     title: 'Cashbook',
                     description: 'Daily cash & bank reconciliation',
                     icon: Icons.account_balance_wallet_rounded,
@@ -166,7 +166,7 @@ class MerchantModulesScreen extends ConsumerWidget {
                     onTap: () => _showComingSoon(context, 'Cashbook'),
                   ),
                   const SizedBox(height: AppDimensions.sm),
-                  AppModuleTile.compact(
+                  _DisabledModuleTile.compact(
                     title: 'Reports',
                     description: 'Profits, trends & analytics',
                     icon: Icons.bar_chart_rounded,
@@ -192,28 +192,28 @@ class MerchantModulesScreen extends ConsumerWidget {
                   childAspectRatio: 2.4,
                 ),
                 delegate: SliverChildListDelegate([
-                  AppModuleTile.compact(
+                  _DisabledModuleTile.compact(
                     title: 'Customers',
                     description: 'CRM & loyalty',
                     icon: Icons.groups_rounded,
                     accentColor: AppColors.moduleCustomers,
                     onTap: () => _showComingSoon(context, 'Customer CRM'),
                   ),
-                  AppModuleTile.compact(
+                  _DisabledModuleTile.compact(
                     title: 'B2B Tenders',
                     description: 'Global supply bids',
                     icon: Icons.handshake_rounded,
                     accentColor: AppColors.moduleSuppliers,
                     onTap: () => _showComingSoon(context, 'Supplier Network'),
                   ),
-                  AppModuleTile.compact(
+                  _DisabledModuleTile.compact(
                     title: 'Promotions',
                     description: 'Coupons & offers',
                     icon: Icons.local_offer_rounded,
                     accentColor: AppColors.modulePromotions,
                     onTap: () => _showComingSoon(context, 'Promotions Manager'),
                   ),
-                  AppModuleTile.compact(
+                  _DisabledModuleTile.compact(
                     title: 'Team',
                     description: 'Staff & roles',
                     icon: Icons.badge_rounded,
@@ -232,7 +232,7 @@ class MerchantModulesScreen extends ConsumerWidget {
             SliverPadding(
               padding: const EdgeInsets.symmetric(horizontal: AppDimensions.pagePaddingH),
               sliver: SliverToBoxAdapter(
-                child: AppModuleTile.compact(
+                child: _DisabledModuleTile.compact(
                   title: 'Store Settings',
                   description: 'Taxes, invoices & business profile',
                   icon: Icons.settings_rounded,
@@ -316,6 +316,55 @@ class MerchantModulesScreen extends ConsumerWidget {
       );
     }
     return false;
+  }
+}
+
+// ── _DisabledModuleTile ──────────────────────────────────────────────────────
+/// A wrapper that renders any AppModuleTile with a locked/greyed-out look.
+class _DisabledModuleTile extends StatelessWidget {
+  final String title;
+  final String description;
+  final IconData icon;
+  final Color accentColor;
+  final VoidCallback onTap;
+  final bool _isHero;
+
+  const _DisabledModuleTile.hero({
+    required this.title,
+    required this.description,
+    required this.icon,
+    required this.accentColor,
+    required this.onTap,
+  }) : _isHero = true;
+
+  const _DisabledModuleTile.compact({
+    required this.title,
+    required this.description,
+    required this.icon,
+    required this.accentColor,
+    required this.onTap,
+  }) : _isHero = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final child = _isHero
+        ? AppModuleTile.hero(
+            title: title,
+            description: description,
+            icon: icon,
+            accentColor: AppColors.neutral400,
+            onTap: onTap,
+            badge: const AppStatusBadgeData(label: 'Coming Soon', color: AppColors.neutral500),
+          )
+        : AppModuleTile.compact(
+            title: title,
+            description: description,
+            icon: icon,
+            accentColor: AppColors.neutral400,
+            onTap: onTap,
+          );
+
+    return Opacity(opacity: 0.45, child: child);
   }
 }
 

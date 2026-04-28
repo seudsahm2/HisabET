@@ -798,128 +798,66 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                         ? const CircularProgressIndicator()
                         : const Text('Start Using HisabET'),
                   ),
-                ] else if (!_codeSent) ...[
-                  const Icon(Icons.security, size: 64, color: Colors.orange),
-                  const SizedBox(height: 24),
-                  Text(
-                    'Secure Login',
-                    style: Theme.of(context).textTheme.headlineMedium,
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Select your business roles to continue.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                  const SizedBox(height: 16),
-
-                  TextFormField(
-                    controller: _phoneController,
-                    decoration: InputDecoration(
-                      labelText: 'Phone Number',
-                      hintText: '+251911223344',
-                      border: const OutlineInputBorder(),
-                      errorText: _phoneError,
-                      prefixIcon: const Icon(Icons.phone),
+                ] else ...[ 
+                  // ── Google-only login ──────────────────────────────────────
+                  const SizedBox(height: 40),
+                  Center(
+                    child: Column(
+                      children: [
+                        Container(
+                          width: 88,
+                          height: 88,
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF00695C), Color(0xFF00897B)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(24),
+                          ),
+                          child: const Icon(Icons.receipt_long_rounded, color: Colors.white, size: 44),
+                        ),
+                        const SizedBox(height: 24),
+                        Text(
+                          'HisabET',
+                          style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: const Color(0xFF00695C),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Your professional business ledger',
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: Colors.grey,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
                     ),
-                    keyboardType: TextInputType.phone,
-                    textInputAction: TextInputAction.go,
                   ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: _isLoading ? null : _verifyPhone,
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.all(16),
-                      backgroundColor: Colors.orange,
-                      foregroundColor: Colors.white,
-                    ),
-                    child: _isLoading
-                        ? const CircularProgressIndicator(color: Colors.white)
-                        : const Text('Send Code'),
-                  ),
-                  const SizedBox(height: 14),
-                  Row(
-                    children: const [
-                      Expanded(child: Divider()),
-                      Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 10),
-                        child: Text('or'),
+                  const SizedBox(height: 56),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _isLoading ? null : _signInWithGoogle,
+                      icon: _isLoading
+                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                          : const Icon(Icons.login_rounded),
+                      label: Text(_isLoading ? 'Signing in…' : 'Continue with Google'),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.all(16),
+                        side: const BorderSide(color: Color(0xFF00695C), width: 1.5),
+                        foregroundColor: const Color(0xFF00695C),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                       ),
-                      Expanded(child: Divider()),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  OutlinedButton.icon(
-                    onPressed: _isLoading ? null : _signInWithGoogle,
-                    icon: const Icon(Icons.login),
-                    label: const Text('Continue with Google'),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.all(14),
                     ),
                   ),
-                  if (_manualBypassEnabled && _manualBypassCode.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    const Text(
-                      'Dev mode: manual OTP bypass is enabled.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.grey, fontSize: 12),
-                    ),
-                  ],
-                ] else ...[
-                  const Icon(Icons.message, size: 64, color: Colors.green),
                   const SizedBox(height: 24),
                   Text(
-                    'Enter Validation Code',
-                    style: Theme.of(context).textTheme.headlineMedium,
+                    'By continuing, you agree to our Terms & Privacy Policy.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey),
                     textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Sent to ${_phoneController.text}',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.grey),
-                  ),
-                  const SizedBox(height: 32),
-                  TextFormField(
-                    controller: _otpController,
-                    decoration: const InputDecoration(
-                      labelText: '6-Digit Code',
-                      hintText: '123456',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.lock_clock),
-                    ),
-                    keyboardType: TextInputType.number,
-                    maxLength: 6,
-                  ),
-                  const SizedBox(height: 8),
-                  // Timer / Resend
-                  TextButton(
-                    onPressed: _canResend ? _verifyPhone : null,
-                    child: Text(
-                      _canResend ? 'Resend Code' : 'Resend in $_start s',
-                    ),
-                  ),
-
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: _isLoading ? null : _verifyOtp,
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.all(16),
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
-                    ),
-                    child: _isLoading
-                        ? const CircularProgressIndicator(color: Colors.white)
-                        : const Text('Verify & Login'),
-                  ),
-                  TextButton(
-                    onPressed: () => setState(() {
-                      _codeSent = false;
-                      _verificationId = null;
-                      _otpController.clear();
-                    }),
-                    child: const Text('Wrong Number?'),
                   ),
                 ],
               ],
@@ -930,3 +868,4 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     );
   }
 }
+
