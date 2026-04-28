@@ -8,6 +8,8 @@ import 'package:hisabet/core/l10n/language_provider.dart';
 import 'package:hisabet/core/auth/auth_gate.dart';
 import 'package:hisabet/features/inventory/presentation/providers/products_providers.dart';
 import 'package:hisabet/features/settings/data/repositories/app_settings_repository.dart';
+import 'package:hisabet/core/theme/theme_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -20,12 +22,13 @@ Future<void> main() async {
 
   _configurePhoneAuthTesting();
 
-  final initialLanguageCode =
-      await AppSettingsRepository.readInitialLanguageCode();
+  final prefs = await SharedPreferences.getInstance();
+  final initialLanguageCode = await AppSettingsRepository.readInitialLanguageCode();
 
   final container = ProviderContainer(
     overrides: [
       initialLanguageCodeProvider.overrideWithValue(initialLanguageCode),
+      sharedPreferencesProvider.overrideWithValue(prefs),
     ],
   );
   // Pre-load saved threshold from SharedPreferences
@@ -67,6 +70,7 @@ class MyApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final language = ref.watch(languageProvider);
+    final themeMode = ref.watch(themeModeProvider);
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
@@ -75,7 +79,7 @@ class MyApp extends ConsumerWidget {
       // Theme Configuration
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
-      themeMode: ThemeMode.system,
+      themeMode: themeMode,
 
       // Localization Configuration
       locale: language, // Reactive Locale

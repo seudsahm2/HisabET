@@ -14,6 +14,18 @@ abstract final class AppTheme {
 
   static ThemeData _build({required Brightness brightness}) {
     final isDark = brightness == Brightness.dark;
+    final backgroundColor = isDark ? const Color(0xFF0E1113) : AppColors.background;
+    final surfaceColor = isDark ? const Color(0xFF151A1C) : AppColors.surface;
+    final elevatedSurfaceColor = isDark ? const Color(0xFF1B2124) : AppColors.surfaceElevated;
+    final surfaceVariantColor = isDark ? const Color(0xFF21282B) : AppColors.surfaceVariant;
+    final onSurfaceColor = isDark ? Colors.white : AppColors.textPrimary;
+    final onSurfaceVariantColor = isDark ? Colors.white70 : AppColors.textSecondary;
+    final outlineColor = isDark ? Colors.white24 : AppColors.border;
+    final outlineVariantColor = isDark ? Colors.white12 : AppColors.neutral200;
+    final dividerColor = isDark ? Colors.white12 : AppColors.divider;
+    final appBarColor = isDark ? const Color(0xFF151A1C) : AppColors.background;
+    final navigationBarColor = isDark ? const Color(0xFF151A1C) : AppColors.surface;
+    final inputFillColor = isDark ? const Color(0xFF1F2629) : AppColors.surfaceVariant;
 
     final colorScheme = ColorScheme(
       brightness: brightness,
@@ -33,13 +45,12 @@ abstract final class AppTheme {
       onError: Colors.white,
       errorContainer: AppColors.negativeLight,
       onErrorContainer: AppColors.negative,
-      surface: isDark ? const Color(0xFF1E1E1E) : AppColors.surface,
-      onSurface: isDark ? Colors.white : AppColors.textPrimary,
-      surfaceContainerHighest:
-          isDark ? const Color(0xFF2C2C2C) : AppColors.surfaceVariant,
-      onSurfaceVariant: isDark ? Colors.white70 : AppColors.textSecondary,
-      outline: isDark ? Colors.white24 : AppColors.border,
-      outlineVariant: isDark ? Colors.white12 : AppColors.neutral200,
+        surface: surfaceColor,
+        onSurface: onSurfaceColor,
+        surfaceContainerHighest: surfaceVariantColor,
+        onSurfaceVariant: onSurfaceVariantColor,
+        outline: outlineColor,
+        outlineVariant: outlineVariantColor,
       shadow: Colors.black,
       scrim: Colors.black54,
       inverseSurface: isDark ? Colors.white : AppColors.neutral900,
@@ -51,8 +62,8 @@ abstract final class AppTheme {
       useMaterial3: true,
       brightness: brightness,
       colorScheme: colorScheme,
-      scaffoldBackgroundColor:
-          isDark ? const Color(0xFF121212) : AppColors.background,
+        scaffoldBackgroundColor: backgroundColor,
+        canvasColor: backgroundColor,
       textTheme: AppTextStyles.textTheme,
 
       // ── AppBar ────────────────────────────────────────────────────────────
@@ -60,14 +71,13 @@ abstract final class AppTheme {
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
-        backgroundColor:
-            isDark ? const Color(0xFF1E1E1E) : AppColors.background,
-        foregroundColor: isDark ? Colors.white : AppColors.textPrimary,
+        backgroundColor: appBarColor,
+        foregroundColor: onSurfaceColor,
         titleTextStyle: AppTextStyles.screenTitle.copyWith(
-          color: isDark ? Colors.white : AppColors.textPrimary,
+          color: onSurfaceColor,
         ),
         iconTheme: IconThemeData(
-          color: isDark ? Colors.white : AppColors.textPrimary,
+          color: onSurfaceColor,
           size: AppDimensions.iconMd,
         ),
         systemOverlayStyle: isDark
@@ -81,20 +91,20 @@ abstract final class AppTheme {
       navigationBarTheme: NavigationBarThemeData(
         elevation: 0,
         height: AppDimensions.bottomNavHeight,
-        backgroundColor: isDark ? const Color(0xFF1E1E1E) : AppColors.surface,
-        indicatorColor: AppColors.primaryContainer.withOpacity(0.5),
+        backgroundColor: navigationBarColor,
+        indicatorColor: AppColors.primaryContainer.withOpacity(isDark ? 0.28 : 0.5),
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           final selected = states.contains(WidgetState.selected);
           return AppTextStyles.badgeLabel.copyWith(
             fontSize: 11,
-            color: selected ? AppColors.primary : AppColors.textSecondary,
+            color: selected ? AppColors.primary : onSurfaceVariantColor,
           );
         }),
         iconTheme: WidgetStateProperty.resolveWith((states) {
           final selected = states.contains(WidgetState.selected);
           return IconThemeData(
             size: 24,
-            color: selected ? AppColors.primary : AppColors.neutral500,
+            color: selected ? AppColors.primary : onSurfaceVariantColor,
           );
         }),
       ),
@@ -103,7 +113,7 @@ abstract final class AppTheme {
       cardTheme: CardThemeData(
         elevation: 0,
         shadowColor: Colors.transparent,
-        color: isDark ? const Color(0xFF1E1E1E) : AppColors.surface,
+        color: surfaceColor,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppDimensions.cardRadius),
         ),
@@ -114,20 +124,18 @@ abstract final class AppTheme {
       // ── Input ─────────────────────────────────────────────────────────────
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: isDark
-            ? const Color(0xFF2C2C2C)
-            : AppColors.surfaceVariant,
+        fillColor: inputFillColor,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: AppDimensions.lg,
           vertical: AppDimensions.md,
         ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppDimensions.inputRadius),
-          borderSide: const BorderSide(color: AppColors.border),
+          borderSide: BorderSide(color: outlineVariantColor),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppDimensions.inputRadius),
-          borderSide: const BorderSide(color: AppColors.border),
+          borderSide: BorderSide(color: outlineVariantColor),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppDimensions.inputRadius),
@@ -145,11 +153,11 @@ abstract final class AppTheme {
         ),
         labelStyle: AppTextStyles.formLabel,
         hintStyle: AppTextStyles.formLabel.copyWith(
-          color: AppColors.textHint,
+          color: onSurfaceVariantColor,
           fontWeight: FontWeight.w400,
         ),
-        prefixIconColor: AppColors.textSecondary,
-        suffixIconColor: AppColors.textSecondary,
+        prefixIconColor: onSurfaceVariantColor,
+        suffixIconColor: onSurfaceVariantColor,
       ),
 
       // ── Elevated Button ───────────────────────────────────────────────────
@@ -217,10 +225,10 @@ abstract final class AppTheme {
 
       // ── Chip ─────────────────────────────────────────────────────────────
       chipTheme: ChipThemeData(
-        backgroundColor: AppColors.surfaceVariant,
+        backgroundColor: surfaceVariantColor,
         selectedColor: AppColors.primaryContainer,
         labelStyle: AppTextStyles.badgeLabel.copyWith(
-          color: AppColors.textPrimary,
+          color: onSurfaceColor,
         ),
         secondaryLabelStyle: AppTextStyles.badgeLabel.copyWith(
           color: AppColors.primary,
@@ -250,8 +258,8 @@ abstract final class AppTheme {
       ),
 
       // ── Divider ───────────────────────────────────────────────────────────
-      dividerTheme: const DividerThemeData(
-        color: AppColors.divider,
+      dividerTheme: DividerThemeData(
+        color: dividerColor,
         thickness: 1,
         space: 1,
       ),
@@ -281,11 +289,10 @@ abstract final class AppTheme {
 
       // ── Bottom Sheet ──────────────────────────────────────────────────────
       bottomSheetTheme: BottomSheetThemeData(
-        backgroundColor:
-            isDark ? const Color(0xFF1E1E1E) : AppColors.surface,
+        backgroundColor: elevatedSurfaceColor,
         elevation: 0,
         showDragHandle: true,
-        dragHandleColor: AppColors.neutral300,
+        dragHandleColor: outlineVariantColor,
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(
             top: Radius.circular(AppDimensions.radiusXxl),
@@ -296,8 +303,7 @@ abstract final class AppTheme {
 
       // ── Dialog ────────────────────────────────────────────────────────────
       dialogTheme: DialogThemeData(
-        backgroundColor:
-            isDark ? const Color(0xFF1E1E1E) : AppColors.surface,
+        backgroundColor: elevatedSurfaceColor,
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppDimensions.radiusXl),
@@ -310,13 +316,13 @@ abstract final class AppTheme {
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) return AppColors.primary;
-          return AppColors.neutral400;
+          return outlineVariantColor;
         }),
         trackColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
             return AppColors.primaryContainer;
           }
-          return AppColors.neutral200;
+          return surfaceVariantColor;
         }),
       ),
 
@@ -325,7 +331,7 @@ abstract final class AppTheme {
         style: SegmentedButton.styleFrom(
           backgroundColor: AppColors.surfaceVariant,
           selectedBackgroundColor: AppColors.primaryContainer,
-          foregroundColor: AppColors.textSecondary,
+          foregroundColor: onSurfaceVariantColor,
           selectedForegroundColor: AppColors.primary,
           textStyle: AppTextStyles.badgeLabel,
           shape: RoundedRectangleBorder(
@@ -342,13 +348,13 @@ abstract final class AppTheme {
 
       // ── PopupMenu ─────────────────────────────────────────────────────────
       popupMenuTheme: PopupMenuThemeData(
-        color: isDark ? const Color(0xFF2C2C2C) : AppColors.surface,
+        color: surfaceColor,
         elevation: 8,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
         ),
         textStyle: AppTextStyles.cardSubtitle.copyWith(
-          color: isDark ? Colors.white : AppColors.textPrimary,
+          color: onSurfaceColor,
         ),
       ),
     );

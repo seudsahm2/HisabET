@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:hisabet/core/utils/phone_util.dart';
 import 'package:hisabet/features/contacts/presentation/screens/contacts_list_screen.dart';
+import 'package:hisabet/core/presentation/widgets/widgets.dart';
 
 class OnboardingScreen extends ConsumerStatefulWidget {
   final bool startAtProfile;
@@ -801,39 +802,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 ] else ...[ 
                   // ── Google-only login ──────────────────────────────────────
                   const SizedBox(height: 40),
-                  Center(
-                    child: Column(
-                      children: [
-                        Container(
-                          width: 88,
-                          height: 88,
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFF00695C), Color(0xFF00897B)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(24),
-                          ),
-                          child: const Icon(Icons.receipt_long_rounded, color: Colors.white, size: 44),
-                        ),
-                        const SizedBox(height: 24),
-                        Text(
-                          'HisabET',
-                          style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                            fontWeight: FontWeight.w800,
-                            color: const Color(0xFF00695C),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Your professional business ledger',
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Colors.grey,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
+                  const Center(
+                    child: AppLogo(
+                      size: 96,
+                      showText: true,
                     ),
                   ),
                   const SizedBox(height: 56),

@@ -50,12 +50,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final settingsAsync = ref.watch(appSettingsProvider);
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('Settings'),
-        backgroundColor: AppColors.background,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         elevation: 0,
       ),
       body: settingsAsync.when(
@@ -72,7 +73,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
               children: [
-                _sectionTitle('Business Profile'),
+                _sectionTitle(context, 'Business Profile'),
                 _card(
                   children: [
                     _field(
@@ -97,7 +98,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ],
                 ),
                 const SizedBox(height: 12),
-                _sectionTitle('Tax & Invoice'),
+                _sectionTitle(context, 'Tax & Invoice'),
                 _card(
                   children: [
                     _field(
@@ -126,7 +127,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ],
                 ),
                 const SizedBox(height: 12),
-                _sectionTitle('Localization'),
+                _sectionTitle(context, 'Localization'),
                 _card(
                   children: [
                     DropdownButtonFormField<String>(
@@ -148,15 +149,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ],
                 ),
                 const SizedBox(height: 12),
-                _sectionTitle('Backup Options'),
+                _sectionTitle(context, 'Backup Options'),
                 _card(
                   children: [
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.delete_outline, color: AppColors.primary),
-                      title: const Text('Trash / Recovery'),
-                      subtitle: const Text('View and restore deleted items (30 days)'),
-                      trailing: const Icon(Icons.chevron_right),
+                    _settingTile(
+                      context,
+                      title: 'Trash / Recovery',
+                      subtitle: 'View and restore deleted items (30 days)',
+                      icon: Icons.delete_outline,
                       onTap: () {
                         Navigator.push(
                           context,
@@ -165,34 +165,34 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       },
                     ),
                     const Divider(height: 12),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.backup_outlined),
-                      title: const Text('Create Database Backup'),
-                      subtitle: const Text(
-                        'Creates a timestamped SQLite backup file',
-                      ),
+                    _settingTile(
+                      context,
+                      title: 'Create Database Backup',
+                      subtitle: 'Creates a timestamped SQLite backup file',
+                      icon: Icons.backup_outlined,
                       onTap: _createBackup,
                     ),
                     const Divider(height: 12),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.file_download_outlined),
-                      title: const Text('Export Settings Snapshot'),
-                      subtitle: const Text('Exports current settings to JSON'),
+                    _settingTile(
+                      context,
+                      title: 'Export Settings Snapshot',
+                      subtitle: 'Exports current settings to JSON',
+                      icon: Icons.file_download_outlined,
                       onTap: _exportSettings,
                     ),
                   ],
                 ),
                 const SizedBox(height: 12),
-                _sectionTitle('Danger Zone'),
+                _sectionTitle(context, 'Danger Zone'),
                 _card(
                   children: [
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.delete_forever_rounded, color: AppColors.negative),
-                      title: const Text('Delete Account', style: TextStyle(color: AppColors.negative, fontWeight: FontWeight.bold)),
-                      subtitle: const Text('Permanently delete your account and all data.'),
+                    _settingTile(
+                      context,
+                      title: 'Delete Account',
+                      subtitle: 'Permanently delete your account and all data.',
+                      icon: Icons.delete_forever_rounded,
+                      iconColor: colorScheme.error,
+                      titleColor: colorScheme.error,
                       onTap: () => _confirmDeleteAccount(context),
                     ),
                   ],
@@ -204,10 +204,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     onPressed: _saving ? null : () => _save(settings),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
+                      foregroundColor: colorScheme.onPrimary,
                     ),
                     child: _saving
-                        ? const CircularProgressIndicator(color: Colors.white)
+                        ? CircularProgressIndicator(color: colorScheme.onPrimary)
                         : const Text('SAVE SETTINGS'),
                   ),
                 ),
@@ -219,25 +219,73 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
-  Widget _sectionTitle(String title) {
+  Widget _sectionTitle(BuildContext context, String title) {
     return Padding(
       padding: const EdgeInsets.only(left: 2, bottom: 6),
       child: Text(
         title,
-        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+        style: TextStyle(
+          fontWeight: FontWeight.w700,
+          fontSize: 16,
+          color: Theme.of(context).colorScheme.onSurface,
+        ),
       ),
     );
   }
 
   Widget _card({required List<Widget> children}) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: colorScheme.outlineVariant),
       ),
       child: Column(children: children),
+    );
+  }
+
+  Widget _settingTile(
+    BuildContext context, {
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required VoidCallback onTap,
+    Color? iconColor,
+    Color? titleColor,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final resolvedIconColor = iconColor ?? AppColors.primary;
+    final resolvedTitleColor = titleColor ?? colorScheme.onSurface;
+    final subtitleColor = colorScheme.onSurfaceVariant;
+
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: resolvedIconColor.withOpacity(
+            Theme.of(context).brightness == Brightness.dark ? 0.16 : 0.10,
+          ),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(icon, color: resolvedIconColor, size: 20),
+      ),
+      title: Text(
+        title,
+        style: TextStyle(
+          color: resolvedTitleColor,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: TextStyle(color: subtitleColor),
+      ),
+      trailing: Icon(Icons.chevron_right, color: subtitleColor),
+      onTap: onTap,
     );
   }
 

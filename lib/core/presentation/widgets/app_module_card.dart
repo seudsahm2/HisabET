@@ -131,7 +131,8 @@ class _AppModuleTileState extends State<AppModuleTile>
   // ── Hero Card ─────────────────────────────────────────────────────────────
   Widget _buildHero(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardBg = isDark ? const Color(0xFF1C1C1E) : Colors.white;
+    final colorScheme = Theme.of(context).colorScheme;
+    final cardBg = colorScheme.surface;
     final accent = widget.accentColor;
 
     return Container(
@@ -139,6 +140,7 @@ class _AppModuleTileState extends State<AppModuleTile>
       decoration: BoxDecoration(
         color: cardBg,
         borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
+        border: Border.all(color: colorScheme.outlineVariant),
         boxShadow: [
           BoxShadow(
             color: accent.withOpacity(isDark ? 0.18 : 0.10),
@@ -146,7 +148,7 @@ class _AppModuleTileState extends State<AppModuleTile>
             offset: const Offset(0, 6),
           ),
           BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.35 : 0.05),
+            color: isDark ? Colors.black54 : Colors.black.withOpacity(0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -205,9 +207,7 @@ class _AppModuleTileState extends State<AppModuleTile>
                       if (widget.badge == null)
                         Icon(Icons.arrow_forward_ios_rounded,
                             size: 13,
-                            color: isDark
-                                ? Colors.white24
-                                : AppColors.textHint),
+                          color: colorScheme.outlineVariant),
                     ],
                   ),
                   const Spacer(),
@@ -216,7 +216,7 @@ class _AppModuleTileState extends State<AppModuleTile>
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
-                      color: isDark ? Colors.white : AppColors.textPrimary,
+                      color: colorScheme.onSurface,
                       letterSpacing: -0.2,
                     ),
                   ),
@@ -225,9 +225,7 @@ class _AppModuleTileState extends State<AppModuleTile>
                     widget.stat ?? widget.description,
                     style: TextStyle(
                       fontSize: 11.5,
-                      color: isDark
-                          ? Colors.white38
-                          : AppColors.textSecondary,
+                      color: colorScheme.onSurfaceVariant,
                       fontWeight: FontWeight.w500,
                     ),
                     maxLines: 1,
@@ -245,7 +243,8 @@ class _AppModuleTileState extends State<AppModuleTile>
   // ── Compact Row ───────────────────────────────────────────────────────────
   Widget _buildCompact(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardBg = isDark ? const Color(0xFF1C1C1E) : Colors.white;
+    final colorScheme = Theme.of(context).colorScheme;
+    final cardBg = colorScheme.surface;
     final accent = widget.accentColor;
 
     return Container(
@@ -253,9 +252,10 @@ class _AppModuleTileState extends State<AppModuleTile>
       decoration: BoxDecoration(
         color: cardBg,
         borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+        border: Border.all(color: colorScheme.outlineVariant),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.25 : 0.04),
+            color: isDark ? Colors.black54 : Colors.black.withOpacity(0.04),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -294,7 +294,7 @@ class _AppModuleTileState extends State<AppModuleTile>
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
-                      color: isDark ? Colors.white : AppColors.textPrimary,
+                      color: colorScheme.onSurface,
                       letterSpacing: -0.2,
                     ),
                   ),
@@ -303,7 +303,7 @@ class _AppModuleTileState extends State<AppModuleTile>
                     widget.description,
                     style: TextStyle(
                       fontSize: 11.5,
-                      color: isDark ? Colors.white38 : AppColors.textSecondary,
+                      color: colorScheme.onSurfaceVariant,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -318,7 +318,7 @@ class _AppModuleTileState extends State<AppModuleTile>
                   ? _buildBadge(widget.badge!)
                   : Icon(Icons.chevron_right_rounded,
                       size: 18,
-                      color: isDark ? Colors.white24 : AppColors.textHint),
+                      color: colorScheme.outlineVariant),
             ),
           ],
         ),
@@ -327,12 +327,14 @@ class _AppModuleTileState extends State<AppModuleTile>
   }
 
   Widget _buildBadge(AppStatusBadgeData badge) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: badge.color.withOpacity(0.13),
+        color: badge.color.withOpacity(isDark ? 0.16 : 0.13),
         borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
-        border: Border.all(color: badge.color.withOpacity(0.25), width: 1),
+        border: Border.all(color: badge.color.withOpacity(isDark ? 0.30 : 0.25), width: 1),
       ),
       child: Text(
         badge.label,

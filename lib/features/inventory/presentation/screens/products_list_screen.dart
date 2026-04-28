@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:decimal/decimal.dart';
+import 'package:intl/intl.dart';
 
 import 'package:hisabet/core/presentation/widgets/widgets.dart';
 import 'package:hisabet/core/theme/theme.dart';
@@ -36,7 +37,7 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
   @override
   Widget build(BuildContext context) {
     final productsAsync = ref.watch(allProductsProvider);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -61,7 +62,7 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                   floating: false,
                   pinned: true,
                   elevation: 0,
-                  backgroundColor: isDark ? Theme.of(context).cardColor : Colors.white,
+                  backgroundColor: colorScheme.surface,
                   flexibleSpace: FlexibleSpaceBar(
                     titlePadding: const EdgeInsets.only(left: AppDimensions.pagePaddingH, bottom: 16),
                     title: const Text(
@@ -98,7 +99,7 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                   child: Container(
                     padding: const EdgeInsets.all(AppDimensions.pagePaddingH),
                     decoration: BoxDecoration(
-                      color: isDark ? Theme.of(context).cardColor : Colors.white,
+                      color: colorScheme.surface,
                       borderRadius: const BorderRadius.vertical(bottom: Radius.circular(30)),
                       boxShadow: [
                         BoxShadow(
@@ -113,7 +114,7 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                         // Search Bar
                         Container(
                           decoration: BoxDecoration(
-                            color: isDark ? Colors.grey[900] : Colors.grey[100],
+                            color: colorScheme.surfaceContainerHighest,
                             borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
                           ),
                           child: TextField(
@@ -121,7 +122,7 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                             onChanged: (val) => setState(() => _searchQuery = val),
                             decoration: InputDecoration(
                               hintText: 'Search products, SKU, categories...',
-                              hintStyle: TextStyle(color: Colors.grey[500]),
+                              hintStyle: TextStyle(color: colorScheme.onSurfaceVariant),
                               prefixIcon: Icon(Icons.search_rounded, color: AppColors.primary),
                               suffixIcon: _searchQuery.isNotEmpty
                                   ? IconButton(
@@ -143,7 +144,7 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                         Container(
                           padding: const EdgeInsets.all(4),
                           decoration: BoxDecoration(
-                            color: isDark ? Colors.grey[900] : Colors.grey[100],
+                            color: colorScheme.surfaceContainerHighest,
                             borderRadius: BorderRadius.circular(AppDimensions.radiusXl),
                           ),
                           child: Row(
@@ -236,6 +237,7 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
 
   Widget _buildTabPill(String title, int index, int count) {
     final isSelected = _selectedTab == index;
+    final colorScheme = Theme.of(context).colorScheme;
     return GestureDetector(
       onTap: () => setState(() => _selectedTab = index),
       child: AnimatedContainer(
@@ -253,7 +255,7 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
           child: Text(
             '$title ($count)',
             style: TextStyle(
-              color: isSelected ? Colors.white : AppColors.textSecondary,
+              color: isSelected ? colorScheme.onPrimary : colorScheme.onSurfaceVariant,
               fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
               fontSize: 14,
             ),
@@ -291,18 +293,19 @@ class _PremiumProductCard extends StatelessWidget {
     final isLowStock = product.isLowStock;
     final isBundle = product.unit.toLowerCase() == 'carton' || product.itemsPerCarton != null;
     final itemsPerCarton = product.itemsPerCarton ?? 0;
+    final colorScheme = Theme.of(context).colorScheme;
 
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(AppDimensions.md),
         decoration: BoxDecoration(
-          color: isDark ? Theme.of(context).cardColor : Colors.white,
+          color: colorScheme.surface,
           borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
-          border: Border.all(color: isLowStock ? AppColors.negative.withOpacity(0.5) : AppColors.border.withOpacity(0.5)),
+          border: Border.all(color: isLowStock ? AppColors.negative.withOpacity(0.5) : colorScheme.outlineVariant),
           boxShadow: [
             BoxShadow(
-              color: AppColors.shadowLight,
+              color: isDark ? Colors.black54 : AppColors.shadowLight,
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -343,7 +346,7 @@ class _PremiumProductCard extends StatelessWidget {
                   Text(
                     product.name,
                     style: TextStyle(
-                      color: isDark ? Colors.white : AppColors.textPrimary,
+                        color: colorScheme.onSurface,
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
                     ),
@@ -368,14 +371,14 @@ class _PremiumProductCard extends StatelessWidget {
                   // Stock Info
                   Row(
                     children: [
-                      Icon(isBundle ? Icons.view_in_ar_rounded : Icons.inventory_2_outlined, size: 14, color: AppColors.textSecondary),
+                      Icon(isBundle ? Icons.view_in_ar_rounded : Icons.inventory_2_outlined, size: 14, color: Theme.of(context).colorScheme.onSurfaceVariant),
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(
                           isBundle
                             ? 'Stock: ${product.stockQuantity} CTN (${itemsPerCarton}/CTN)'
                             : 'Stock: ${product.stockQuantity} ${product.unit}',
-                          style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                          style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13),
                           overflow: TextOverflow.ellipsis,
                           maxLines: 1,
                         ),
@@ -444,58 +447,162 @@ class _InventorySummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final lowStockCount = products.where((product) => product.isLowStock).length;
-    final totalValue = products.fold<Decimal>(Decimal.zero, (sum, p) => sum + (p.sellingPrice * Decimal.fromInt(p.stockQuantity)));
+    
+    // Fix: Multiply by itemsPerCarton for bundles if present.
+    // User enters price per individual quantity, but tracks stock in cartons.
+    final totalValue = products.fold<Decimal>(
+      Decimal.zero, 
+      (sum, p) {
+        final multiplier = p.itemsPerCarton ?? 1;
+        return sum + (p.costPrice * Decimal.fromInt(p.stockQuantity * multiplier));
+      }
+    );
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AppDimensions.xl),
-      child: Row(
-        children: [
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.all(AppDimensions.lg),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [AppColors.primary, AppColors.primary.withOpacity(0.8)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
-                boxShadow: [
-                  BoxShadow(color: AppColors.primary.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4)),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(Icons.account_balance_wallet_rounded, color: Colors.white70, size: 24),
-                  const SizedBox(height: 8),
-                  const Text('Inventory Value', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500)),
-                  Text('ETB $totalValue', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(width: AppDimensions.md),
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.all(AppDimensions.lg),
-              decoration: BoxDecoration(
-                color: lowStockCount > 0 ? AppColors.negative.withOpacity(0.1) : AppColors.positive.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
-                border: Border.all(color: lowStockCount > 0 ? AppColors.negative.withOpacity(0.3) : AppColors.positive.withOpacity(0.3)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(lowStockCount > 0 ? Icons.warning_amber_rounded : Icons.check_circle_outline_rounded, color: lowStockCount > 0 ? AppColors.negative : AppColors.positive, size: 24),
-                  const SizedBox(height: 8),
-                  Text('Low Stock Alerts', style: TextStyle(color: lowStockCount > 0 ? AppColors.negative : AppColors.positive, fontSize: 13, fontWeight: FontWeight.w500)),
-                  Text('$lowStockCount items', style: TextStyle(color: lowStockCount > 0 ? AppColors.negative : AppColors.positive, fontSize: 18, fontWeight: FontWeight.bold)),
-                ],
-              ),
-            ),
+    final totalPotentialProfit = products.fold<Decimal>(
+      Decimal.zero,
+      (sum, p) {
+        final multiplier = p.itemsPerCarton ?? 1;
+        final profitPerPiece = p.sellingPrice - p.costPrice;
+        return sum + (profitPerPiece * Decimal.fromInt(p.stockQuantity * multiplier));
+      }
+    );
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppDimensions.xl),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [AppColors.primary, AppColors.primaryLight],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withOpacity(0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
           ),
         ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'TOTAL INVENTORY VALUE',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
+                    children: [
+                      const Text(
+                        'ETB ',
+                        style: TextStyle(
+                          color: Colors.white60,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        NumberFormat('#,###.##').format(double.parse(totalValue.toString())),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 32,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -1,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.account_balance_wallet_rounded, color: Colors.white, size: 32),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          Row(
+            children: [
+              _buildMiniStat(
+                context,
+                icon: Icons.warning_amber_rounded,
+                label: 'Low Stock',
+                value: '$lowStockCount Items',
+                color: lowStockCount > 0 ? AppColors.warning : Colors.white70,
+              ),
+              const SizedBox(width: 24),
+              _buildMiniStat(
+                context,
+                icon: Icons.trending_up_rounded,
+                label: 'Est. Profit',
+                value: 'ETB ${NumberFormat('#,###').format(double.parse(totalPotentialProfit.toString()))}',
+                color: Colors.white,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMiniStat(BuildContext context, {
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: color.withOpacity(0.8), size: 20),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.6),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

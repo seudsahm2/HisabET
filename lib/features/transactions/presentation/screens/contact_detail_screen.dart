@@ -118,12 +118,12 @@ class _ContactDetailScreenState extends ConsumerState<ContactDetailScreen> {
                     label: const Text('Reconcile Ledger'),
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
-                      backgroundColor: Theme.of(context).cardColor,
+                      backgroundColor: Theme.of(context).colorScheme.surface,
                       foregroundColor: AppColors.primary,
                       elevation: 0,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
-                        side: BorderSide(color: AppColors.primary.withOpacity(0.3), width: 1.5),
+                        side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant, width: 1.5),
                       ),
                     ),
                   ),
@@ -167,6 +167,7 @@ class _ContactDetailScreenState extends ConsumerState<ContactDetailScreen> {
   Widget _buildTab(String id, String label, {bool isDevMode = false}) {
     final isSelected = _selectedTab == id;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colorScheme = Theme.of(context).colorScheme;
     
     return InkWell(
       onTap: () {
@@ -178,9 +179,9 @@ class _ContactDetailScreenState extends ConsumerState<ContactDetailScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary : (isDark ? Theme.of(context).cardColor : AppColors.surfaceVariant),
+          color: isSelected ? AppColors.primary : (isDark ? colorScheme.surface : colorScheme.surfaceContainerHighest),
           borderRadius: BorderRadius.circular(20),
-          border: isSelected ? null : Border.all(color: AppColors.border),
+          border: isSelected ? null : Border.all(color: colorScheme.outlineVariant),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -188,7 +189,7 @@ class _ContactDetailScreenState extends ConsumerState<ContactDetailScreen> {
             Text(
               label,
               style: TextStyle(
-                color: isSelected ? Colors.white : AppColors.textSecondary,
+                color: isSelected ? colorScheme.onPrimary : colorScheme.onSurfaceVariant,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                 fontSize: 13,
               ),
@@ -345,14 +346,14 @@ class _ContactHeaderTitle extends StatelessWidget {
               if (contact.phoneNumber != null && contact.phoneNumber!.isNotEmpty)
                 Text(
                   contact.phoneNumber!,
-                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                  style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12),
                   overflow: TextOverflow.ellipsis,
                   maxLines: 1,
                 )
               else if (contact.verificationMethod == 'email')
-                const Text(
+                Text(
                   'Verified via email',
-                  style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontStyle: FontStyle.italic),
+                  style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12, fontStyle: FontStyle.italic),
                 ),
               Text(
                 contact.roleLabels.join(' · '),
@@ -526,7 +527,7 @@ class _TransactionTile extends StatelessWidget {
           const SizedBox(width: AppDimensions.sm),
           PopupMenuButton<String>(
             tooltip: 'Transaction options',
-            icon: const Icon(Icons.more_vert_rounded, color: AppColors.textSecondary),
+            icon: Icon(Icons.more_vert_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant),
             onSelected: (value) async {
               if (value == 'edit') {
                 Navigator.of(context).push(MaterialPageRoute(builder: (_) => AddTransactionScreen(contactId: contact.id, type: transaction.type, transactionToEdit: transaction)));

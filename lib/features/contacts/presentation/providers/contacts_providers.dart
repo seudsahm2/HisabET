@@ -11,11 +11,20 @@ final Map<String, AppDatabase> _dbCache = {};
 final appDatabaseProvider = Provider<AppDatabase>((ref) {
   final user = ref.watch(authStateProvider).value;
   final uid = user?.uid ?? 'unauthenticated';
-  
+
+  // Keep a single active database connection in memory.
+  // This avoids drift warnings and race conditions when auth state changes.
+  if (_dbCache.length > 1 || (_dbCache.isNotEmpty && !_dbCache.containsKey(uid))) {
+    for (final db in _dbCache.values) {
+      db.close();
+    }
+    _dbCache.clear();
+  }
+
   if (!_dbCache.containsKey(uid)) {
     _dbCache[uid] = AppDatabase(uid);
   }
-  
+
   return _dbCache[uid]!;
 });
 

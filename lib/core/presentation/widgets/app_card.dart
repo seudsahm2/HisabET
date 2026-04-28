@@ -40,18 +40,23 @@ class AppCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final radius =
         borderRadius ?? BorderRadius.circular(AppDimensions.cardRadius);
-    final bg = color ?? Theme.of(context).colorScheme.surface;
+    final colorScheme = Theme.of(context).colorScheme;
+    final bg = color ?? colorScheme.surface;
+    final cardBorder = border ?? Border.all(color: colorScheme.outlineVariant);
+    final shadowColor = Theme.of(context).brightness == Brightness.dark
+        ? Colors.black54
+        : AppColors.shadowLight;
 
     Widget card = Container(
       margin: margin,
       decoration: BoxDecoration(
         color: bg,
         borderRadius: radius,
-        border: border ?? Border.all(color: AppColors.border),
+        border: cardBorder,
         boxShadow: elevation > 0
             ? [
                 BoxShadow(
-                  color: AppColors.shadowLight,
+                  color: shadowColor,
                   blurRadius: 10 * elevation,
                   offset: Offset(0, 4 * elevation),
                 ),
@@ -74,10 +79,10 @@ class AppCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: bg,
           borderRadius: radius,
-          border: border ?? Border.all(color: AppColors.border),
+          border: cardBorder,
           boxShadow: [
             BoxShadow(
-              color: AppColors.shadowLight,
+              color: shadowColor,
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -122,15 +127,20 @@ class AppAccentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final shadowColor = Theme.of(context).brightness == Brightness.dark
+        ? Colors.black54
+        : AppColors.shadowLight;
+
     return Container(
       margin: margin,
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
+        color: colorScheme.surface,
         borderRadius: BorderRadius.circular(AppDimensions.cardRadius),
-        border: Border.all(color: AppColors.border),
-        boxShadow: const [
+        border: Border.all(color: colorScheme.outlineVariant),
+        boxShadow: [
           BoxShadow(
-            color: AppColors.shadowLight,
+            color: shadowColor,
             blurRadius: 10,
             offset: Offset(0, 4),
           ),

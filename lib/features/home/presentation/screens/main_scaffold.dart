@@ -7,6 +7,7 @@ import 'package:hisabet/core/theme/theme.dart';
 import 'package:hisabet/core/auth/providers/auth_providers.dart';
 import 'package:hisabet/features/settings/presentation/screens/trash_screen.dart';
 import 'package:hisabet/features/settings/presentation/screens/profile_edit_screen.dart';
+import 'package:hisabet/core/theme/theme_provider.dart';
 
 import 'package:hisabet/features/contacts/presentation/screens/contacts_list_screen.dart';
 import 'package:hisabet/features/contacts/presentation/screens/add_contact_screen.dart';
@@ -168,8 +169,9 @@ class _HomeDashboard extends ConsumerWidget {
                 margin: const EdgeInsets.symmetric(
                     horizontal: AppDimensions.pagePaddingH, vertical: AppDimensions.md),
                 decoration: BoxDecoration(
-                  color: AppColors.neutral200,
+                  color: Theme.of(context).colorScheme.surface,
                   borderRadius: BorderRadius.circular(AppDimensions.radiusXxl),
+                  border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
                 ),
                 child: const Center(child: CircularProgressIndicator()),
               ),
@@ -226,6 +228,7 @@ class _DashboardHeader extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final colorScheme = Theme.of(context).colorScheme;
     final userProfileAsync = ref.watch(userProfileProvider);
     final String userName = userProfileAsync.when(
       data: (profile) => profile?.displayName ?? 'Merchant',
@@ -259,7 +262,7 @@ class _DashboardHeader extends ConsumerWidget {
                 width: AppDimensions.avatarMd,
                 height: AppDimensions.avatarMd,
                 decoration: BoxDecoration(
-                  color: AppColors.primaryContainer,
+                  color: colorScheme.surfaceContainerHighest,
                   shape: BoxShape.circle,
                   border: Border.all(color: AppColors.primary.withOpacity(0.4), width: 2),
                   boxShadow: const [
@@ -300,6 +303,9 @@ class _PremiumQuickActions extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Padding(
       padding: const EdgeInsets.symmetric(
           horizontal: AppDimensions.pagePaddingH, vertical: AppDimensions.sm),
@@ -310,7 +316,7 @@ class _PremiumQuickActions extends ConsumerWidget {
             context: context,
             icon: Icons.person_add,
             label: "Add Contact",
-            bg: AppColors.infoLight,
+            bg: colorScheme.primaryContainer.withOpacity(isDark ? 0.30 : 0.45),
             iconColor: AppColors.info,
             onTap: () {
               Navigator.push(
@@ -323,7 +329,7 @@ class _PremiumQuickActions extends ConsumerWidget {
             context: context,
             icon: Icons.inventory_2,
             label: "Add Product",
-            bg: AppColors.positiveLight,
+            bg: colorScheme.primaryContainer.withOpacity(isDark ? 0.30 : 0.45),
             iconColor: AppColors.positive,
             onTap: () {
               Navigator.push(
@@ -336,8 +342,8 @@ class _PremiumQuickActions extends ConsumerWidget {
             context: context,
             icon: Icons.receipt_long,
             label: "Add Expense",
-            bg: AppColors.neutral200,
-            iconColor: AppColors.neutral400,
+            bg: colorScheme.surfaceContainerHighest,
+            iconColor: colorScheme.outline,
             disabled: true,
             onTap: () => _showComingSoon(context, 'Expense Tracking'),
           ),
@@ -345,8 +351,8 @@ class _PremiumQuickActions extends ConsumerWidget {
             context: context,
             icon: Icons.bar_chart,
             label: "Reports",
-            bg: AppColors.neutral200,
-            iconColor: AppColors.neutral400,
+            bg: colorScheme.surfaceContainerHighest,
+            iconColor: colorScheme.outline,
             disabled: true,
             onTap: () => _showComingSoon(context, 'Analytics & Reports'),
           ),
@@ -390,7 +396,7 @@ class _PremiumQuickActions extends ConsumerWidget {
             Text(
               label,
               style: AppTextStyles.badgeLabel.copyWith(
-                color: disabled ? AppColors.textHint : AppColors.textPrimary,
+                color: disabled ? Theme.of(context).colorScheme.outline : Theme.of(context).colorScheme.onSurface,
                 fontSize: 12,
               ),
             ),
@@ -441,6 +447,7 @@ class _ProfileTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final colorScheme = Theme.of(context).colorScheme;
     final userProfileAsync = ref.watch(userProfileProvider);
     final user = FirebaseAuth.instance.currentUser;
     final displayName = userProfileAsync.value?.displayName ?? user?.displayName ?? 'Merchant';
@@ -465,29 +472,43 @@ class _ProfileTab extends ConsumerWidget {
               child: Container(
                 padding: const EdgeInsets.all(AppDimensions.lg),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).cardColor,
+                  color: colorScheme.surface,
                   borderRadius: BorderRadius.circular(AppDimensions.cardRadius),
-                  border: Border.all(color: AppColors.border),
+                  border: Border.all(color: colorScheme.outlineVariant),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Theme.of(context).brightness == Brightness.dark ? Colors.black54 : Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
                 child: Row(
                   children: [
-                    CircleAvatar(
-                      radius: 28,
-                      backgroundColor: AppColors.primaryContainer,
-                      backgroundImage: photoUrl != null ? NetworkImage(photoUrl) : null,
-                      child: photoUrl == null
-                          ? Text(
-                              displayName.substring(0, 1).toUpperCase(),
-                              style: const TextStyle(fontSize: 22, color: AppColors.primary, fontWeight: FontWeight.bold),
-                            )
-                          : null,
+                    Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary,
+                        shape: BoxShape.circle,
+                      ),
+                      child: CircleAvatar(
+                        radius: 28,
+                        backgroundColor: AppColors.primaryContainer,
+                        backgroundImage: photoUrl != null ? NetworkImage(photoUrl) : null,
+                        child: photoUrl == null
+                            ? Text(
+                                displayName.substring(0, 1).toUpperCase(),
+                                style: const TextStyle(fontSize: 22, color: AppColors.primary, fontWeight: FontWeight.bold),
+                              )
+                            : null,
+                      ),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(displayName, style: AppTextStyles.cardTitle),
+                          Text(displayName, style: AppTextStyles.cardTitle.copyWith(fontSize: 18)),
                           if (email.isNotEmpty)
                             Text(email, style: AppTextStyles.cardSubtitle),
                         ],
@@ -501,27 +522,56 @@ class _ProfileTab extends ConsumerWidget {
 
             const SizedBox(height: AppDimensions.xl),
 
+            // ── Preferences ──────────────────────────────────────────────
+            AppFormSection(
+              title: 'Preferences',
+              icon: Icons.tune_rounded,
+              children: [
+                AppSettingTile(
+                  title: 'Appearance',
+                  subtitle: ref.watch(themeModeProvider).name.toUpperCase(),
+                  icon: Icons.dark_mode_outlined,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ProfileEditScreen()),
+                  ),
+                ),
+                const Divider(),
+                AppSettingTile(
+                  title: 'Language',
+                  subtitle: ref.watch(languageProvider).languageCode == 'am' ? 'አማርኛ' : 'English',
+                  icon: Icons.language_rounded,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ProfileEditScreen()),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: AppDimensions.xl),
+
             // ── Account & Data ─────────────────────────────────────────────
             AppFormSection(
               title: 'Account & Data',
               icon: Icons.manage_accounts_outlined,
               children: [
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.delete_outlined, color: AppColors.primary),
-                  title: const Text('Trash & Recovery'),
-                  subtitle: const Text('Restore deleted items (30 days)'),
-                  trailing: const Icon(Icons.chevron_right),
+                AppSettingTile(
+                  title: 'Trash & Recovery',
+                  subtitle: 'Restore deleted items (30 days)',
+                  icon: Icons.delete_outlined,
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(builder: (_) => const TrashScreen()),
                   ),
                 ),
                 const Divider(),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.logout, color: AppColors.negative),
-                  title: const Text('Logout', style: TextStyle(color: AppColors.negative)),
+                AppSettingTile(
+                  title: 'Logout',
+                  subtitle: 'Sign out of this device',
+                  icon: Icons.logout,
+                  iconColor: AppColors.negative,
+                  titleColor: AppColors.negative,
                   onTap: () async {
                     await FirebaseAuth.instance.signOut();
                     await GoogleSignIn().signOut();
@@ -539,15 +589,11 @@ class _ProfileTab extends ConsumerWidget {
               children: [
                 Builder(builder: (context) {
                   final threshold = ref.watch(lowStockThresholdProvider);
-                  return ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.warning_amber_rounded, color: AppColors.warning),
-                    title: const Text('Low Stock Alert Threshold'),
-                    subtitle: Text(
-                      'Warn when stock ≤ $threshold units',
-                      style: const TextStyle(color: AppColors.textSecondary),
-                    ),
-                    trailing: const Icon(Icons.chevron_right),
+                  return AppSettingTile(
+                    title: 'Low Stock Alert Threshold',
+                    subtitle: 'Warn when stock is at or below $threshold units',
+                    icon: Icons.warning_amber_rounded,
+                    iconColor: AppColors.warning,
                     onTap: () => _showLowStockDialog(context, ref, threshold),
                   );
                 }),
@@ -564,6 +610,7 @@ class _ProfileTab extends ConsumerWidget {
 
   void _showLowStockDialog(BuildContext context, WidgetRef ref, int current) {
     final controller = TextEditingController(text: current.toString());
+    final colorScheme = Theme.of(context).colorScheme;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -572,9 +619,9 @@ class _ProfileTab extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'Products with stock at or below this number will be highlighted as low stock across the entire inventory.',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+              style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13),
             ),
             const SizedBox(height: 16),
             TextField(
@@ -621,7 +668,7 @@ class _ProfileTab extends ConsumerWidget {
               leading: Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: AppColors.infoLight,
+                  color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.45),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Text("🇺🇸", style: TextStyle(fontSize: 24)),
@@ -639,7 +686,7 @@ class _ProfileTab extends ConsumerWidget {
               leading: Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: AppColors.warningLight,
+                  color: Theme.of(context).colorScheme.secondaryContainer.withOpacity(0.45),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Text("🇪🇹", style: TextStyle(fontSize: 24)),

@@ -78,6 +78,7 @@ class _ContactsListScreenState extends ConsumerState<ContactsListScreen> {
   @override
   Widget build(BuildContext context) {
     final contactsAsync = ref.watch(allContactsProvider);
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -151,11 +152,11 @@ class _ContactsListScreenState extends ConsumerState<ContactsListScreen> {
               padding: const EdgeInsets.fromLTRB(AppDimensions.pagePaddingH, AppDimensions.md, AppDimensions.pagePaddingH, 0),
               child: Container(
                 decoration: BoxDecoration(
-                  color: Theme.of(context).cardColor,
+                  color: colorScheme.surface,
                   borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.06),
+                      color: Theme.of(context).brightness == Brightness.dark ? Colors.black54 : Colors.black.withOpacity(0.06),
                       blurRadius: 8,
                       offset: const Offset(0, 2),
                     ),
@@ -165,7 +166,7 @@ class _ContactsListScreenState extends ConsumerState<ContactsListScreen> {
                   controller: _searchController,
                   decoration: InputDecoration(
                     hintText: 'Search your contacts…',
-                    prefixIcon: const Icon(Icons.search_rounded, color: AppColors.textSecondary),
+                    prefixIcon: Icon(Icons.search_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant),
                     suffixIcon: _searchQuery.isNotEmpty
                         ? IconButton(
                             icon: const Icon(Icons.clear_rounded, size: 18),
@@ -203,7 +204,7 @@ class _ContactsListScreenState extends ConsumerState<ContactsListScreen> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: AppDimensions.md, vertical: AppDimensions.sm),
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.08),
+                    color: colorScheme.primaryContainer.withOpacity(Theme.of(context).brightness == Brightness.dark ? 0.18 : 0.08),
                     borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
                     border: Border.all(color: AppColors.primary.withOpacity(0.25)),
                   ),
@@ -294,6 +295,8 @@ class _ContactsListScreenState extends ConsumerState<ContactsListScreen> {
       floatingActionButton: FloatingActionButton.extended(
         icon: const Icon(Icons.person_add_rounded),
         label: const Text("Add Contact"),
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
         onPressed: () async {
           final allowed = await _ensureCreateContactPermission(context, ref);
           if (!allowed) return;

@@ -27,6 +27,7 @@ class MerchantModulesScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -48,7 +49,7 @@ class MerchantModulesScreen extends ConsumerWidget {
                       style: TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.w800,
-                        color: isDark ? Colors.white : AppColors.textPrimary,
+                        color: colorScheme.onSurface,
                         letterSpacing: -0.5,
                       ),
                     ),
@@ -57,7 +58,7 @@ class MerchantModulesScreen extends ConsumerWidget {
                       "All your tools in one place",
                       style: TextStyle(
                         fontSize: 13,
-                        color: isDark ? Colors.white38 : AppColors.textSecondary,
+                        color: colorScheme.onSurfaceVariant,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -376,6 +377,7 @@ class _SectionLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colorScheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.fromLTRB(
           AppDimensions.pagePaddingH, 0, AppDimensions.pagePaddingH, AppDimensions.sm),
@@ -385,7 +387,7 @@ class _SectionLabel extends StatelessWidget {
           fontSize: 11,
           fontWeight: FontWeight.w800,
           letterSpacing: 1.4,
-          color: isDark ? Colors.white30 : AppColors.textHint,
+          color: isDark ? colorScheme.outlineVariant : colorScheme.outline,
         ),
       ),
     );

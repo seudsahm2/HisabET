@@ -19,4 +19,6 @@ export 'app_search_bar.dart';
 export 'app_section_header.dart';
 export 'app_stat_tile.dart';
 export 'app_status_badge.dart';
+export 'app_logo.dart';
+export 'app_setting_tile.dart';
 export 'app_delete_dialog.dart';

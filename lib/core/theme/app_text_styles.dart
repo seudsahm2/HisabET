@@ -176,6 +176,12 @@ abstract final class AppTextStyles {
     fontWeight: FontWeight.w500,
   );
 
+  /// Small label
+  static final TextStyle labelSmall = GoogleFonts.inter(
+    fontSize: 11,
+    fontWeight: FontWeight.w500,
+  );
+
   /// MonoSpace for codes (promo codes, invoices)
   static final TextStyle mono = GoogleFonts.jetBrainsMono(
     fontSize: 14,

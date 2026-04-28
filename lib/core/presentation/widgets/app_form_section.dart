@@ -34,6 +34,9 @@ class AppFormSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return AppCard(
       margin: margin ??
           const EdgeInsets.only(bottom: AppDimensions.md),
@@ -55,7 +58,9 @@ class AppFormSection extends StatelessWidget {
                     width: 28,
                     height: 28,
                     decoration: BoxDecoration(
-                      color: AppColors.primaryContainer.withOpacity(0.6),
+                      color: isDark
+                          ? colorScheme.primary.withOpacity(0.16)
+                          : AppColors.primaryContainer.withOpacity(0.6),
                       borderRadius:
                           BorderRadius.circular(AppDimensions.radiusXs),
                     ),
@@ -72,7 +77,7 @@ class AppFormSection extends StatelessWidget {
                   child: Text(
                     title,
                     style: AppTextStyles.cardTitle.copyWith(
-                      color: AppColors.textPrimary,
+                      color: colorScheme.onSurface,
                       fontSize: 14,
                     ),
                   ),
@@ -81,7 +86,7 @@ class AppFormSection extends StatelessWidget {
               ],
             ),
           ),
-          const Divider(height: 1),
+          Divider(height: 1, color: Theme.of(context).dividerColor),
           // Fields
           Padding(
             padding: const EdgeInsets.all(AppDimensions.lg),
