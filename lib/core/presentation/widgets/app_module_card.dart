@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:hisabet/core/presentation/widgets/app_glass.dart';
 import 'package:hisabet/core/theme/theme.dart';
 
 /// ─── App Module Tile ─────────────────────────────────────────────────────────
@@ -132,27 +133,14 @@ class _AppModuleTileState extends State<AppModuleTile>
   Widget _buildHero(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final colorScheme = Theme.of(context).colorScheme;
-    final cardBg = colorScheme.surface;
     final accent = widget.accentColor;
 
     return Container(
       height: 130,
-      decoration: BoxDecoration(
-        color: cardBg,
+      decoration: AppGlass.surface(
+        context,
         borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
-        border: Border.all(color: colorScheme.outlineVariant),
-        boxShadow: [
-          BoxShadow(
-            color: accent.withOpacity(isDark ? 0.18 : 0.10),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-          BoxShadow(
-            color: isDark ? Colors.black54 : Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        tintColor: accent,
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
@@ -169,7 +157,7 @@ class _AppModuleTileState extends State<AppModuleTile>
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: [accent, accent.withOpacity(0.4)],
+                    colors: [accent, accent.withValues(alpha: 0.4)],
                   ),
                 ),
               ),
@@ -181,7 +169,7 @@ class _AppModuleTileState extends State<AppModuleTile>
               child: Icon(
                 widget.icon,
                 size: 96,
-                color: accent.withOpacity(isDark ? 0.07 : 0.06),
+                color: accent.withValues(alpha: isDark ? 0.07 : 0.06),
               ),
             ),
             // ── Content ────────────────────────────────────────────────────
@@ -197,7 +185,7 @@ class _AppModuleTileState extends State<AppModuleTile>
                         width: 34,
                         height: 34,
                         decoration: BoxDecoration(
-                          color: accent.withOpacity(0.10),
+                          color: accent.withValues(alpha: 0.10),
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Icon(widget.icon, size: 18, color: accent),
@@ -242,24 +230,15 @@ class _AppModuleTileState extends State<AppModuleTile>
 
   // ── Compact Row ───────────────────────────────────────────────────────────
   Widget _buildCompact(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final colorScheme = Theme.of(context).colorScheme;
-    final cardBg = colorScheme.surface;
     final accent = widget.accentColor;
 
     return Container(
       height: 68,
-      decoration: BoxDecoration(
-        color: cardBg,
+      decoration: AppGlass.surface(
+        context,
         borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
-        border: Border.all(color: colorScheme.outlineVariant),
-        boxShadow: [
-          BoxShadow(
-            color: isDark ? Colors.black54 : Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        tintColor: accent,
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
@@ -277,7 +256,7 @@ class _AppModuleTileState extends State<AppModuleTile>
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
-                  color: accent.withOpacity(0.09),
+                  color: accent.withValues(alpha: 0.09),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(widget.icon, size: 19, color: accent),
@@ -332,9 +311,12 @@ class _AppModuleTileState extends State<AppModuleTile>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: badge.color.withOpacity(isDark ? 0.16 : 0.13),
+        color: badge.color.withValues(alpha: isDark ? 0.16 : 0.13),
         borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
-        border: Border.all(color: badge.color.withOpacity(isDark ? 0.30 : 0.25), width: 1),
+        border: Border.all(
+          color: badge.color.withValues(alpha: isDark ? 0.30 : 0.25),
+          width: 1,
+        ),
       ),
       child: Text(
         badge.label,

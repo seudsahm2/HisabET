@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:hisabet/core/presentation/widgets/app_glass.dart';
 import 'package:hisabet/core/theme/theme.dart';
 
 class AppMissionHeader extends StatelessWidget {
@@ -21,7 +22,6 @@ class AppMissionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Padding(
       padding: padding ??
@@ -33,24 +33,10 @@ class AppMissionHeader extends StatelessWidget {
           ),
       child: Container(
         padding: const EdgeInsets.all(AppDimensions.lg),
-        decoration: BoxDecoration(
+        decoration: AppGlass.surface(
+          context,
           borderRadius: BorderRadius.circular(AppDimensions.radiusXl),
-          border: Border.all(color: colorScheme.outlineVariant),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              colorScheme.surface,
-              colorScheme.primaryContainer.withOpacity(isDark ? 0.20 : 0.35),
-            ],
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: colorScheme.shadow.withOpacity(isDark ? 0.18 : 0.10),
-              blurRadius: 24,
-              offset: const Offset(0, 8),
-            ),
-          ],
+          tintColor: colorScheme.primaryContainer,
         ),
         child: Row(
           children: [

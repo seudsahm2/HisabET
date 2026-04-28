@@ -76,7 +76,6 @@ class _ContactsListScreenState extends ConsumerState<ContactsListScreen> {
   @override
   Widget build(BuildContext context) {
     final contactsAsync = ref.watch(allContactsProvider);
-    final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -131,21 +130,49 @@ class _ContactsListScreenState extends ConsumerState<ContactsListScreen> {
             ),
           ),
           SliverToBoxAdapter(
-            child: AppSearchBar(
-              controller: _searchController,
-              hintText: 'Search your contacts…',
-              margin: const EdgeInsets.fromLTRB(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
                 AppDimensions.pagePaddingH,
                 AppDimensions.md,
                 AppDimensions.pagePaddingH,
                 0,
               ),
+              child: AppLocalSearchSurface(
+                controller: _searchController,
+                onChanged: (value) => setState(() => _searchQuery = value.trim().toLowerCase()),
+                hintText: 'Search contact name or phone',
+                title: 'Name or phone',
+                subtitle: 'Search in saved contacts',
+                variant: AppSearchSurfaceVariant.glass,
+              ),
             ),
           ),
-          // ── Role Filter Chips ─────────────────────────────────────────
+          const SliverToBoxAdapter(child: SizedBox(height: AppDimensions.xs)),
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.only(top: AppDimensions.sm),
+              padding: const EdgeInsets.symmetric(horizontal: AppDimensions.pagePaddingH),
+              child: AppGlobalSearchSurface(
+                title: 'Explore HisabET Network',
+                subtitle: 'Find new businesses outside your current ledger.',
+                actionLabel: 'Open Network',
+                variant: AppSearchSurfaceVariant.glass,
+                onTap: () async {
+                  await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NetworkSearchScreen()));
+                  ref.invalidate(allContactsProvider);
+                },
+              ),
+            ),
+          ),
+          const SliverToBoxAdapter(child: SizedBox(height: AppDimensions.sm)),
+          const SliverToBoxAdapter(
+            child: AppSectionHeader(
+              title: 'Role Filters',
+              uppercase: false,
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.only(top: AppDimensions.xs),
               child: AppFilterChips<String>(
                 options: _kRoleFilters,
                 selected: _selectedFilter,
@@ -154,40 +181,7 @@ class _ContactsListScreenState extends ConsumerState<ContactsListScreen> {
               ),
             ),
           ),
-          // ── Network Search Hint Banner ────────────────────────────────
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(AppDimensions.pagePaddingH, AppDimensions.sm, AppDimensions.pagePaddingH, 0),
-              child: GestureDetector(
-                onTap: () async {
-                  await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NetworkSearchScreen()));
-                  ref.invalidate(allContactsProvider);
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: AppDimensions.md, vertical: AppDimensions.sm),
-                  decoration: BoxDecoration(
-                    color: colorScheme.primaryContainer.withOpacity(Theme.of(context).brightness == Brightness.dark ? 0.18 : 0.08),
-                    borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
-                    border: Border.all(color: AppColors.primary.withOpacity(0.25)),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.travel_explore_rounded, size: 16, color: AppColors.primary),
-                      const SizedBox(width: AppDimensions.sm),
-                      const Expanded(
-                        child: Text(
-                          'Find & add contacts from the HisabET network',
-                          style: TextStyle(fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                      const Icon(Icons.arrow_forward_ios_rounded, size: 12, color: AppColors.primary),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-          const SliverToBoxAdapter(child: SizedBox(height: AppDimensions.md)),
+          const SliverToBoxAdapter(child: SizedBox(height: AppDimensions.sm)),
           // ── Contact List ──────────────────────────────────────────────
           contactsAsync.when(
             loading: () => const SliverFillRemaining(child: Center(child: CircularProgressIndicator())),

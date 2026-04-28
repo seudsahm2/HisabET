@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:hisabet/core/theme/theme.dart';
+import 'package:hisabet/core/presentation/widgets/app_glass.dart';
+
+enum AppCardStyle { glass, solid }
 
 /// Standard card widget used across the entire app.
 /// Replaces every manual `Container(decoration: BoxDecoration(...))` white card.
@@ -23,6 +26,7 @@ class AppCard extends StatelessWidget {
     this.border,
     this.elevation = 0,
     this.clip = Clip.antiAlias,
+    this.style = AppCardStyle.glass,
   });
 
   final Widget child;
@@ -35,6 +39,7 @@ class AppCard extends StatelessWidget {
   final BoxBorder? border;
   final double elevation;
   final Clip clip;
+  final AppCardStyle style;
 
   @override
   Widget build(BuildContext context) {
@@ -47,9 +52,16 @@ class AppCard extends StatelessWidget {
         ? Colors.black54
         : AppColors.shadowLight;
 
-    Widget card = Container(
-      margin: margin,
-      decoration: BoxDecoration(
+    BoxDecoration cardDecoration() {
+      if (style == AppCardStyle.glass && color == null && border == null) {
+        return AppGlass.surface(
+          context,
+          borderRadius: radius,
+          withShadow: true,
+        );
+      }
+
+      return BoxDecoration(
         color: bg,
         borderRadius: radius,
         border: cardBorder,
@@ -68,7 +80,12 @@ class AppCard extends StatelessWidget {
                   offset: Offset(0, 4),
                 ),
               ],
-      ),
+      );
+    }
+
+    Widget card = Container(
+      margin: margin,
+      decoration: cardDecoration(),
       clipBehavior: clip,
       child: padding != null ? Padding(padding: padding!, child: child) : child,
     );
@@ -76,18 +93,7 @@ class AppCard extends StatelessWidget {
     if (onTap != null || onLongPress != null) {
       card = Container(
         margin: margin,
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: radius,
-          border: cardBorder,
-          boxShadow: [
-            BoxShadow(
-              color: shadowColor,
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
+        decoration: cardDecoration(),
         clipBehavior: clip,
         child: Material(
           color: Colors.transparent,
@@ -117,6 +123,7 @@ class AppAccentCard extends StatelessWidget {
     this.padding,
     this.margin,
     this.onTap,
+    this.style = AppCardStyle.glass,
   });
 
   final Widget child;
@@ -124,28 +131,33 @@ class AppAccentCard extends StatelessWidget {
   final EdgeInsetsGeometry? padding;
   final EdgeInsetsGeometry? margin;
   final VoidCallback? onTap;
+  final AppCardStyle style;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final shadowColor = Theme.of(context).brightness == Brightness.dark
-        ? Colors.black54
-        : AppColors.shadowLight;
+    final borderRadius = BorderRadius.circular(AppDimensions.cardRadius);
 
     return Container(
       margin: margin,
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(AppDimensions.cardRadius),
-        border: Border.all(color: colorScheme.outlineVariant),
-        boxShadow: [
-          BoxShadow(
-            color: shadowColor,
-            blurRadius: 10,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
+      decoration: style == AppCardStyle.glass
+          ? AppGlass.surface(
+              context,
+              borderRadius: borderRadius,
+              tintColor: accentColor,
+            )
+          : BoxDecoration(
+              color: colorScheme.surface,
+              borderRadius: borderRadius,
+              border: Border.all(color: colorScheme.outlineVariant),
+              boxShadow: const [
+                BoxShadow(
+                  color: AppColors.shadowLight,
+                  blurRadius: 10,
+                  offset: Offset(0, 4),
+                ),
+              ],
+            ),
       clipBehavior: Clip.antiAlias,
       child: IntrinsicHeight(
         child: Row(
