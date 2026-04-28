@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:hisabet/core/auth/providers/auth_providers.dart';
+import 'package:hisabet/core/presentation/widgets/widgets.dart';
 import 'package:hisabet/core/theme/app_colors.dart';
 import 'package:hisabet/core/theme/app_text_styles.dart';
 import 'package:hisabet/core/theme/theme_provider.dart';
@@ -124,13 +125,26 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final themeMode = ref.watch(themeModeProvider);
+    final avatar = _localImage != null
+        ? FileImage(_localImage!)
+        : (_photoUrl != null ? NetworkImage(_photoUrl!) as ImageProvider : null);
 
     return Scaffold(
       body: CustomScrollView(
         slivers: [
-          _buildSliverAppBar(context, user, isDark),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+              child: AppProfileHeader(
+                name: user?.displayName ?? 'Merchant',
+                avatar: avatar,
+                subtitle: _roleCtrl.text.isEmpty ? 'Business profile and account details' : _roleCtrl.text,
+                helperText: 'Tap avatar to update photo',
+                onAvatarTap: _pickImage,
+              ),
+            ),
+          ),
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
@@ -219,93 +233,6 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildSliverAppBar(BuildContext context, User? user, bool isDark) {
-    return SliverAppBar(
-      expandedHeight: 240,
-      pinned: true,
-      backgroundColor: AppColors.primary,
-      flexibleSpace: FlexibleSpaceBar(
-        background: Stack(
-          fit: StackFit.expand,
-          children: [
-            // Gradient Background
-            Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [AppColors.primary, AppColors.primaryLight],
-                ),
-              ),
-            ),
-            // Abstract Circles for style
-            Positioned(
-              top: -50,
-              right: -50,
-              child: CircleAvatar(radius: 100, backgroundColor: Colors.white.withOpacity(0.05)),
-            ),
-            // Avatar and Name
-            Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const SizedBox(height: 40),
-                GestureDetector(
-                  onTap: _pickImage,
-                  child: Stack(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: const BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                        ),
-                        child: CircleAvatar(
-                          radius: 54,
-                          backgroundColor: AppColors.primaryContainer,
-                          backgroundImage: _localImage != null
-                              ? FileImage(_localImage!) as ImageProvider
-                              : (_photoUrl != null ? NetworkImage(_photoUrl!) : null),
-                          child: (_localImage == null && _photoUrl == null)
-                              ? Text(
-                                  (user?.displayName ?? 'U').substring(0, 1).toUpperCase(),
-                                  style: const TextStyle(fontSize: 40, color: AppColors.primary, fontWeight: FontWeight.bold),
-                                )
-                              : null,
-                        ),
-                      ),
-                      Positioned(
-                        bottom: 0,
-                        right: 0,
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: AppColors.accent,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 2),
-                          ),
-                          child: const Icon(Icons.edit, color: Colors.white, size: 18),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  user?.displayName ?? 'Merchant',
-                  style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
-                ),
-                Text(
-                  _roleCtrl.text.isEmpty ? 'Tap to edit profile' : _roleCtrl.text,
-                  style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 14),
-                ),
-              ],
-            ),
-          ],
-        ),
       ),
     );
   }

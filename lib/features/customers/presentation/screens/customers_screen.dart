@@ -21,12 +21,6 @@ class CustomersScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(
-        title: const Text('Customer CRM'),
-        actions: [
-          IconButton(icon: const Icon(Icons.search_rounded), onPressed: () {}),
-        ],
-      ),
       body: customersAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, stack) => Center(child: Text('Error: $err')),
@@ -42,6 +36,13 @@ class CustomersScreen extends ConsumerWidget {
             child: ListView(
               padding: const EdgeInsets.symmetric(horizontal: AppDimensions.pagePaddingH, vertical: AppDimensions.lg),
               children: [
+                const AppMissionHeader(
+                  eyebrow: 'CRM FIELD',
+                  title: 'Customer Command',
+                  subtitle: 'Monitor credit, loyalty, and relationship health.',
+                  padding: EdgeInsets.zero,
+                ),
+                const SizedBox(height: AppDimensions.lg),
                 _buildSummaryCard(customers.length, totalCredit, totalReceivable, totalLoyalty),
                 const SizedBox(height: AppDimensions.xl),
                 if (customers.isEmpty)

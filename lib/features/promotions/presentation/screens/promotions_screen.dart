@@ -19,7 +19,6 @@ class PromotionsScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(title: const Text('Promotions & Promo Codes')),
       body: promotionsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, stack) => Center(child: Text('Error: $err')),
@@ -36,6 +35,13 @@ class PromotionsScreen extends ConsumerWidget {
                 vertical: AppDimensions.lg,
               ),
               children: [
+                const AppMissionHeader(
+                  eyebrow: 'GROWTH',
+                  title: 'Promotion Control',
+                  subtitle: 'Launch offers, monitor redemptions, and steer campaigns.',
+                  padding: EdgeInsets.zero,
+                ),
+                const SizedBox(height: AppDimensions.lg),
                 _SummaryCard(
                   total: promotions.length,
                   active: active,

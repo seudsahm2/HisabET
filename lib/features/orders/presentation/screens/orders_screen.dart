@@ -31,7 +31,6 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(title: const Text('Orders')),
       body: ordersAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, stack) => Center(child: Text('Error: $err')),
@@ -50,6 +49,13 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
                 vertical: AppDimensions.lg,
               ),
               children: [
+                const AppMissionHeader(
+                  eyebrow: 'FULFILLMENT',
+                  title: 'Order Command',
+                  subtitle: 'Track dispatch, delivery, and completion in one lane.',
+                  padding: EdgeInsets.zero,
+                ),
+                const SizedBox(height: AppDimensions.lg),
                 _OrderSnapshotCard(orders: orders),
                 const SizedBox(height: AppDimensions.xl),
                 _StatusFilterChips(

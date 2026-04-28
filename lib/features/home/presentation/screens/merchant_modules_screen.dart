@@ -26,19 +26,17 @@ class MerchantModulesScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final colorScheme = Theme.of(context).colorScheme;
-
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: CustomScrollView(
           physics: const BouncingScrollPhysics(),
           slivers: [
-            SliverToBoxAdapter(
-              child: AppPageHeader(
-                title: 'Business Hub',
-                subtitle: 'All your tools in one place',
+            const SliverToBoxAdapter(
+              child: AppMissionHeader(
+                eyebrow: 'STRATEGY',
+                title: 'Business Orbit',
+                subtitle: 'Navigate operations, finance, and growth modules fast.',
               ),
             ),
 

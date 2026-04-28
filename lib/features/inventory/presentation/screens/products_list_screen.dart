@@ -56,41 +56,11 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
             return CustomScrollView(
               physics: const BouncingScrollPhysics(),
               slivers: [
-                // Premium Sliver App Bar
-                SliverAppBar(
-                  expandedHeight: 180.0,
-                  floating: false,
-                  pinned: true,
-                  elevation: 0,
-                  backgroundColor: colorScheme.surface,
-                  flexibleSpace: FlexibleSpaceBar(
-                    titlePadding: const EdgeInsets.only(left: AppDimensions.pagePaddingH, bottom: 16),
-                    title: const Text(
-                      'Inventory Library',
-                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 24, letterSpacing: -0.5),
-                    ),
-                    background: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                AppColors.primary.withOpacity(0.15),
-                                Colors.transparent,
-                              ],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          right: -30,
-                          top: -30,
-                          child: Icon(Icons.inventory_2_rounded, size: 150, color: AppColors.primary.withOpacity(0.05)),
-                        ),
-                      ],
-                    ),
+                const SliverToBoxAdapter(
+                  child: AppMissionHeader(
+                    eyebrow: 'STOCK SYSTEM',
+                    title: 'Stock Intelligence',
+                    subtitle: 'Search, classify, and tune supply before shortages.',
                   ),
                 ),
                 

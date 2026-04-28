@@ -77,9 +77,6 @@ class _SalesHistoryScreenState extends ConsumerState<SalesHistoryScreen> {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(
-        title: const Text('Sales History'),
-      ),
       body: salesAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, stack) => Center(child: Text('Failed to load sales: $error')),
@@ -108,6 +105,13 @@ class _SalesHistoryScreenState extends ConsumerState<SalesHistoryScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        const AppMissionHeader(
+                          eyebrow: 'REVENUE TRACK',
+                          title: 'Sales Chronicle',
+                          subtitle: 'Review paid, partial, and time-filtered revenue movement.',
+                          padding: EdgeInsets.zero,
+                        ),
+                        const SizedBox(height: AppDimensions.lg),
                         // Summary Banner
                         AppCard(
                           padding: const EdgeInsets.all(AppDimensions.lg),

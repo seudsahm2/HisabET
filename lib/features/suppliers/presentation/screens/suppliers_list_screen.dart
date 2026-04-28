@@ -23,15 +23,6 @@ class SuppliersListScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(
-        title: const Text('B2B Tender Marketplace'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.tune_rounded),
-            onPressed: () {},
-          ),
-        ],
-      ),
       body: suppliersAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, stack) => Center(child: Text('Error: $err')),
@@ -45,6 +36,13 @@ class SuppliersListScreen extends ConsumerWidget {
                   horizontal: AppDimensions.pagePaddingH,
                   vertical: AppDimensions.lg),
               children: [
+                const AppMissionHeader(
+                  eyebrow: 'SUPPLY NETWORK',
+                  title: 'Tender Marketplace',
+                  subtitle: 'Source suppliers, issue RFQs, and manage vendor flow.',
+                  padding: EdgeInsets.zero,
+                ),
+                const SizedBox(height: AppDimensions.lg),
                 _buildMarketplaceHub(suppliers),
                 const SizedBox(height: AppDimensions.xl),
                 const AppSectionHeader(title: 'Active Supplier Network', uppercase: true),

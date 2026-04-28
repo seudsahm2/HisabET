@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -82,61 +80,56 @@ class _ContactsListScreenState extends ConsumerState<ContactsListScreen> {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(
-        title: StreamBuilder<DocumentSnapshot>(
-          stream: FirebaseFirestore.instance.collection('users').doc(FirebaseAuth.instance.currentUser?.uid).snapshots(),
-          builder: (context, snapshot) {
-            String name = 'Merchant';
-            if (snapshot.hasData && snapshot.data?.data() != null) {
-              final data = snapshot.data!.data() as Map<String, dynamic>;
-              if (data['name'] != null) name = data['name'];
-            }
-            return Text('Hello, $name');
-          },
-        ),
-        actions: [
-          // Network / Global search — clearly labeled
-          IconButton(
-            icon: const Icon(Icons.travel_explore_rounded),
-            tooltip: 'Search HisabET Network',
-            onPressed: () async {
-              await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NetworkSearchScreen()));
-              ref.invalidate(allContactsProvider);
-            },
-          ),
-          // Notification bell with badge
-          Consumer(
-            builder: (context, ref, child) {
-              final requestsAsync = ref.watch(connectionRequestsProvider);
-              final pendingCount = requestsAsync.valueOrNull?.length ?? 0;
-
-              return Stack(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.notifications_none_rounded),
-                    tooltip: 'Connection Requests',
-                    onPressed: () {
-                      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ConnectionInboxScreen()));
-                    },
-                  ),
-                  if (pendingCount > 0)
-                    Positioned(
-                      right: 8,
-                      top: 8,
-                      child: AppStatusBadge.danger(
-                        label: pendingCount.toString(),
-                        small: true,
-                      ),
-                    ),
-                ],
-              );
-            },
-          ),
-        ],
-      ),
       body: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
+          SliverToBoxAdapter(
+            child: AppMissionHeader(
+              eyebrow: 'RELATIONSHIPS',
+              title: 'Relationship Radar',
+              subtitle: 'Track balances, discover partners, and respond fast.',
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton.filledTonal(
+                    icon: const Icon(Icons.travel_explore_rounded),
+                    tooltip: 'Search HisabET Network',
+                    onPressed: () async {
+                      await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NetworkSearchScreen()));
+                      ref.invalidate(allContactsProvider);
+                    },
+                  ),
+                  const SizedBox(width: 8),
+                  Consumer(
+                    builder: (context, ref, child) {
+                      final requestsAsync = ref.watch(connectionRequestsProvider);
+                      final pendingCount = requestsAsync.valueOrNull?.length ?? 0;
+                      return Stack(
+                        children: [
+                          IconButton.filledTonal(
+                            icon: const Icon(Icons.notifications_none_rounded),
+                            tooltip: 'Connection Requests',
+                            onPressed: () {
+                              Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ConnectionInboxScreen()));
+                            },
+                          ),
+                          if (pendingCount > 0)
+                            Positioned(
+                              right: 2,
+                              top: 2,
+                              child: AppStatusBadge.danger(
+                                label: pendingCount.toString(),
+                                small: true,
+                              ),
+                            ),
+                        ],
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
           SliverToBoxAdapter(
             child: AppSearchBar(
               controller: _searchController,

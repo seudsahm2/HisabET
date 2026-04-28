@@ -23,9 +23,6 @@ class _CashbookScreenState extends ConsumerState<CashbookScreen> {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(
-        title: const Text('Cashbook'),
-      ),
       body: cashbookAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, stack) => Center(child: Text('Error: $err')),
@@ -41,6 +38,13 @@ class _CashbookScreenState extends ConsumerState<CashbookScreen> {
                 vertical: AppDimensions.lg,
               ),
               children: [
+                const AppMissionHeader(
+                  eyebrow: 'FINANCE ORBIT',
+                  title: 'Cash Flow Radar',
+                  subtitle: 'Track inflow, outflow, and daily balance with clarity.',
+                  padding: EdgeInsets.zero,
+                ),
+                const SizedBox(height: AppDimensions.lg),
                 _PeriodChips(
                   selectedPeriod: _selectedPeriod,
                   onSelect: (period) => setState(() => _selectedPeriod = period),

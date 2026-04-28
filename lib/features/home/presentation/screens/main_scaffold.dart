@@ -140,11 +140,19 @@ class _HomeDashboard extends ConsumerWidget {
       child: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
-          const SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(
-                  AppDimensions.lg, AppDimensions.lg, AppDimensions.lg, AppDimensions.sm),
-              child: _DashboardHeader(),
+          SliverToBoxAdapter(
+            child: AppMissionHeader(
+              eyebrow: 'OPERATIONS',
+              title: 'Command Center',
+              subtitle: 'Live cashflow visibility and rapid actions for today.',
+              trailing: IconButton.filledTonal(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ProfileEditScreen()),
+                ),
+                icon: const Icon(Icons.account_circle_rounded),
+                tooltip: 'Profile',
+              ),
             ),
           ),
 
@@ -219,71 +227,6 @@ class _HomeDashboard extends ConsumerWidget {
           const SliverPadding(padding: EdgeInsets.only(bottom: 100)),
         ],
       ),
-    );
-  }
-}
-
-class _DashboardHeader extends ConsumerWidget {
-  const _DashboardHeader();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final userProfileAsync = ref.watch(userProfileProvider);
-    final String userName = userProfileAsync.when(
-      data: (profile) => profile?.displayName ?? 'Merchant',
-      loading: () => 'Merchant',
-      error: (_, __) => 'Merchant',
-    );
-
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              DateFormat('EEEE, MMM d').format(DateTime.now()).toUpperCase(),
-              style: AppTextStyles.sectionLabel,
-            ),
-            const SizedBox(height: 4),
-            Text("Hello, $userName", style: AppTextStyles.headlineSmall),
-          ],
-        ),
-        GestureDetector(
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const ProfileEditScreen()),
-          ),
-          child: Builder(
-            builder: (ctx) {
-              final photoUrl = FirebaseAuth.instance.currentUser?.photoURL;
-              return Container(
-                width: AppDimensions.avatarMd,
-                height: AppDimensions.avatarMd,
-                decoration: BoxDecoration(
-                  color: colorScheme.surfaceContainerHighest,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: AppColors.primary.withOpacity(0.4), width: 2),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: AppColors.shadowLight,
-                      blurRadius: 10,
-                      offset: Offset(0, 4),
-                    ),
-                  ],
-                  image: photoUrl != null
-                      ? DecorationImage(image: NetworkImage(photoUrl), fit: BoxFit.cover)
-                      : null,
-                ),
-                child: photoUrl == null
-                    ? Icon(Icons.person, color: AppColors.primary)
-                    : null,
-              );
-            },
-          ),
-        ),
-      ],
     );
   }
 }
@@ -460,63 +403,22 @@ class _ProfileTab extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Settings', style: AppTextStyles.headlineLarge),
-            const SizedBox(height: AppDimensions.xxl),
+            const AppMissionHeader(
+              eyebrow: 'CONTROL',
+              title: 'Control Deck',
+              subtitle: 'Security, preferences, and store behavior in one place.',
+              padding: EdgeInsets.zero,
+            ),
+            const SizedBox(height: AppDimensions.xl),
 
-            // ── Profile Card ───────────────────────────────────────────────
-            GestureDetector(
-              onTap: () => Navigator.push(
+            AppProfileHeader(
+              name: displayName,
+              avatar: photoUrl != null ? NetworkImage(photoUrl) : null,
+              subtitle: email.isNotEmpty ? email : null,
+              helperText: 'Open profile editor',
+              onAvatarTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const ProfileEditScreen()),
-              ),
-              child: Container(
-                padding: const EdgeInsets.all(AppDimensions.lg),
-                decoration: BoxDecoration(
-                  color: colorScheme.surface,
-                  borderRadius: BorderRadius.circular(AppDimensions.cardRadius),
-                  border: Border.all(color: colorScheme.outlineVariant),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Theme.of(context).brightness == Brightness.dark ? Colors.black54 : Colors.black.withOpacity(0.05),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(2),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary,
-                        shape: BoxShape.circle,
-                      ),
-                      child: CircleAvatar(
-                        radius: 28,
-                        backgroundColor: AppColors.primaryContainer,
-                        backgroundImage: photoUrl != null ? NetworkImage(photoUrl) : null,
-                        child: photoUrl == null
-                            ? Text(
-                                displayName.substring(0, 1).toUpperCase(),
-                                style: const TextStyle(fontSize: 22, color: AppColors.primary, fontWeight: FontWeight.bold),
-                              )
-                            : null,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(displayName, style: AppTextStyles.cardTitle.copyWith(fontSize: 18)),
-                          if (email.isNotEmpty)
-                            Text(email, style: AppTextStyles.cardSubtitle),
-                        ],
-                      ),
-                    ),
-                    const Icon(Icons.chevron_right, color: AppColors.textSecondary),
-                  ],
-                ),
               ),
             ),
 
