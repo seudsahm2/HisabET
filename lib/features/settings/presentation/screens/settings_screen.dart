@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:hisabet/core/l10n/language_provider.dart';
 import 'package:hisabet/core/database/app_database.dart';
+import 'package:hisabet/core/presentation/widgets/widgets.dart';
 import 'package:hisabet/features/contacts/presentation/providers/contacts_providers.dart';
 import 'package:hisabet/core/theme/app_colors.dart';
 import 'package:hisabet/features/settings/data/models/app_settings_model.dart';
@@ -73,7 +74,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
               children: [
-                _sectionTitle(context, 'Business Profile'),
+                const AppSectionHeader(
+                  title: 'Business Profile',
+                  uppercase: false,
+                  padding: EdgeInsets.only(left: 2, bottom: 6),
+                ),
                 _card(
                   children: [
                     _field(
@@ -98,7 +103,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ],
                 ),
                 const SizedBox(height: 12),
-                _sectionTitle(context, 'Tax & Invoice'),
+                const AppSectionHeader(
+                  title: 'Tax & Invoice',
+                  uppercase: false,
+                  padding: EdgeInsets.only(left: 2, bottom: 6),
+                ),
                 _card(
                   children: [
                     _field(
@@ -127,7 +136,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ],
                 ),
                 const SizedBox(height: 12),
-                _sectionTitle(context, 'Localization'),
+                const AppSectionHeader(
+                  title: 'Localization',
+                  uppercase: false,
+                  padding: EdgeInsets.only(left: 2, bottom: 6),
+                ),
                 _card(
                   children: [
                     DropdownButtonFormField<String>(
@@ -149,11 +162,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ],
                 ),
                 const SizedBox(height: 12),
-                _sectionTitle(context, 'Backup Options'),
+                const AppSectionHeader(
+                  title: 'Backup Options',
+                  uppercase: false,
+                  padding: EdgeInsets.only(left: 2, bottom: 6),
+                ),
                 _card(
                   children: [
-                    _settingTile(
-                      context,
+                    AppSettingTile(
                       title: 'Trash / Recovery',
                       subtitle: 'View and restore deleted items (30 days)',
                       icon: Icons.delete_outline,
@@ -165,16 +181,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       },
                     ),
                     const Divider(height: 12),
-                    _settingTile(
-                      context,
+                    AppSettingTile(
                       title: 'Create Database Backup',
                       subtitle: 'Creates a timestamped SQLite backup file',
                       icon: Icons.backup_outlined,
                       onTap: _createBackup,
                     ),
                     const Divider(height: 12),
-                    _settingTile(
-                      context,
+                    AppSettingTile(
                       title: 'Export Settings Snapshot',
                       subtitle: 'Exports current settings to JSON',
                       icon: Icons.file_download_outlined,
@@ -183,11 +197,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ],
                 ),
                 const SizedBox(height: 12),
-                _sectionTitle(context, 'Danger Zone'),
+                const AppSectionHeader(
+                  title: 'Danger Zone',
+                  uppercase: false,
+                  padding: EdgeInsets.only(left: 2, bottom: 6),
+                ),
                 _card(
                   children: [
-                    _settingTile(
-                      context,
+                    AppSettingTile(
                       title: 'Delete Account',
                       subtitle: 'Permanently delete your account and all data.',
                       icon: Icons.delete_forever_rounded,
@@ -219,20 +236,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
-  Widget _sectionTitle(BuildContext context, String title) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 2, bottom: 6),
-      child: Text(
-        title,
-        style: TextStyle(
-          fontWeight: FontWeight.w700,
-          fontSize: 16,
-          color: Theme.of(context).colorScheme.onSurface,
-        ),
-      ),
-    );
-  }
-
   Widget _card({required List<Widget> children}) {
     final colorScheme = Theme.of(context).colorScheme;
     return Container(
@@ -243,49 +246,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         border: Border.all(color: colorScheme.outlineVariant),
       ),
       child: Column(children: children),
-    );
-  }
-
-  Widget _settingTile(
-    BuildContext context, {
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required VoidCallback onTap,
-    Color? iconColor,
-    Color? titleColor,
-  }) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final resolvedIconColor = iconColor ?? AppColors.primary;
-    final resolvedTitleColor = titleColor ?? colorScheme.onSurface;
-    final subtitleColor = colorScheme.onSurfaceVariant;
-
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: Container(
-        width: 36,
-        height: 36,
-        decoration: BoxDecoration(
-          color: resolvedIconColor.withOpacity(
-            Theme.of(context).brightness == Brightness.dark ? 0.16 : 0.10,
-          ),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Icon(icon, color: resolvedIconColor, size: 20),
-      ),
-      title: Text(
-        title,
-        style: TextStyle(
-          color: resolvedTitleColor,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-      subtitle: Text(
-        subtitle,
-        style: TextStyle(color: subtitleColor),
-      ),
-      trailing: Icon(Icons.chevron_right, color: subtitleColor),
-      onTap: onTap,
     );
   }
 

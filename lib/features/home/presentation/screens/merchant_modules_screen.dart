@@ -35,35 +35,10 @@ class MerchantModulesScreen extends ConsumerWidget {
         child: CustomScrollView(
           physics: const BouncingScrollPhysics(),
           slivers: [
-            // ── Header ─────────────────────────────────────────────────────
             SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(
-                    AppDimensions.pagePaddingH, AppDimensions.lg,
-                    AppDimensions.pagePaddingH, 0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      "Business Hub",
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w800,
-                        color: colorScheme.onSurface,
-                        letterSpacing: -0.5,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      "All your tools in one place",
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: colorScheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
+              child: AppPageHeader(
+                title: 'Business Hub',
+                subtitle: 'All your tools in one place',
               ),
             ),
 
@@ -94,8 +69,8 @@ class MerchantModulesScreen extends ConsumerWidget {
             // ─────────────────────────────────────────────────────────────
             // SECTION: Daily Operations  — 2-column hero grid
             // ─────────────────────────────────────────────────────────────
-            SliverToBoxAdapter(
-              child: _SectionLabel(label: 'Daily Operations'),
+            const SliverToBoxAdapter(
+              child: AppSectionHeader(title: 'Daily Operations'),
             ),
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(AppDimensions.pagePaddingH, 0,
@@ -146,7 +121,9 @@ class MerchantModulesScreen extends ConsumerWidget {
             // ─────────────────────────────────────────────────────────────
             // SECTION: Finance & Tracking  — vertical compact list
             // ─────────────────────────────────────────────────────────────
-            SliverToBoxAdapter(child: _SectionLabel(label: 'Finance & Tracking')),
+            const SliverToBoxAdapter(
+              child: AppSectionHeader(title: 'Finance & Tracking'),
+            ),
             SliverPadding(
               padding: const EdgeInsets.symmetric(horizontal: AppDimensions.pagePaddingH),
               sliver: SliverList(
@@ -182,7 +159,9 @@ class MerchantModulesScreen extends ConsumerWidget {
             // ─────────────────────────────────────────────────────────────
             // SECTION: People & Relationships — 2-column compact grid
             // ─────────────────────────────────────────────────────────────
-            SliverToBoxAdapter(child: _SectionLabel(label: 'People & Relationships')),
+            const SliverToBoxAdapter(
+              child: AppSectionHeader(title: 'People & Relationships'),
+            ),
             SliverPadding(
               padding: const EdgeInsets.symmetric(horizontal: AppDimensions.pagePaddingH),
               sliver: SliverGrid(
@@ -229,7 +208,9 @@ class MerchantModulesScreen extends ConsumerWidget {
             // ─────────────────────────────────────────────────────────────
             // SECTION: Administration
             // ─────────────────────────────────────────────────────────────
-            SliverToBoxAdapter(child: _SectionLabel(label: 'Administration')),
+            const SliverToBoxAdapter(
+              child: AppSectionHeader(title: 'Administration'),
+            ),
             SliverPadding(
               padding: const EdgeInsets.symmetric(horizontal: AppDimensions.pagePaddingH),
               sliver: SliverToBoxAdapter(
@@ -369,27 +350,3 @@ class _DisabledModuleTile extends StatelessWidget {
   }
 }
 
-// ── Section Label ────────────────────────────────────────────────────────────
-class _SectionLabel extends StatelessWidget {
-  const _SectionLabel({required this.label});
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final colorScheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-          AppDimensions.pagePaddingH, 0, AppDimensions.pagePaddingH, AppDimensions.sm),
-      child: Text(
-        label.toUpperCase(),
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 1.4,
-          color: isDark ? colorScheme.outlineVariant : colorScheme.outline,
-        ),
-      ),
-    );
-  }
-}

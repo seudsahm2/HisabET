@@ -255,29 +255,13 @@ class _StockAdjustmentScreenState extends ConsumerState<StockAdjustmentScreen> {
               ),
               const SizedBox(height: AppDimensions.xxl),
 
-              SizedBox(
-                width: double.infinity,
+              AppActionButton(
+                label: _isIncrease ? 'CONFIRM INCREASE' : 'CONFIRM REDUCTION',
+                icon: Icons.check,
+                backgroundColor: _isIncrease ? AppColors.positive : AppColors.negative,
+                foregroundColor: Colors.white,
                 height: 56,
-                child: ElevatedButton.icon(
-                  onPressed: _isLoading ? null : _saveAdjustment,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _isIncrease ? AppColors.positive : AppColors.negative,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
-                    ),
-                  ),
-                  icon: const Icon(Icons.check, color: Colors.white),
-                  label: _isLoading
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : Text(
-                          _isIncrease ? 'CONFIRM INCREASE' : 'CONFIRM REDUCTION',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 1.2,
-                          ),
-                        ),
-                ),
+                onTap: _isLoading ? null : _saveAdjustment,
               ),
               const SizedBox(height: AppDimensions.xxxl),
 

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
@@ -57,20 +56,20 @@ class _ContactDetailScreenState extends ConsumerState<ContactDetailScreen> {
           child: Row(
             children: [
               Expanded(
-                child: _HeroActionButton(
-                  label: "I GAVE",
-                  subLabel: "(Collect)",
-                  color: AppColors.give,
+                child: AppActionButton(
+                  label: 'I GAVE',
+                  subLabel: '(Collect)',
+                  backgroundColor: AppColors.give,
                   icon: Icons.arrow_upward_rounded,
                   onTap: () => _addTransaction(context, ref, TransactionType.goodsGiven),
                 ),
               ),
               const SizedBox(width: AppDimensions.md),
               Expanded(
-                child: _HeroActionButton(
-                  label: "I TOOK",
-                  subLabel: "(Pay)",
-                  color: AppColors.take,
+                child: AppActionButton(
+                  label: 'I TOOK',
+                  subLabel: '(Pay)',
+                  backgroundColor: AppColors.take,
                   icon: Icons.arrow_downward_rounded,
                   onTap: () => _addTransaction(context, ref, TransactionType.goodsTaken),
                 ),
@@ -131,16 +130,16 @@ class _ContactDetailScreenState extends ConsumerState<ContactDetailScreen> {
                 const SizedBox(height: AppDimensions.xl),
                 const AppSectionHeader(title: 'Transaction History', uppercase: true),
                 const SizedBox(height: AppDimensions.sm),
-                Row(
-                  children: [
-                    _buildTab('ALL', 'All'),
-                    const SizedBox(width: AppDimensions.sm),
-                    if (kDebugMode) ...[
-                      _buildTab('SALES', 'Sales', isDevMode: true),
-                      const SizedBox(width: AppDimensions.sm),
-                    ],
-                    _buildTab('MANUAL', 'Manual'),
-                  ],
+                AppFilterChips<String>(
+                  options: const ['ALL', 'SALES', 'MANUAL'],
+                  selected: _selectedTab,
+                  labelBuilder: (value) => switch (value) {
+                    'ALL' => 'All',
+                    'SALES' => 'Sales',
+                    'MANUAL' => 'Manual',
+                    _ => value,
+                  },
+                  onSelected: (value) => setState(() => _selectedTab = value),
                 ),
                 const SizedBox(height: AppDimensions.md),
                 if (filteredTransactions.isEmpty)
@@ -160,50 +159,6 @@ class _ContactDetailScreenState extends ConsumerState<ContactDetailScreen> {
             ),
           );
         },
-      ),
-    );
-  }
-
-  Widget _buildTab(String id, String label, {bool isDevMode = false}) {
-    final isSelected = _selectedTab == id;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final colorScheme = Theme.of(context).colorScheme;
-    
-    return InkWell(
-      onTap: () {
-        setState(() {
-          _selectedTab = id;
-        });
-      },
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary : (isDark ? colorScheme.surface : colorScheme.surfaceContainerHighest),
-          borderRadius: BorderRadius.circular(20),
-          border: isSelected ? null : Border.all(color: colorScheme.outlineVariant),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                color: isSelected ? colorScheme.onPrimary : colorScheme.onSurfaceVariant,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                fontSize: 13,
-              ),
-            ),
-            if (isDevMode) ...[
-              const SizedBox(width: 4),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                decoration: BoxDecoration(color: AppColors.warning, borderRadius: BorderRadius.circular(4)),
-                child: const Text('DEV', style: TextStyle(fontSize: 8, color: Colors.black, fontWeight: FontWeight.bold)),
-              ),
-            ],
-          ],
-        ),
       ),
     );
   }
@@ -398,75 +353,6 @@ class _BalanceSummaryCard extends StatelessWidget {
             style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20, letterSpacing: 0.5),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _HeroActionButton extends StatelessWidget {
-  final String label;
-  final String subLabel;
-  final Color color;
-  final IconData icon;
-  final VoidCallback onTap;
-  const _HeroActionButton({
-    required this.label,
-    required this.subLabel,
-    required this.color,
-    required this.icon,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.mediumImpact();
-        onTap();
-      },
-      child: Container(
-        height: 64,
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
-          boxShadow: [
-            BoxShadow(
-              color: color.withOpacity(0.3),
-              blurRadius: 12,
-              offset: const Offset(0, 6),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: Colors.white, size: 24),
-            const SizedBox(width: AppDimensions.sm),
-            Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                    height: 1.1,
-                  ),
-                ),
-                Text(
-                  subLabel,
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.9),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
       ),
     );
   }
