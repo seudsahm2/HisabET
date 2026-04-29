@@ -20,9 +20,6 @@ import 'package:hisabet/core/l10n/language_provider.dart';
 
 // Navigation targets
 import 'package:hisabet/features/inventory/presentation/screens/product_upsert_screen.dart';
-import 'package:hisabet/features/sales/presentation/screens/pos_cart_screen.dart';
-import 'package:hisabet/features/expenses/presentation/screens/expense_upsert_screen.dart';
-import 'package:hisabet/features/reports/presentation/screens/reports_screen.dart';
 
 import 'package:intl/intl.dart';
 
@@ -140,18 +137,19 @@ class _HomeDashboard extends ConsumerWidget {
       child: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
-          SliverToBoxAdapter(
-            child: AppMissionHeader(
-              eyebrow: 'OPERATIONS',
-              title: 'Command Center',
-              subtitle: 'Live cashflow visibility and rapid actions for today.',
-              trailing: IconButton.filledTonal(
-                onPressed: () => Navigator.push(
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(
+              AppDimensions.pagePaddingH,
+              AppDimensions.pagePaddingH,
+              AppDimensions.pagePaddingH,
+              0,
+            ),
+            sliver: SliverToBoxAdapter(
+              child: AppPersonalizedHeader(
+                onAvatarTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const ProfileEditScreen()),
                 ),
-                icon: const Icon(Icons.account_circle_rounded),
-                tooltip: 'Profile',
               ),
             ),
           ),
@@ -247,7 +245,6 @@ class _PremiumQuickActions extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Padding(
       padding: const EdgeInsets.symmetric(
@@ -259,8 +256,7 @@ class _PremiumQuickActions extends ConsumerWidget {
             context: context,
             icon: Icons.person_add,
             label: "Add Contact",
-            bg: colorScheme.primaryContainer.withOpacity(isDark ? 0.30 : 0.45),
-            iconColor: AppColors.info,
+            accentColor: AppColors.info,
             onTap: () {
               Navigator.push(
                 context,
@@ -272,8 +268,7 @@ class _PremiumQuickActions extends ConsumerWidget {
             context: context,
             icon: Icons.inventory_2,
             label: "Add Product",
-            bg: colorScheme.primaryContainer.withOpacity(isDark ? 0.30 : 0.45),
-            iconColor: AppColors.positive,
+            accentColor: AppColors.positive,
             onTap: () {
               Navigator.push(
                 context,
@@ -285,8 +280,7 @@ class _PremiumQuickActions extends ConsumerWidget {
             context: context,
             icon: Icons.receipt_long,
             label: "Add Expense",
-            bg: colorScheme.surfaceContainerHighest,
-            iconColor: colorScheme.outline,
+            accentColor: colorScheme.outline,
             disabled: true,
             onTap: () => _showComingSoon(context, 'Expense Tracking'),
           ),
@@ -294,8 +288,7 @@ class _PremiumQuickActions extends ConsumerWidget {
             context: context,
             icon: Icons.bar_chart,
             label: "Reports",
-            bg: colorScheme.surfaceContainerHighest,
-            iconColor: colorScheme.outline,
+            accentColor: colorScheme.outline,
             disabled: true,
             onTap: () => _showComingSoon(context, 'Analytics & Reports'),
           ),
@@ -308,42 +301,47 @@ class _PremiumQuickActions extends ConsumerWidget {
     required BuildContext context,
     required IconData icon,
     required String label,
-    required Color bg,
-    required Color iconColor,
+    required Color accentColor,
     required VoidCallback onTap,
     bool disabled = false,
   }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Opacity(
-        opacity: disabled ? 0.5 : 1.0,
-        child: Column(
-          children: [
-            Container(
-              height: 64,
-              width: 64,
-              decoration: BoxDecoration(
-                color: bg,
-                borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
-                boxShadow: disabled ? [] : [
-                  BoxShadow(
-                    color: bg.withOpacity(0.5),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
+    final colorScheme = Theme.of(context).colorScheme;
+    final labelColor = disabled ? colorScheme.onSurfaceVariant : colorScheme.onSurface;
+    final iconTone = disabled ? colorScheme.onSurfaceVariant : accentColor;
+
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: AppCard(
+          style: AppCardStyle.glass,
+          margin: EdgeInsets.zero,
+          onTap: disabled ? null : onTap,
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
+          child: Column(
+            children: [
+              Container(
+                height: 44,
+                width: 44,
+                decoration: BoxDecoration(
+                  color: iconTone.withValues(alpha: disabled ? 0.10 : 0.14),
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
+                ),
+                child: Icon(icon, color: iconTone, size: 24),
               ),
-              child: Icon(icon, color: iconColor, size: 28),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              label,
-              style: AppTextStyles.badgeLabel.copyWith(
-                color: disabled ? Theme.of(context).colorScheme.outline : Theme.of(context).colorScheme.onSurface,
-                fontSize: 12,
+              const SizedBox(height: 10),
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.badgeLabel.copyWith(
+                  color: labelColor,
+                  fontSize: 11.5,
+                  height: 1.05,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -390,12 +388,11 @@ class _ProfileTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colorScheme = Theme.of(context).colorScheme;
     final userProfileAsync = ref.watch(userProfileProvider);
     final user = FirebaseAuth.instance.currentUser;
     final displayName = userProfileAsync.value?.displayName ?? user?.displayName ?? 'Merchant';
     final email = user?.email ?? '';
-    final photoUrl = user?.photoURL;
+    final photoUrl = userProfileAsync.value?.photoUrl ?? user?.photoURL;
 
     return SafeArea(
       child: SingleChildScrollView(
@@ -554,55 +551,4 @@ class _ProfileTab extends ConsumerWidget {
     );
   }
 
-  void _showLanguageSheet(BuildContext context, WidgetRef ref) {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => Padding(
-        padding: const EdgeInsets.all(AppDimensions.xxxl),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text("Select Language", style: AppTextStyles.titleLarge),
-            const SizedBox(height: AppDimensions.xxl),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.45),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Text("🇺🇸", style: TextStyle(fontSize: 24)),
-              ),
-              title: const Text("English", style: TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: const Text("Default"),
-              onTap: () {
-                ref.read(languageProvider.notifier).setLanguage(const Locale('en'));
-                Navigator.pop(context);
-              },
-            ),
-            const Divider(height: 32),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.secondaryContainer.withOpacity(0.45),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Text("🇪🇹", style: TextStyle(fontSize: 24)),
-              ),
-              title: const Text("Amharic", style: TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: const Text("አማርኛ"),
-              onTap: () {
-                ref.read(languageProvider.notifier).setLanguage(const Locale('am'));
-                Navigator.pop(context);
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }

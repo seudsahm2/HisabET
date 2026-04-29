@@ -4,17 +4,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import 'package:hisabet/core/auth/providers/auth_providers.dart';
+import 'package:hisabet/core/presentation/widgets/app_glass.dart';
 import 'package:hisabet/core/theme/theme.dart';
 
 class AppPersonalizedHeader extends ConsumerWidget {
   const AppPersonalizedHeader({
     super.key,
-    this.subtitle,
     this.onAvatarTap,
     this.avatarSize = 52,
   });
 
-  final String? subtitle;
   final VoidCallback? onAvatarTap;
   final double avatarSize;
 
@@ -28,21 +27,13 @@ class AppPersonalizedHeader extends ConsumerWidget {
       error: (_, __) => 'Merchant',
     );
     final dateLabel = DateFormat('EEEE, MMM d').format(DateTime.now()).toUpperCase();
-    final photoUrl = FirebaseAuth.instance.currentUser?.photoURL;
+    final photoUrl = userProfileAsync.value?.photoUrl ?? FirebaseAuth.instance.currentUser?.photoURL;
 
     return Container(
       padding: const EdgeInsets.all(AppDimensions.lg),
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
+      decoration: AppGlass.surface(
+        context,
         borderRadius: BorderRadius.circular(AppDimensions.radiusXl),
-        border: Border.all(color: colorScheme.outlineVariant),
-        boxShadow: [
-          BoxShadow(
-            color: colorScheme.shadow.withOpacity(0.08),
-            blurRadius: 24,
-            offset: const Offset(0, 8),
-          ),
-        ],
       ),
       child: Row(
         children: [
@@ -61,27 +52,37 @@ class AppPersonalizedHeader extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(height: 6),
-                Text(
-                  'Hello, $userName',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                    color: colorScheme.onSurface,
-                    letterSpacing: -0.4,
-                    height: 1.05,
-                  ),
-                ),
-                if (subtitle != null && subtitle!.isNotEmpty) ...[
-                  const SizedBox(height: 6),
-                  Text(
-                    subtitle!,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: colorScheme.onSurfaceVariant,
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Hello, $userName',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          color: colorScheme.onSurface,
+                          letterSpacing: -0.4,
+                          height: 1.05,
+                        ),
+                      ),
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 8),
+                    Container(
+                      width: 22,
+                      height: 22,
+                      decoration: BoxDecoration(
+                        color: AppColors.infoLight,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: AppColors.info.withValues(alpha: 0.20),
+                        ),
+                      ),
+                      child: Icon(Icons.verified_rounded, size: 12, color: AppColors.info),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
@@ -97,14 +98,24 @@ class AppPersonalizedHeader extends ConsumerWidget {
                   height: avatarSize,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    border: Border.all(color: AppColors.primary.withOpacity(0.35), width: 1.5),
+                    border: Border.all(
+                      color: AppColors.primary.withValues(alpha: 0.35),
+                      width: 1.5,
+                    ),
                     image: photoUrl != null
-                        ? DecorationImage(image: NetworkImage(photoUrl), fit: BoxFit.cover)
+                        ? DecorationImage(
+                            image: NetworkImage(photoUrl),
+                            fit: BoxFit.cover,
+                          )
                         : null,
                     color: colorScheme.surfaceContainerHighest,
                   ),
                   child: photoUrl == null
-                      ? Icon(Icons.person_rounded, color: colorScheme.primary, size: avatarSize * 0.45)
+                      ? Icon(
+                          Icons.person_rounded,
+                          color: colorScheme.primary,
+                          size: avatarSize * 0.45,
+                        )
                       : null,
                 ),
                 if (onAvatarTap != null)
@@ -115,11 +126,17 @@ class AppPersonalizedHeader extends ConsumerWidget {
                       width: 22,
                       height: 22,
                       decoration: BoxDecoration(
-                        color: AppColors.primary,
+                        color: AppColors.infoLight,
                         shape: BoxShape.circle,
-                        border: Border.all(color: colorScheme.surface, width: 2),
+                        border: Border.all(
+                          color: AppColors.info.withValues(alpha: 0.20),
+                        ),
                       ),
-                      child: const Icon(Icons.edit_rounded, size: 12, color: Colors.white),
+                      child: Icon(
+                        Icons.verified_rounded,
+                        size: 12,
+                        color: AppColors.info,
+                      ),
                     ),
                   ),
               ],

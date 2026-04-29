@@ -52,7 +52,7 @@ class AppCard extends StatelessWidget {
         ? Colors.black54
         : AppColors.shadowLight;
 
-    BoxDecoration cardDecoration() {
+    BoxDecoration buildDecoration() {
       if (style == AppCardStyle.glass && color == null && border == null) {
         return AppGlass.surface(
           context,
@@ -85,7 +85,7 @@ class AppCard extends StatelessWidget {
 
     Widget card = Container(
       margin: margin,
-      decoration: cardDecoration(),
+      decoration: buildDecoration(),
       clipBehavior: clip,
       child: padding != null ? Padding(padding: padding!, child: child) : child,
     );
@@ -93,7 +93,7 @@ class AppCard extends StatelessWidget {
     if (onTap != null || onLongPress != null) {
       card = Container(
         margin: margin,
-        decoration: cardDecoration(),
+        decoration: buildDecoration(),
         clipBehavior: clip,
         child: Material(
           color: Colors.transparent,

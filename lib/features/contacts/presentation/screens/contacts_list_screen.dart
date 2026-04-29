@@ -7,14 +7,13 @@ import 'package:hisabet/core/theme/theme.dart';
 import 'package:hisabet/features/contacts/data/models/contact_model.dart';
 import 'package:hisabet/features/contacts/presentation/providers/contacts_providers.dart';
 import 'package:hisabet/features/contacts/presentation/screens/add_contact_screen.dart';
-import 'package:hisabet/features/contacts/presentation/screens/network_search_screen.dart';
 import 'package:hisabet/features/contacts/presentation/screens/connection_inbox_screen.dart';
+import 'package:hisabet/features/contacts/presentation/screens/network_search_screen.dart';
 import 'package:hisabet/features/team/data/models/team_member_model.dart';
 import 'package:hisabet/features/team/presentation/providers/team_providers.dart';
 import 'package:hisabet/features/transactions/presentation/screens/contact_detail_screen.dart';
 
-// Filter options
-const _kRoleFilters = ['All', 'Retailers', 'Wholesalers', 'Brokers', 'Suppliers'];
+const _kLedgerFilters = ['All', 'Retailers', 'Wholesalers', 'Brokers', 'Suppliers'];
 
 class ContactsListScreen extends ConsumerStatefulWidget {
   final int initialFilterIndex;
@@ -33,151 +32,213 @@ class _ContactsListScreenState extends ConsumerState<ContactsListScreen> {
   @override
   void initState() {
     super.initState();
-    final idx = widget.initialFilterIndex.clamp(0, _kRoleFilters.length - 1);
-    _selectedFilter = _kRoleFilters[idx];
-    _searchController.addListener(() {
-      setState(() => _searchQuery = _searchController.text.trim().toLowerCase());
-    });
+    final index = widget.initialFilterIndex.clamp(0, _kLedgerFilters.length - 1);
+    _selectedFilter = _kLedgerFilters[index];
+    _searchController.addListener(_syncSearchQuery);
   }
 
   @override
   void dispose() {
+    _searchController.removeListener(_syncSearchQuery);
     _searchController.dispose();
     super.dispose();
   }
 
+  void _syncSearchQuery() {
+    setState(() => _searchQuery = _searchController.text.trim().toLowerCase());
+  }
+
   List<ContactModel> _applyFilters(List<ContactModel> contacts) {
     var list = contacts;
-    // Role filter
+
     switch (_selectedFilter) {
       case 'Retailers':
-        list = list.where((c) => c.isRetailer).toList();
+        list = list.where((contact) => contact.isRetailer).toList();
         break;
       case 'Wholesalers':
-        list = list.where((c) => c.isWholesaler).toList();
+        list = list.where((contact) => contact.isWholesaler).toList();
         break;
       case 'Brokers':
-        list = list.where((c) => c.isBroker).toList();
+        list = list.where((contact) => contact.isBroker).toList();
         break;
       case 'Suppliers':
-        list = list.where((c) => c.isSupplier || c.role == ContactRole.supplier).toList();
+        list = list.where((contact) => contact.isSupplier || contact.role == ContactRole.supplier).toList();
         break;
     }
-    // Local search
+
     if (_searchQuery.isNotEmpty) {
-      list = list.where((c) {
-        return c.name.toLowerCase().contains(_searchQuery) ||
-            (c.phoneNumber?.toLowerCase().contains(_searchQuery) ?? false);
+      list = list.where((contact) {
+        return contact.name.toLowerCase().contains(_searchQuery) ||
+            (contact.phoneNumber?.toLowerCase().contains(_searchQuery) ?? false);
       }).toList();
     }
+
     return list;
   }
 
   @override
   Widget build(BuildContext context) {
     final contactsAsync = ref.watch(allContactsProvider);
+    final requestsCount = ref.watch(connectionRequestsProvider).valueOrNull?.length ?? 0;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
-          SliverToBoxAdapter(
-            child: AppMissionHeader(
-              eyebrow: 'RELATIONSHIPS',
-              title: 'Relationship Radar',
-              subtitle: 'Track balances, discover partners, and respond fast.',
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton.filledTonal(
-                    icon: const Icon(Icons.travel_explore_rounded),
-                    tooltip: 'Search HisabET Network',
-                    onPressed: () async {
-                      await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NetworkSearchScreen()));
-                      ref.invalidate(allContactsProvider);
-                    },
+          SliverAppBar(
+            pinned: true,
+            floating: true,
+            backgroundColor: Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.95),
+            surfaceTintColor: Colors.transparent,
+            elevation: 0,
+            title: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'LEDGER',
+                  style: AppTextStyles.sectionLabel.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    letterSpacing: 1.2,
                   ),
-                  const SizedBox(width: 8),
-                  Consumer(
-                    builder: (context, ref, child) {
-                      final requestsAsync = ref.watch(connectionRequestsProvider);
-                      final pendingCount = requestsAsync.valueOrNull?.length ?? 0;
-                      return Stack(
-                        children: [
-                          IconButton.filledTonal(
-                            icon: const Icon(Icons.notifications_none_rounded),
-                            tooltip: 'Connection Requests',
-                            onPressed: () {
-                              Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ConnectionInboxScreen()));
-                            },
+                ),
+                Text(
+                  'Contacts',
+                  style: AppTextStyles.headlineSmall.copyWith(
+                    color: Theme.of(context).colorScheme.onSurface,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.3,
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              Padding(
+                padding: const EdgeInsets.only(right: AppDimensions.pagePaddingH),
+                child: Center(
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      IconButton.filledTonal(
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(builder: (_) => const ConnectionInboxScreen()),
+                          );
+                        },
+                        icon: const Icon(Icons.notifications_none_rounded),
+                        tooltip: 'Requests',
+                      ),
+                      if (requestsCount > 0)
+                        Positioned(
+                          right: -4,
+                          top: -4,
+                          child: AppStatusBadge.danger(
+                            label: requestsCount.toString(),
+                            small: true,
                           ),
-                          if (pendingCount > 0)
-                            Positioned(
-                              right: 2,
-                              top: 2,
-                              child: AppStatusBadge.danger(
-                                label: pendingCount.toString(),
-                                small: true,
-                              ),
-                            ),
-                        ],
-                      );
-                    },
+                        ),
+                    ],
                   ),
-                ],
+                ),
+              ),
+            ],
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(
+              AppDimensions.pagePaddingH,
+              AppDimensions.md,
+              AppDimensions.pagePaddingH,
+              AppDimensions.md,
+            ),
+            sliver: SliverToBoxAdapter(
+              child: AppCard(
+                style: AppCardStyle.glass,
+                padding: const EdgeInsets.symmetric(horizontal: AppDimensions.md, vertical: 4),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _searchController,
+                        decoration: InputDecoration(
+                          hintText: 'Search contacts...',
+                          prefixIcon: const Icon(Icons.search_rounded),
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          errorBorder: InputBorder.none,
+                          disabledBorder: InputBorder.none,
+                          contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                          suffixIcon: _searchQuery.isEmpty
+                              ? null
+                              : IconButton(
+                                  icon: const Icon(Icons.clear_rounded),
+                                  onPressed: () => _searchController.clear(),
+                                ),
+                        ),
+                      ),
+                    ),
+                    Container(
+                      width: 1,
+                      height: 32,
+                      color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.5),
+                      margin: const EdgeInsets.symmetric(horizontal: AppDimensions.sm),
+                    ),
+                    FilledButton.tonalIcon(
+                      onPressed: () async {
+                        await Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => const NetworkSearchScreen()),
+                        );
+                        ref.invalidate(allContactsProvider);
+                      },
+                      icon: const Icon(Icons.travel_explore_rounded, size: 18),
+                      label: const Text('Network'),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(
-                AppDimensions.pagePaddingH,
-                AppDimensions.md,
-                AppDimensions.pagePaddingH,
-                0,
-              ),
-              child: AppLocalSearchSurface(
-                controller: _searchController,
-                onChanged: (value) => setState(() => _searchQuery = value.trim().toLowerCase()),
-                hintText: 'Search contact name or phone',
-                title: 'Name or phone',
-                subtitle: 'Search in saved contacts',
-                variant: AppSearchSurfaceVariant.glass,
-              ),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(
+              AppDimensions.pagePaddingH,
+              0,
+              AppDimensions.pagePaddingH,
+              AppDimensions.sm,
             ),
-          ),
-          const SliverToBoxAdapter(child: SizedBox(height: AppDimensions.xs)),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppDimensions.pagePaddingH),
-              child: AppGlobalSearchSurface(
-                title: 'Explore HisabET Network',
-                subtitle: 'Find new businesses outside your current ledger.',
-                actionLabel: 'Open Network',
-                variant: AppSearchSurfaceVariant.glass,
-                onTap: () async {
-                  await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NetworkSearchScreen()));
-                  ref.invalidate(allContactsProvider);
-                },
-              ),
-            ),
-          ),
-          const SliverToBoxAdapter(child: SizedBox(height: AppDimensions.sm)),
-          const SliverToBoxAdapter(
-            child: AppSectionHeader(
-              title: 'Role Filters',
-              uppercase: false,
-            ),
-          ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.only(top: AppDimensions.xs),
-              child: AppFilterChips<String>(
-                options: _kRoleFilters,
-                selected: _selectedFilter,
-                labelBuilder: (s) => s,
-                onSelected: (s) => setState(() => _selectedFilter = s),
+            sliver: SliverToBoxAdapter(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                child: Row(
+                  children: _kLedgerFilters.map((filter) {
+                    final selected = filter == _selectedFilter;
+                    return Padding(
+                      padding: const EdgeInsets.only(right: AppDimensions.sm),
+                      child: ChoiceChip(
+                        label: Text(filter),
+                        selected: selected,
+                        onSelected: (_) => setState(() => _selectedFilter = filter),
+                        labelStyle: TextStyle(
+                          color: selected
+                              ? Theme.of(context).colorScheme.primary
+                              : Theme.of(context).colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        selectedColor: AppColors.primaryContainer,
+                        backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
+                        side: BorderSide(
+                          color: selected
+                              ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.5)
+                              : Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.5),
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+                        ),
+                        showCheckmark: false,
+                      ),
+                    );
+                  }).toList(),
+                ),
               ),
             ),
           ),
@@ -188,6 +249,7 @@ class _ContactsListScreenState extends ConsumerState<ContactsListScreen> {
             error: (err, stack) => SliverFillRemaining(child: Center(child: Text('Error: $err'))),
             data: (contacts) {
               final filteredContacts = _applyFilters(contacts);
+
               if (filteredContacts.isEmpty) {
                 return SliverFillRemaining(
                   child: AppEmptyState(
@@ -195,7 +257,7 @@ class _ContactsListScreenState extends ConsumerState<ContactsListScreen> {
                     title: _searchQuery.isNotEmpty ? 'No Matches Found' : 'No Contacts',
                     subtitle: _searchQuery.isNotEmpty
                         ? 'No contacts match "$_searchQuery".'
-                        : 'Add contacts manually or search the HisabET network.',
+                        : 'Add contacts manually to start the ledger.',
                   ),
                 );
               }
@@ -254,9 +316,11 @@ class _ContactsListScreenState extends ConsumerState<ContactsListScreen> {
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         onPressed: () async {
-          final allowed = await _ensureCreateContactPermission(context, ref);
+          final messenger = ScaffoldMessenger.of(context);
+          final navigator = Navigator.of(context);
+          final allowed = await _ensureCreateContactPermission(messenger, ref);
           if (!allowed) return;
-          await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AddContactScreen()));
+          await navigator.push(MaterialPageRoute(builder: (_) => const AddContactScreen()));
           ref.invalidate(allContactsProvider);
         },
       ),
@@ -272,7 +336,7 @@ class _ContactsListScreenState extends ConsumerState<ContactsListScreen> {
     return '$identifier  |  $roleStr';
   }
 
-  Future<bool> _ensureCreateContactPermission(BuildContext context, WidgetRef ref) async {
+  Future<bool> _ensureCreateContactPermission(ScaffoldMessengerState messenger, WidgetRef ref) async {
     final canProcessSales = ref.read(hasPermissionProvider(TeamPermission.processSales));
     final canManagePurchases = ref.read(hasPermissionProvider(TeamPermission.managePurchases));
     if (canProcessSales || canManagePurchases) return true;
@@ -286,7 +350,7 @@ class _ContactsListScreenState extends ConsumerState<ContactsListScreen> {
     );
     ref.invalidate(recentAuditLogsProvider);
 
-    if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Permission denied.')));
+    messenger.showSnackBar(const SnackBar(content: Text('Permission denied.')));
     return false;
   }
 

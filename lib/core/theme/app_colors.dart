@@ -44,16 +44,16 @@ abstract final class AppColors {
 
   // ── Neutral / Surface ────────────────────────────────────────────────────
   /// Main screen background
-  static const Color background = Color(0xFFF7F8FA);
+  static const Color background = Color(0xFFF1F7F4);
 
   /// Card / sheet surface
-  static const Color surface = Color(0xFFFFFFFF);
+  static const Color surface = Color(0xFFF9FCFA);
 
   /// Elevated surface (modals, bottom sheets)
-  static const Color surfaceElevated = Color(0xFFFFFFFF);
+  static const Color surfaceElevated = Color(0xFFF7FBF9);
 
   /// Subtle container — for chips, input fills, section bg
-  static const Color surfaceVariant = Color(0xFFF0F0F0);
+  static const Color surfaceVariant = Color(0xFFE7F1EC);
 
   // ── Neutral Scale ────────────────────────────────────────────────────────
   static const Color neutral50 = Color(0xFFFAFAFA);

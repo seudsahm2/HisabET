@@ -5,7 +5,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:hisabet/core/l10n/language_provider.dart';
-import 'package:hisabet/core/database/app_database.dart';
 import 'package:hisabet/core/presentation/widgets/widgets.dart';
 import 'package:hisabet/features/contacts/presentation/providers/contacts_providers.dart';
 import 'package:hisabet/core/theme/app_colors.dart';
@@ -237,14 +236,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Widget _card({required List<Widget> children}) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Container(
+    return AppCard(
+      style: AppCardStyle.glass,
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: colorScheme.outlineVariant),
-      ),
       child: Column(children: children),
     );
   }
@@ -394,6 +388,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<void> _confirmDeleteAccount(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) {
@@ -455,7 +450,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to delete account: $e')));
+          messenger.showSnackBar(SnackBar(content: Text('Failed to delete account: $e')));
         }
       } finally {
         if (mounted) setState(() => _saving = false);

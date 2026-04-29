@@ -92,7 +92,7 @@ abstract final class AppTheme {
         elevation: 0,
         height: AppDimensions.bottomNavHeight,
         backgroundColor: navigationBarColor,
-        indicatorColor: AppColors.primaryContainer.withOpacity(isDark ? 0.28 : 0.5),
+        indicatorColor: AppColors.primaryContainer.withValues(alpha: isDark ? 0.28 : 0.5),
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           final selected = states.contains(WidgetState.selected);
           return AppTextStyles.badgeLabel.copyWith(

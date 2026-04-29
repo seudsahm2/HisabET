@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:hisabet/core/presentation/widgets/app_glass.dart';
 import 'package:hisabet/core/theme/theme.dart';
 
 class AppProfileHeader extends StatelessWidget {
@@ -10,6 +11,7 @@ class AppProfileHeader extends StatelessWidget {
     this.subtitle,
     this.onAvatarTap,
     this.helperText,
+    this.showVerifiedBadge = true,
   });
 
   final String name;
@@ -17,6 +19,7 @@ class AppProfileHeader extends StatelessWidget {
   final String? subtitle;
   final String? helperText;
   final VoidCallback? onAvatarTap;
+  final bool showVerifiedBadge;
 
   @override
   Widget build(BuildContext context) {
@@ -24,10 +27,9 @@ class AppProfileHeader extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.all(AppDimensions.lg),
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
+      decoration: AppGlass.surface(
+        context,
         borderRadius: BorderRadius.circular(AppDimensions.radiusXl),
-        border: Border.all(color: colorScheme.outlineVariant),
       ),
       child: Row(
         children: [
@@ -42,7 +44,10 @@ class AppProfileHeader extends StatelessWidget {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: colorScheme.surfaceContainerHighest,
-                    border: Border.all(color: AppColors.primary.withOpacity(0.30), width: 1.5),
+                    border: Border.all(
+                      color: AppColors.primary.withValues(alpha: 0.30),
+                      width: 1.5,
+                    ),
                     image: avatar != null
                         ? DecorationImage(image: avatar!, fit: BoxFit.cover)
                         : null,
@@ -85,17 +90,55 @@ class AppProfileHeader extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 6),
-                Text(
-                  name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                    color: colorScheme.onSurface,
-                    letterSpacing: -0.4,
-                    height: 1.1,
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          color: colorScheme.onSurface,
+                          letterSpacing: -0.4,
+                          height: 1.1,
+                        ),
+                      ),
+                    ),
+                    if (showVerifiedBadge) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppColors.positiveLight,
+                          borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
+                          border: Border.all(
+                            color: AppColors.positive.withValues(alpha: 0.20),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.verified_rounded,
+                              size: 12,
+                              color: AppColors.positive,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Verified',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.positive,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
                 if (subtitle != null && subtitle!.isNotEmpty) ...[
                   const SizedBox(height: 4),
