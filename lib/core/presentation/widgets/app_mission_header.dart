@@ -7,15 +7,17 @@ class AppMissionHeader extends StatelessWidget {
   const AppMissionHeader({
     super.key,
     required this.title,
-    required this.subtitle,
+    this.subtitle,
     this.eyebrow = 'HISABET',
+    this.leading,
     this.trailing,
     this.padding,
   });
 
   final String eyebrow;
   final String title;
-  final String subtitle;
+  final String? subtitle;
+  final Widget? leading;
   final Widget? trailing;
   final EdgeInsetsGeometry? padding;
 
@@ -27,9 +29,9 @@ class AppMissionHeader extends StatelessWidget {
       padding: padding ??
           const EdgeInsets.fromLTRB(
             AppDimensions.pagePaddingH,
-            AppDimensions.lg,
             AppDimensions.pagePaddingH,
-            AppDimensions.sm,
+            AppDimensions.pagePaddingH,
+            0,
           ),
       child: Container(
         padding: const EdgeInsets.all(AppDimensions.lg),
@@ -40,6 +42,10 @@ class AppMissionHeader extends StatelessWidget {
         ),
         child: Row(
           children: [
+            if (leading != null) ...[
+              leading!,
+              const SizedBox(width: AppDimensions.md),
+            ],
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -59,13 +65,15 @@ class AppMissionHeader extends StatelessWidget {
                       letterSpacing: -0.3,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: AppTextStyles.cardSubtitle.copyWith(
-                      color: colorScheme.onSurfaceVariant,
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle!,
+                      style: AppTextStyles.cardSubtitle.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ),

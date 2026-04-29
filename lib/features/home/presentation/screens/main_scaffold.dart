@@ -403,7 +403,6 @@ class _ProfileTab extends ConsumerWidget {
             const AppMissionHeader(
               eyebrow: 'CONTROL',
               title: 'Control Deck',
-              subtitle: 'Security, preferences, and store behavior in one place.',
               padding: EdgeInsets.zero,
             ),
             const SizedBox(height: AppDimensions.xl),

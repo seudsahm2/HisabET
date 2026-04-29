@@ -60,26 +60,13 @@ class AppPersonalizedHeader extends ConsumerWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          fontSize: 22,
+                          fontSize: 18,
                           fontWeight: FontWeight.w800,
                           color: colorScheme.onSurface,
                           letterSpacing: -0.4,
                           height: 1.05,
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      width: 22,
-                      height: 22,
-                      decoration: BoxDecoration(
-                        color: AppColors.infoLight,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: AppColors.info.withValues(alpha: 0.20),
-                        ),
-                      ),
-                      child: Icon(Icons.verified_rounded, size: 12, color: AppColors.info),
                     ),
                   ],
                 ),
@@ -119,24 +106,13 @@ class AppPersonalizedHeader extends ConsumerWidget {
                       : null,
                 ),
                 if (onAvatarTap != null)
-                  Positioned(
+                  const Positioned(
                     right: -2,
                     bottom: -2,
-                    child: Container(
-                      width: 22,
-                      height: 22,
-                      decoration: BoxDecoration(
-                        color: AppColors.infoLight,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: AppColors.info.withValues(alpha: 0.20),
-                        ),
-                      ),
-                      child: Icon(
-                        Icons.verified_rounded,
-                        size: 12,
-                        color: AppColors.info,
-                      ),
+                    child: Icon(
+                      Icons.verified_rounded,
+                      size: 20,
+                      color: AppColors.info,
                     ),
                   ),
               ],

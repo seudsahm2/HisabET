@@ -83,65 +83,38 @@ class _ContactsListScreenState extends ConsumerState<ContactsListScreen> {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: CustomScrollView(
-        physics: const BouncingScrollPhysics(),
+      body: SafeArea(
+        child: CustomScrollView(
+          physics: const BouncingScrollPhysics(),
         slivers: [
-          SliverAppBar(
-            pinned: true,
-            floating: true,
-            backgroundColor: Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.95),
-            surfaceTintColor: Colors.transparent,
-            elevation: 0,
-            title: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'LEDGER',
-                  style: AppTextStyles.sectionLabel.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    letterSpacing: 1.2,
+          SliverToBoxAdapter(
+            child: AppMissionHeader(
+              eyebrow: 'LEDGER',
+              title: 'Contacts',
+              trailing: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  IconButton.filledTonal(
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const ConnectionInboxScreen()),
+                      );
+                    },
+                    icon: const Icon(Icons.notifications_none_rounded),
+                    tooltip: 'Requests',
                   ),
-                ),
-                Text(
-                  'Contacts',
-                  style: AppTextStyles.headlineSmall.copyWith(
-                    color: Theme.of(context).colorScheme.onSurface,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.3,
-                  ),
-                ),
-              ],
-            ),
-            actions: [
-              Padding(
-                padding: const EdgeInsets.only(right: AppDimensions.pagePaddingH),
-                child: Center(
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      IconButton.filledTonal(
-                        onPressed: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(builder: (_) => const ConnectionInboxScreen()),
-                          );
-                        },
-                        icon: const Icon(Icons.notifications_none_rounded),
-                        tooltip: 'Requests',
+                  if (requestsCount > 0)
+                    Positioned(
+                      right: -4,
+                      top: -4,
+                      child: AppStatusBadge.danger(
+                        label: requestsCount.toString(),
+                        small: true,
                       ),
-                      if (requestsCount > 0)
-                        Positioned(
-                          right: -4,
-                          top: -4,
-                          child: AppStatusBadge.danger(
-                            label: requestsCount.toString(),
-                            small: true,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
+                    ),
+                ],
               ),
-            ],
+            ),
           ),
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(
@@ -309,6 +282,7 @@ class _ContactsListScreenState extends ConsumerState<ContactsListScreen> {
           ),
           const SliverToBoxAdapter(child: SizedBox(height: 100)),
         ],
+      ),
       ),
       floatingActionButton: FloatingActionButton.extended(
         icon: const Icon(Icons.person_add_rounded),

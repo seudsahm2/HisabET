@@ -47,7 +47,7 @@ class _AddContactScreenState extends ConsumerState<AddContactScreen> {
   final _supplierNotesController = TextEditingController();
 
   _LookupState _lookupState = _LookupState.idle;
-  _LookupMethod _lookupMethod = _LookupMethod.phone;
+  _LookupMethod _lookupMethod = _LookupMethod.email;
   bool _isActive = true;
   bool _isSaving = false;
 
@@ -135,6 +135,8 @@ class _AddContactScreenState extends ConsumerState<AddContactScreen> {
     setState(() => _lookupState = _LookupState.searching);
     try {
       final repo = ref.read(contactsRepositoryProvider);
+      final localContacts = ref.read(allContactsProvider).valueOrNull ?? [];
+      
       Map<String, dynamic>? userData;
       if (_lookupMethod == _LookupMethod.phone) {
         userData = await repo.searchUserByPhone(identifier);
@@ -155,6 +157,18 @@ class _AddContactScreenState extends ConsumerState<AddContactScreen> {
           ));
           return;
         }
+
+        // Block already added contact
+        final isExisting = localContacts.any((c) => c.linkedUserUid == userData!['uid']);
+        if (isExisting) {
+          setState(() => _lookupState = _LookupState.idle);
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('This user is already in your ledger contacts!'),
+            backgroundColor: AppColors.warning,
+          ));
+          return;
+        }
+
         _applyUserData(userData);
         setState(() => _lookupState = _LookupState.found);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -171,8 +185,8 @@ class _AddContactScreenState extends ConsumerState<AddContactScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => _lookupState = _LookupState.idle);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Search failed: $e'),
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Search failed. Please check your network connection.'),
           backgroundColor: AppColors.negative,
         ));
       }
@@ -286,7 +300,6 @@ class _AddContactScreenState extends ConsumerState<AddContactScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(title: const Text('Add Contact Record')),
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(AppDimensions.pagePaddingH),
@@ -298,48 +311,29 @@ class _AddContactScreenState extends ConsumerState<AddContactScreen> {
           ),
         ),
       ),
-      body: Form(
-        key: _formKey,
+      body: SafeArea(
+        child: Form(
+          key: _formKey,
         child: ListView(
           padding: const EdgeInsets.symmetric(
               horizontal: AppDimensions.pagePaddingH, vertical: AppDimensions.lg),
           children: [
+            AppMissionHeader(
+              eyebrow: 'NEW RECORD',
+              title: 'Add Contact',
+              padding: EdgeInsets.zero,
+              leading: IconButton.filledTonal(
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.arrow_back_rounded),
+              ),
+            ),
+            const SizedBox(height: AppDimensions.lg),
+
             // ── SECTION: Identity & Network Lookup ──────────────────────────
             AppFormSection(
               title: 'Identity & Verification',
               icon: Icons.manage_search_rounded,
               children: [
-                // Method toggle
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                      AppDimensions.xl, AppDimensions.sm, AppDimensions.xl, 0),
-                  child: Row(
-                    children: [
-                      const Text('Search by:',
-                          style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-                      const SizedBox(width: AppDimensions.md),
-                      ChoiceChip(
-                        label: const Text('Phone'),
-                        selected: _lookupMethod == _LookupMethod.phone,
-                        onSelected: _fieldsLocked ? null : (_) => setState(() {
-                          _lookupMethod = _LookupMethod.phone;
-                          _emailLookupController.clear();
-                        }),
-                      ),
-                      const SizedBox(width: AppDimensions.sm),
-                      ChoiceChip(
-                        label: const Text('Email'),
-                        selected: _lookupMethod == _LookupMethod.email,
-                        onSelected: _fieldsLocked ? null : (_) => setState(() {
-                          _lookupMethod = _LookupMethod.email;
-                          _phoneController.clear();
-                        }),
-                      ),
-                    ],
-                  ),
-                ),
-                const Divider(height: 1),
-
                 // Identifier input row
                 Padding(
                   padding: const EdgeInsets.symmetric(
@@ -347,31 +341,18 @@ class _AddContactScreenState extends ConsumerState<AddContactScreen> {
                   child: Row(
                     children: [
                       Expanded(
-                        child: _lookupMethod == _LookupMethod.phone
-                            ? TextFormField(
-                                key: const ValueKey('phone_input'),
-                                controller: _phoneController,
-                                enabled: _identifierEditable,
-                                keyboardType: TextInputType.phone,
-                                textInputAction: TextInputAction.search,
-                                onFieldSubmitted: (_) => _performSearch(),
-                                decoration: const InputDecoration(
-                                    labelText: 'Phone Number',
-                                    hintText: '+251...',
-                                    border: InputBorder.none),
-                              )
-                            : TextFormField(
-                                key: const ValueKey('email_input'),
-                                controller: _emailLookupController,
-                                enabled: _identifierEditable,
-                                keyboardType: TextInputType.emailAddress,
-                                textInputAction: TextInputAction.search,
-                                onFieldSubmitted: (_) => _performSearch(),
-                                decoration: const InputDecoration(
-                                    labelText: 'Email Address',
-                                    hintText: 'user@example.com',
-                                    border: InputBorder.none),
-                              ),
+                        child: TextFormField(
+                          key: const ValueKey('email_input'),
+                          controller: _emailLookupController,
+                          enabled: _identifierEditable,
+                          keyboardType: TextInputType.emailAddress,
+                          textInputAction: TextInputAction.search,
+                          onFieldSubmitted: (_) => _performSearch(),
+                          decoration: const InputDecoration(
+                              labelText: 'Email Address',
+                              hintText: 'user@example.com',
+                              border: InputBorder.none),
+                        ),
                       ),
                       if (_lookupState == _LookupState.found)
                         TextButton.icon(
@@ -419,7 +400,7 @@ class _AddContactScreenState extends ConsumerState<AddContactScreen> {
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              'Fields are auto-filled from verified ${_verificationMethod == 'email' ? 'email' : 'phone'} profile. Tap Change to use a different contact.',
+                              'Fields are auto-filled from verified email profile. Tap Change to use a different contact.',
                               style: const TextStyle(
                                   fontSize: 12,
                                   color: AppColors.textSecondary,
@@ -462,7 +443,15 @@ class _AddContactScreenState extends ConsumerState<AddContactScreen> {
                     ),
                   ),
 
-                // Name field
+              ],
+            ),
+            const SizedBox(height: AppDimensions.xl),
+
+            // ── SECTION: Basic Information ──────────────────────────────────
+            AppFormSection(
+              title: 'Basic Information',
+              icon: Icons.person_rounded,
+              children: [
                 Padding(
                   padding: const EdgeInsets.symmetric(
                       horizontal: AppDimensions.xl, vertical: AppDimensions.sm),
@@ -677,6 +666,7 @@ class _AddContactScreenState extends ConsumerState<AddContactScreen> {
             const SizedBox(height: 100),
           ],
         ),
+      ),
       ),
     );
   }
