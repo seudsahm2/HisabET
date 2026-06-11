@@ -1,6 +1,9 @@
+import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:hisabet/features/sync/domain/entities/user_profile.dart';
 
 /// Provides the current authenticated user's Firebase [User] stream.
@@ -32,4 +35,30 @@ final userProfileProvider = StreamProvider<UserProfile?>((ref) {
 final userRolesProvider = Provider<List<String>>((ref) {
   final profile = ref.watch(userProfileProvider).value;
   return profile?.roles ?? [];
+});
+
+/// Downloads and caches the profile image locally so it doesn't require internet on subsequent loads.
+final localProfileImageProvider = FutureProvider.family<File?, String>((ref, photoUrl) async {
+  if (photoUrl.isEmpty) return null;
+  
+  final dir = await getApplicationDocumentsDirectory();
+  final filename = 'profile_img_${photoUrl.hashCode}.jpg';
+  final file = File('${dir.path}/$filename');
+  
+  if (await file.exists()) {
+    return file;
+  }
+  
+  try {
+    final request = await HttpClient().getUrl(Uri.parse(photoUrl));
+    final response = await request.close();
+    if (response.statusCode == 200) {
+      final bytes = await consolidateHttpClientResponseBytes(response);
+      await file.writeAsBytes(bytes);
+      return file;
+    }
+  } catch (e) {
+    // Ignore errors, we just won't cache it this time
+  }
+  return null;
 });
