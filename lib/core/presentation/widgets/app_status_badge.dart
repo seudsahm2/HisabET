@@ -63,26 +63,37 @@ class AppStatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    Color effectiveColor = color;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    if (color == AppColors.positive) {
+      effectiveColor = Theme.of(context).colorScheme.secondary;
+    } else if (color == AppColors.negative) {
+      effectiveColor = Theme.of(context).colorScheme.error;
+    } else if (color == AppColors.info && isDark) {
+      effectiveColor = AppColors.infoMid; // Brighten info color in dark mode
+    }
+
     return Container(
       padding: EdgeInsets.symmetric(
         horizontal: small ? AppDimensions.sm : AppDimensions.md,
         vertical: small ? 2 : AppDimensions.xs,
       ),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: effectiveColor.withOpacity(0.12),
         borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (icon != null) ...[
-            Icon(icon, size: 10, color: color),
+            Icon(icon, size: 10, color: effectiveColor),
             const SizedBox(width: 4),
           ],
           Text(
             label,
             style: AppTextStyles.badgeLabel.copyWith(
-              color: color,
+              color: effectiveColor,
               fontSize: small ? 10 : 11,
             ),
           ),

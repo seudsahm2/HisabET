@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -28,6 +29,10 @@ class AppPersonalizedHeader extends ConsumerWidget {
     );
     final dateLabel = DateFormat('EEEE, MMM d').format(DateTime.now()).toUpperCase();
     final photoUrl = userProfileAsync.value?.photoUrl ?? FirebaseAuth.instance.currentUser?.photoURL;
+    final localImageAsync = photoUrl != null 
+        ? ref.watch(localProfileImageProvider(photoUrl)) 
+        : const AsyncValue.data(null);
+    final localImageFile = localImageAsync.value;
 
     return Container(
       padding: const EdgeInsets.all(AppDimensions.lg),
@@ -89,9 +94,11 @@ class AppPersonalizedHeader extends ConsumerWidget {
                       color: AppColors.primary.withValues(alpha: 0.35),
                       width: 1.5,
                     ),
-                    image: photoUrl != null
+                    image: (localImageFile != null || photoUrl != null)
                         ? DecorationImage(
-                            image: NetworkImage(photoUrl),
+                            image: localImageFile != null 
+                                ? FileImage(localImageFile) 
+                                : NetworkImage(photoUrl!) as ImageProvider,
                             fit: BoxFit.cover,
                           )
                         : null,

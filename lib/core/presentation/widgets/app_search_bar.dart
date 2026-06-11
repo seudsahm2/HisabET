@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:hisabet/core/theme/theme.dart';
+import 'package:hisabet/core/presentation/widgets/app_card.dart';
 
 /// Reusable search bar.
 /// Use in POS, Inventory, Contacts, Customers, Suppliers.
@@ -32,37 +33,52 @@ class AppSearchBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: margin ??
+    return AppCard(
+      style: AppCardStyle.glass,
+      margin: margin ??
           const EdgeInsets.symmetric(
             horizontal: AppDimensions.pagePaddingH,
             vertical: AppDimensions.sm,
           ),
-      child: TextField(
-        controller: controller,
-        autofocus: autofocus,
-        onChanged: onChanged,
-        onSubmitted: onSubmitted,
-        style: AppTextStyles.cardTitle.copyWith(fontWeight: FontWeight.w400),
-        decoration: InputDecoration(
-          hintText: hintText,
-          prefixIcon: const Icon(Icons.search_rounded, size: 22),
-          suffixIcon: controller != null
-              ? ValueListenableBuilder<TextEditingValue>(
-                  valueListenable: controller!,
-                  builder: (context, value, _) {
-                    if (value.text.isEmpty) return const SizedBox.shrink();
-                    return IconButton(
-                      icon: const Icon(Icons.clear_rounded, size: 18),
-                      onPressed: () {
-                        controller!.clear();
-                        onChanged?.call('');
-                      },
-                    );
-                  },
-                )
-              : null,
-        ),
+      padding: const EdgeInsets.symmetric(horizontal: AppDimensions.md, vertical: 2),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: controller,
+              autofocus: autofocus,
+              onChanged: onChanged,
+              onSubmitted: onSubmitted,
+              style: AppTextStyles.cardTitle.copyWith(fontWeight: FontWeight.w400),
+              decoration: InputDecoration(
+                hintText: hintText,
+                hintStyle: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                prefixIcon: const Icon(Icons.search_rounded, color: AppColors.primary),
+                suffixIcon: controller != null
+                    ? ValueListenableBuilder<TextEditingValue>(
+                        valueListenable: controller!,
+                        builder: (context, value, _) {
+                          if (value.text.isEmpty) return const SizedBox.shrink();
+                          return IconButton(
+                            icon: const Icon(Icons.clear_rounded, size: 18),
+                            onPressed: () {
+                              controller!.clear();
+                              onChanged?.call('');
+                            },
+                          );
+                        },
+                      )
+                    : null,
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                errorBorder: InputBorder.none,
+                disabledBorder: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

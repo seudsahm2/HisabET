@@ -9,6 +9,7 @@ abstract final class AppColors {
   static const Color primary = Color(0xFF004D40);
   static const Color primaryDark = Color(0xFF00251A);
   static const Color primaryLight = Color(0xFF39796B);
+  static const Color primaryBright = Color(0xFF4DB6AC); // Vibrant teal for dark mode text
   static const Color primaryContainer = Color(0xFFB2DFDB); // for chip bg etc.
 
   /// Accent: Gold — premium, highlights, loyalty, badges.
@@ -24,7 +25,7 @@ abstract final class AppColors {
   /// Negative / expense / payable / "take"
   static const Color negative = Color(0xFFC62828);
   static const Color negativeLight = Color(0xFFFFEBEE);
-  static const Color negativeMid = Color(0xFFE57373);
+  static const Color negativeMid = Color(0xFFFF5252); // Vibrant Bright Red
 
   /// Warning / caution (low stock, overdue)
   static const Color warning = Color(0xFFF57C00);

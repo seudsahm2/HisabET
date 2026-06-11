@@ -44,10 +44,10 @@ class AppAmountText extends StatelessWidget {
     if (isPositive == null) {
       color = AppColors.textPrimary;
     } else if (isPositive == true) {
-      color = AppColors.positive;
+      color = Theme.of(context).colorScheme.secondary;
       if (showSign && !amount.startsWith('+')) display = '+ $amount';
     } else {
-      color = AppColors.negative;
+      color = Theme.of(context).colorScheme.error;
       if (showSign && !amount.startsWith('-')) display = '- $amount';
     }
 

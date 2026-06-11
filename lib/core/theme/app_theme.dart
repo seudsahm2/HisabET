@@ -27,24 +27,27 @@ abstract final class AppTheme {
     final navigationBarColor = isDark ? const Color(0xFF151A1C) : AppColors.surface;
     final inputFillColor = isDark ? const Color(0xFF1F2629) : AppColors.surfaceVariant;
 
+    final positiveColor = isDark ? AppColors.positiveMid : AppColors.positive;
+    final negativeColor = isDark ? AppColors.negativeMid : AppColors.negative;
+
     final colorScheme = ColorScheme(
       brightness: brightness,
       primary: AppColors.primary,
       onPrimary: AppColors.textOnPrimary,
       primaryContainer: AppColors.primaryContainer,
       onPrimaryContainer: AppColors.primaryDark,
-      secondary: AppColors.positive,
-      onSecondary: Colors.white,
-      secondaryContainer: AppColors.positiveLight,
-      onSecondaryContainer: AppColors.positive,
+      secondary: positiveColor,
+      onSecondary: isDark ? Colors.black : Colors.white,
+      secondaryContainer: isDark ? AppColors.positive.withValues(alpha: 0.2) : AppColors.positiveLight,
+      onSecondaryContainer: positiveColor,
       tertiary: AppColors.accent,
       onTertiary: AppColors.primaryDark,
       tertiaryContainer: AppColors.accentLight,
       onTertiaryContainer: AppColors.primaryDark,
-      error: AppColors.negative,
-      onError: Colors.white,
-      errorContainer: AppColors.negativeLight,
-      onErrorContainer: AppColors.negative,
+      error: negativeColor,
+      onError: isDark ? Colors.black : Colors.white,
+      errorContainer: isDark ? AppColors.negative.withValues(alpha: 0.2) : AppColors.negativeLight,
+      onErrorContainer: negativeColor,
         surface: surfaceColor,
         onSurface: onSurfaceColor,
         surfaceContainerHighest: surfaceVariantColor,
