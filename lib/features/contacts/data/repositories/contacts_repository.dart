@@ -38,6 +38,7 @@ abstract class ContactsRepository {
   Future<Map<String, dynamic>?> searchUserByPhone(String phone);
   Future<Map<String, dynamic>?> searchUserByEmail(String email);
   Future<List<Map<String, dynamic>>> searchNetwork(String query);
+  Future<List<Map<String, dynamic>>> getNetworkSuggestions();
   Stream<ContactModel?> watchContact(String id);
 
   // Soft-delete extensions
@@ -110,18 +111,61 @@ class ContactsRepositoryImpl implements ContactsRepository {
       throw Exception("You cannot add yourself as a contact.");
     }
 
+    ContactModel? contactToRestore;
+
     if (linkedUserUid != null && linkedUserUid.trim().isNotEmpty) {
       final existingLinked = await (_db.select(_db.contacts)..where((t) => t.linkedUserUid.equals(linkedUserUid))).get();
       if (existingLinked.isNotEmpty) {
-        throw Exception("Contact already exists in your directory!");
+        final existing = existingLinked.first;
+        if (existing.isDeleted) {
+          contactToRestore = ContactModel.fromDb(existing);
+        } else {
+          throw Exception("Contact already exists in your directory!");
+        }
       }
     }
 
-    if (phone != null && phone.trim().isNotEmpty) {
+    if (contactToRestore == null && phone != null && phone.trim().isNotEmpty) {
       final existingPhone = await (_db.select(_db.contacts)..where((t) => t.phoneNumber.equals(phone))).get();
       if (existingPhone.isNotEmpty) {
-        throw Exception("Contact with this phone number already exists!");
+        final existing = existingPhone.first;
+        if (existing.isDeleted) {
+          contactToRestore = ContactModel.fromDb(existing);
+        } else {
+          throw Exception("Contact with this phone number already exists!");
+        }
       }
+    }
+
+    if (contactToRestore != null) {
+      await (_db.update(_db.contacts)..where((t) => t.id.equals(contactToRestore!.id))).write(
+        ContactsCompanion(
+          isDeleted: const Value(false),
+          deletedAt: const Value(null),
+          name: Value(name),
+          role: Value(role.index),
+          verificationStatus: Value(verificationStatus.index),
+          verificationRequestedAt: Value(hasLinkedUser ? now : null),
+          phoneNumber: Value(phone),
+          shopNumber: Value(shop),
+          linkedUserUid: Value(linkedUserUid),
+          verificationMethod: Value(hasLinkedUser ? verificationMethod : null),
+          isRetailer: Value(isRetailer),
+          isWholesaler: Value(isWholesaler),
+          isBroker: Value(isBroker),
+          isSupplier: Value(isSupplier),
+        ),
+      );
+      
+      if (hasLinkedUser && currentUid != null && sendConnectionNotification) {
+        _syncContactToCloud(
+          currentUid: currentUid,
+          linkedUserUid: linkedUserUid,
+        );
+      } else if (hasLinkedUser && currentUid != null) {
+        _updateMyContactsUids(currentUid: currentUid, linkedUserUid: linkedUserUid);
+      }
+      return contactToRestore.id;
     }
 
     await _db
@@ -236,6 +280,7 @@ class ContactsRepositoryImpl implements ContactsRepository {
             'fromName': me['name'] ?? 'A HisabET User',
             'fromPhone': me['phone'],
             'fromEmail': me['email'],
+            'roles': me['roles'] ?? [],
             'status': 'pending',
             'timestamp': FieldValue.serverTimestamp(),
           });
@@ -432,6 +477,52 @@ class ContactsRepositoryImpl implements ContactsRepository {
           if (row == null) return null;
           return ContactModel.fromDb(row);
         });
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> getNetworkSuggestions() async {
+    try {
+      final currentUid = FirebaseAuth.instance.currentUser?.uid;
+      if (currentUid == null) return [];
+
+      final myDoc = await FirebaseFirestore.instance.collection('users').doc(currentUid).get();
+      if (!myDoc.exists) return [];
+
+      final myContactsUids = List<String>.from(myDoc.data()?['contacts_uids'] ?? []);
+      if (myContactsUids.isEmpty) return [];
+
+      final Set<String> suggestedUids = {};
+      final contactsToCheck = myContactsUids.take(10).toList();
+      
+      for (final contactUid in contactsToCheck) {
+        final contactDoc = await FirebaseFirestore.instance.collection('users').doc(contactUid).get();
+        if (contactDoc.exists) {
+          final theirContacts = List<String>.from(contactDoc.data()?['contacts_uids'] ?? []);
+          for (final fof in theirContacts) {
+            if (fof != currentUid && !myContactsUids.contains(fof)) {
+              suggestedUids.add(fof);
+            }
+          }
+        }
+      }
+
+      if (suggestedUids.isEmpty) return [];
+
+      final uidsToFetch = suggestedUids.take(10).toList();
+      final List<Map<String, dynamic>> results = [];
+      
+      for (final uid in uidsToFetch) {
+        final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+        if (doc.exists && doc.data() != null) {
+          results.add(doc.data()!..['uid'] = doc.id);
+        }
+      }
+
+      return results;
+    } catch (e) {
+      debugPrint('[ContactsRepo] Error getting network suggestions: $e');
+      return [];
+    }
   }
 
 

@@ -642,6 +642,23 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
   }) async {
     if (!_isGoodsTransaction(tx.type)) return;
 
+    // Check for product snapshots
+    if (tx.metadata != null) {
+      if (tx.metadata!['product_snapshots'] is List) {
+        final snapshots = tx.metadata!['product_snapshots'] as List;
+        for (final snap in snapshots) {
+          if (snap is Map<String, dynamic>) {
+            await _applyInventorySnapshotEffect(tx, snap, reverse);
+          }
+        }
+        return;
+      } else if (tx.metadata!['product_snapshot'] is Map<String, dynamic>) {
+        await _applyInventorySnapshotEffect(tx, tx.metadata!['product_snapshot'] as Map<String, dynamic>, reverse);
+        return;
+      }
+    }
+
+    // Fallback to legacy single-product logic
     var delta = _calculateInventoryDelta(tx);
     if (reverse) {
       delta = -delta;
@@ -713,6 +730,85 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
             createdAt: now,
           ),
         );
+  }
+
+  Future<void> _applyInventorySnapshotEffect(TransactionModel tx, Map<String, dynamic> snap, bool reverse) async {
+    final qty = _toPositiveInt(snap['cartons'] ?? snap['quantity']);
+    if (qty <= 0) return;
+
+    var delta = tx.type == TransactionType.goodsTaken ? qty : -qty;
+    if (reverse) {
+      delta = -delta;
+    }
+    if (delta == 0) return;
+
+    final itemNumber = snap['itemNumber']?.toString();
+    final name = snap['name']?.toString() ?? 'Snapshot Item';
+    final photoUrl = snap['photoUrl']?.toString();
+    final seriesSize = _toPositiveInt(snap['seriesSize']);
+    final costPrice = snap['costPrice']?.toString() ?? '0';
+
+    Product? product;
+    if (itemNumber != null && itemNumber.isNotEmpty) {
+      final byItemNumber = await (_db.select(_db.products)..where((tbl) => tbl.itemNumber.equals(itemNumber))).get();
+      if (byItemNumber.isNotEmpty) product = byItemNumber.first;
+    }
+    if (product == null) {
+      final byName = await (_db.select(_db.products)..where((tbl) => tbl.name.equals(name))).get();
+      if (byName.isNotEmpty) product = byName.first;
+    }
+
+    final now = DateTime.now();
+
+    if (product == null && delta > 0) {
+      final newProductId = const Uuid().v4();
+      await _db.into(_db.products).insert(
+        ProductsCompanion.insert(
+          id: newProductId,
+          name: name,
+          itemNumber: Value(itemNumber),
+          photoUrl: Value(photoUrl),
+          itemsPerCarton: Value(seriesSize > 0 ? seriesSize : null),
+          seriesSize: Value(seriesSize > 0 ? seriesSize : 6),
+          colorDistribution: Value(snap['colorDistribution']?.toString()),
+          unit: const Value('carton'),
+          costPrice: Value(costPrice),
+          sellingPrice: Value(costPrice),
+          stockQuantity: Value(delta),
+          reorderLevel: const Value(0),
+          isActive: const Value(true),
+          createdAt: now,
+          updatedAt: now,
+        ),
+      );
+      product = await (_db.select(_db.products)..where((tbl) => tbl.id.equals(newProductId))).getSingle();
+    } else if (product == null) {
+      throw Exception('Cannot update inventory because this goods transaction does not match any product.');
+    } else {
+      final targetStock = product.stockQuantity + delta;
+      if (targetStock < 0 && !reverse) {
+         throw Exception('Insufficient stock for ${product.name}.');
+      }
+      if (targetStock >= 0) {
+        await (_db.update(_db.products)..where((tbl) => tbl.id.equals(product!.id))).write(
+          ProductsCompanion(
+            stockQuantity: Value(targetStock),
+            updatedAt: Value(now),
+          ),
+        );
+      }
+    }
+
+    await _db.into(_db.stockMovements).insert(
+      StockMovementsCompanion.insert(
+        id: const Uuid().v4(),
+        productId: product.id,
+        movementType: delta > 0 ? 'contact_take' : 'contact_give',
+        quantityChange: delta,
+        note: Value(reverse ? 'Reverted snapshot ${tx.id}' : 'Snapshot auto-import ${tx.id}'),
+        createdAt: now,
+      ),
+    );
   }
 
   @override

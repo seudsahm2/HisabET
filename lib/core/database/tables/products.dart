@@ -7,8 +7,17 @@ class Products extends Table {
   TextColumn get barcode => text().nullable()();
   TextColumn get category => text().nullable()();
   TextColumn get brand => text().nullable()();
+  TextColumn get photoUrl => text().nullable()();
   TextColumn get unit => text().withDefault(const Constant('pcs'))();
   IntColumn get itemsPerCarton => integer().nullable()();
+  TextColumn get itemNumber => text().nullable()();
+  IntColumn get sizeFrom => integer().nullable()();
+  IntColumn get sizeTo => integer().nullable()();
+  IntColumn get seriesSize => integer().withDefault(const Constant(6))();
+  TextColumn get colorDistribution => text().nullable()();
+  TextColumn get containerRef => text().nullable()();
+  TextColumn get supplierContactId => text().nullable()();
+  TextColumn get businessRole => text().withDefault(const Constant('retailer'))();
   TextColumn get costPrice => text().withDefault(const Constant('0.0'))();
   TextColumn get sellingPrice => text().withDefault(const Constant('0.0'))();
   IntColumn get stockQuantity => integer().withDefault(const Constant(0))();

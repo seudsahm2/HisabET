@@ -697,6 +697,21 @@ class $ContactsTable extends Contacts with TableInfo<$ContactsTable, Contact> {
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _isImporterMeta = const VerificationMeta(
+    'isImporter',
+  );
+  @override
+  late final GeneratedColumn<bool> isImporter = GeneratedColumn<bool>(
+    'is_importer',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_importer" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _isDeletedMeta = const VerificationMeta(
     'isDeleted',
   );
@@ -744,6 +759,7 @@ class $ContactsTable extends Contacts with TableInfo<$ContactsTable, Contact> {
     isWholesaler,
     isBroker,
     isSupplier,
+    isImporter,
     isDeleted,
     deletedAt,
   ];
@@ -909,6 +925,12 @@ class $ContactsTable extends Contacts with TableInfo<$ContactsTable, Contact> {
         isSupplier.isAcceptableOrUnknown(data['is_supplier']!, _isSupplierMeta),
       );
     }
+    if (data.containsKey('is_importer')) {
+      context.handle(
+        _isImporterMeta,
+        isImporter.isAcceptableOrUnknown(data['is_importer']!, _isImporterMeta),
+      );
+    }
     if (data.containsKey('is_deleted')) {
       context.handle(
         _isDeletedMeta,
@@ -1006,6 +1028,10 @@ class $ContactsTable extends Contacts with TableInfo<$ContactsTable, Contact> {
         DriftSqlType.bool,
         data['${effectivePrefix}is_supplier'],
       )!,
+      isImporter: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_importer'],
+      )!,
       isDeleted: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}is_deleted'],
@@ -1047,6 +1073,7 @@ class Contact extends DataClass implements Insertable<Contact> {
   final bool isWholesaler;
   final bool isBroker;
   final bool isSupplier;
+  final bool isImporter;
   final bool isDeleted;
   final DateTime? deletedAt;
   const Contact({
@@ -1069,6 +1096,7 @@ class Contact extends DataClass implements Insertable<Contact> {
     required this.isWholesaler,
     required this.isBroker,
     required this.isSupplier,
+    required this.isImporter,
     required this.isDeleted,
     this.deletedAt,
   });
@@ -1112,6 +1140,7 @@ class Contact extends DataClass implements Insertable<Contact> {
     map['is_wholesaler'] = Variable<bool>(isWholesaler);
     map['is_broker'] = Variable<bool>(isBroker);
     map['is_supplier'] = Variable<bool>(isSupplier);
+    map['is_importer'] = Variable<bool>(isImporter);
     map['is_deleted'] = Variable<bool>(isDeleted);
     if (!nullToAbsent || deletedAt != null) {
       map['deleted_at'] = Variable<DateTime>(deletedAt);
@@ -1152,6 +1181,7 @@ class Contact extends DataClass implements Insertable<Contact> {
       isWholesaler: Value(isWholesaler),
       isBroker: Value(isBroker),
       isSupplier: Value(isSupplier),
+      isImporter: Value(isImporter),
       isDeleted: Value(isDeleted),
       deletedAt: deletedAt == null && nullToAbsent
           ? const Value.absent()
@@ -1194,6 +1224,7 @@ class Contact extends DataClass implements Insertable<Contact> {
       isWholesaler: serializer.fromJson<bool>(json['isWholesaler']),
       isBroker: serializer.fromJson<bool>(json['isBroker']),
       isSupplier: serializer.fromJson<bool>(json['isSupplier']),
+      isImporter: serializer.fromJson<bool>(json['isImporter']),
       isDeleted: serializer.fromJson<bool>(json['isDeleted']),
       deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
     );
@@ -1227,6 +1258,7 @@ class Contact extends DataClass implements Insertable<Contact> {
       'isWholesaler': serializer.toJson<bool>(isWholesaler),
       'isBroker': serializer.toJson<bool>(isBroker),
       'isSupplier': serializer.toJson<bool>(isSupplier),
+      'isImporter': serializer.toJson<bool>(isImporter),
       'isDeleted': serializer.toJson<bool>(isDeleted),
       'deletedAt': serializer.toJson<DateTime?>(deletedAt),
     };
@@ -1252,6 +1284,7 @@ class Contact extends DataClass implements Insertable<Contact> {
     bool? isWholesaler,
     bool? isBroker,
     bool? isSupplier,
+    bool? isImporter,
     bool? isDeleted,
     Value<DateTime?> deletedAt = const Value.absent(),
   }) => Contact(
@@ -1283,6 +1316,7 @@ class Contact extends DataClass implements Insertable<Contact> {
     isWholesaler: isWholesaler ?? this.isWholesaler,
     isBroker: isBroker ?? this.isBroker,
     isSupplier: isSupplier ?? this.isSupplier,
+    isImporter: isImporter ?? this.isImporter,
     isDeleted: isDeleted ?? this.isDeleted,
     deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
   );
@@ -1337,6 +1371,9 @@ class Contact extends DataClass implements Insertable<Contact> {
       isSupplier: data.isSupplier.present
           ? data.isSupplier.value
           : this.isSupplier,
+      isImporter: data.isImporter.present
+          ? data.isImporter.value
+          : this.isImporter,
       isDeleted: data.isDeleted.present ? data.isDeleted.value : this.isDeleted,
       deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
     );
@@ -1364,6 +1401,7 @@ class Contact extends DataClass implements Insertable<Contact> {
           ..write('isWholesaler: $isWholesaler, ')
           ..write('isBroker: $isBroker, ')
           ..write('isSupplier: $isSupplier, ')
+          ..write('isImporter: $isImporter, ')
           ..write('isDeleted: $isDeleted, ')
           ..write('deletedAt: $deletedAt')
           ..write(')'))
@@ -1391,6 +1429,7 @@ class Contact extends DataClass implements Insertable<Contact> {
     isWholesaler,
     isBroker,
     isSupplier,
+    isImporter,
     isDeleted,
     deletedAt,
   ]);
@@ -1417,6 +1456,7 @@ class Contact extends DataClass implements Insertable<Contact> {
           other.isWholesaler == this.isWholesaler &&
           other.isBroker == this.isBroker &&
           other.isSupplier == this.isSupplier &&
+          other.isImporter == this.isImporter &&
           other.isDeleted == this.isDeleted &&
           other.deletedAt == this.deletedAt);
 }
@@ -1441,6 +1481,7 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
   final Value<bool> isWholesaler;
   final Value<bool> isBroker;
   final Value<bool> isSupplier;
+  final Value<bool> isImporter;
   final Value<bool> isDeleted;
   final Value<DateTime?> deletedAt;
   final Value<int> rowid;
@@ -1464,6 +1505,7 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
     this.isWholesaler = const Value.absent(),
     this.isBroker = const Value.absent(),
     this.isSupplier = const Value.absent(),
+    this.isImporter = const Value.absent(),
     this.isDeleted = const Value.absent(),
     this.deletedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -1488,6 +1530,7 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
     this.isWholesaler = const Value.absent(),
     this.isBroker = const Value.absent(),
     this.isSupplier = const Value.absent(),
+    this.isImporter = const Value.absent(),
     this.isDeleted = const Value.absent(),
     this.deletedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -1514,6 +1557,7 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
     Expression<bool>? isWholesaler,
     Expression<bool>? isBroker,
     Expression<bool>? isSupplier,
+    Expression<bool>? isImporter,
     Expression<bool>? isDeleted,
     Expression<DateTime>? deletedAt,
     Expression<int>? rowid,
@@ -1542,6 +1586,7 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
       if (isWholesaler != null) 'is_wholesaler': isWholesaler,
       if (isBroker != null) 'is_broker': isBroker,
       if (isSupplier != null) 'is_supplier': isSupplier,
+      if (isImporter != null) 'is_importer': isImporter,
       if (isDeleted != null) 'is_deleted': isDeleted,
       if (deletedAt != null) 'deleted_at': deletedAt,
       if (rowid != null) 'rowid': rowid,
@@ -1568,6 +1613,7 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
     Value<bool>? isWholesaler,
     Value<bool>? isBroker,
     Value<bool>? isSupplier,
+    Value<bool>? isImporter,
     Value<bool>? isDeleted,
     Value<DateTime?>? deletedAt,
     Value<int>? rowid,
@@ -1595,6 +1641,7 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
       isWholesaler: isWholesaler ?? this.isWholesaler,
       isBroker: isBroker ?? this.isBroker,
       isSupplier: isSupplier ?? this.isSupplier,
+      isImporter: isImporter ?? this.isImporter,
       isDeleted: isDeleted ?? this.isDeleted,
       deletedAt: deletedAt ?? this.deletedAt,
       rowid: rowid ?? this.rowid,
@@ -1669,6 +1716,9 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
     if (isSupplier.present) {
       map['is_supplier'] = Variable<bool>(isSupplier.value);
     }
+    if (isImporter.present) {
+      map['is_importer'] = Variable<bool>(isImporter.value);
+    }
     if (isDeleted.present) {
       map['is_deleted'] = Variable<bool>(isDeleted.value);
     }
@@ -1703,6 +1753,7 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
           ..write('isWholesaler: $isWholesaler, ')
           ..write('isBroker: $isBroker, ')
           ..write('isSupplier: $isSupplier, ')
+          ..write('isImporter: $isImporter, ')
           ..write('isDeleted: $isDeleted, ')
           ..write('deletedAt: $deletedAt, ')
           ..write('rowid: $rowid')
@@ -3007,6 +3058,17 @@ class $ProductsTable extends Products with TableInfo<$ProductsTable, Product> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _photoUrlMeta = const VerificationMeta(
+    'photoUrl',
+  );
+  @override
+  late final GeneratedColumn<String> photoUrl = GeneratedColumn<String>(
+    'photo_url',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _unitMeta = const VerificationMeta('unit');
   @override
   late final GeneratedColumn<String> unit = GeneratedColumn<String>(
@@ -3027,6 +3089,96 @@ class $ProductsTable extends Products with TableInfo<$ProductsTable, Product> {
     true,
     type: DriftSqlType.int,
     requiredDuringInsert: false,
+  );
+  static const VerificationMeta _itemNumberMeta = const VerificationMeta(
+    'itemNumber',
+  );
+  @override
+  late final GeneratedColumn<String> itemNumber = GeneratedColumn<String>(
+    'item_number',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _sizeFromMeta = const VerificationMeta(
+    'sizeFrom',
+  );
+  @override
+  late final GeneratedColumn<int> sizeFrom = GeneratedColumn<int>(
+    'size_from',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _sizeToMeta = const VerificationMeta('sizeTo');
+  @override
+  late final GeneratedColumn<int> sizeTo = GeneratedColumn<int>(
+    'size_to',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _seriesSizeMeta = const VerificationMeta(
+    'seriesSize',
+  );
+  @override
+  late final GeneratedColumn<int> seriesSize = GeneratedColumn<int>(
+    'series_size',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(6),
+  );
+  static const VerificationMeta _colorDistributionMeta = const VerificationMeta(
+    'colorDistribution',
+  );
+  @override
+  late final GeneratedColumn<String> colorDistribution =
+      GeneratedColumn<String>(
+        'color_distribution',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _containerRefMeta = const VerificationMeta(
+    'containerRef',
+  );
+  @override
+  late final GeneratedColumn<String> containerRef = GeneratedColumn<String>(
+    'container_ref',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _supplierContactIdMeta = const VerificationMeta(
+    'supplierContactId',
+  );
+  @override
+  late final GeneratedColumn<String> supplierContactId =
+      GeneratedColumn<String>(
+        'supplier_contact_id',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _businessRoleMeta = const VerificationMeta(
+    'businessRole',
+  );
+  @override
+  late final GeneratedColumn<String> businessRole = GeneratedColumn<String>(
+    'business_role',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('retailer'),
   );
   static const VerificationMeta _costPriceMeta = const VerificationMeta(
     'costPrice',
@@ -3147,8 +3299,17 @@ class $ProductsTable extends Products with TableInfo<$ProductsTable, Product> {
     barcode,
     category,
     brand,
+    photoUrl,
     unit,
     itemsPerCarton,
+    itemNumber,
+    sizeFrom,
+    sizeTo,
+    seriesSize,
+    colorDistribution,
+    containerRef,
+    supplierContactId,
+    businessRole,
     costPrice,
     sellingPrice,
     stockQuantity,
@@ -3208,6 +3369,12 @@ class $ProductsTable extends Products with TableInfo<$ProductsTable, Product> {
         brand.isAcceptableOrUnknown(data['brand']!, _brandMeta),
       );
     }
+    if (data.containsKey('photo_url')) {
+      context.handle(
+        _photoUrlMeta,
+        photoUrl.isAcceptableOrUnknown(data['photo_url']!, _photoUrlMeta),
+      );
+    }
     if (data.containsKey('unit')) {
       context.handle(
         _unitMeta,
@@ -3220,6 +3387,66 @@ class $ProductsTable extends Products with TableInfo<$ProductsTable, Product> {
         itemsPerCarton.isAcceptableOrUnknown(
           data['items_per_carton']!,
           _itemsPerCartonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('item_number')) {
+      context.handle(
+        _itemNumberMeta,
+        itemNumber.isAcceptableOrUnknown(data['item_number']!, _itemNumberMeta),
+      );
+    }
+    if (data.containsKey('size_from')) {
+      context.handle(
+        _sizeFromMeta,
+        sizeFrom.isAcceptableOrUnknown(data['size_from']!, _sizeFromMeta),
+      );
+    }
+    if (data.containsKey('size_to')) {
+      context.handle(
+        _sizeToMeta,
+        sizeTo.isAcceptableOrUnknown(data['size_to']!, _sizeToMeta),
+      );
+    }
+    if (data.containsKey('series_size')) {
+      context.handle(
+        _seriesSizeMeta,
+        seriesSize.isAcceptableOrUnknown(data['series_size']!, _seriesSizeMeta),
+      );
+    }
+    if (data.containsKey('color_distribution')) {
+      context.handle(
+        _colorDistributionMeta,
+        colorDistribution.isAcceptableOrUnknown(
+          data['color_distribution']!,
+          _colorDistributionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('container_ref')) {
+      context.handle(
+        _containerRefMeta,
+        containerRef.isAcceptableOrUnknown(
+          data['container_ref']!,
+          _containerRefMeta,
+        ),
+      );
+    }
+    if (data.containsKey('supplier_contact_id')) {
+      context.handle(
+        _supplierContactIdMeta,
+        supplierContactId.isAcceptableOrUnknown(
+          data['supplier_contact_id']!,
+          _supplierContactIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('business_role')) {
+      context.handle(
+        _businessRoleMeta,
+        businessRole.isAcceptableOrUnknown(
+          data['business_role']!,
+          _businessRoleMeta,
         ),
       );
     }
@@ -3323,6 +3550,10 @@ class $ProductsTable extends Products with TableInfo<$ProductsTable, Product> {
         DriftSqlType.string,
         data['${effectivePrefix}brand'],
       ),
+      photoUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}photo_url'],
+      ),
       unit: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}unit'],
@@ -3331,6 +3562,38 @@ class $ProductsTable extends Products with TableInfo<$ProductsTable, Product> {
         DriftSqlType.int,
         data['${effectivePrefix}items_per_carton'],
       ),
+      itemNumber: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}item_number'],
+      ),
+      sizeFrom: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}size_from'],
+      ),
+      sizeTo: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}size_to'],
+      ),
+      seriesSize: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}series_size'],
+      )!,
+      colorDistribution: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}color_distribution'],
+      ),
+      containerRef: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}container_ref'],
+      ),
+      supplierContactId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}supplier_contact_id'],
+      ),
+      businessRole: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}business_role'],
+      )!,
       costPrice: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}cost_price'],
@@ -3383,8 +3646,17 @@ class Product extends DataClass implements Insertable<Product> {
   final String? barcode;
   final String? category;
   final String? brand;
+  final String? photoUrl;
   final String unit;
   final int? itemsPerCarton;
+  final String? itemNumber;
+  final int? sizeFrom;
+  final int? sizeTo;
+  final int seriesSize;
+  final String? colorDistribution;
+  final String? containerRef;
+  final String? supplierContactId;
+  final String businessRole;
   final String costPrice;
   final String sellingPrice;
   final int stockQuantity;
@@ -3401,8 +3673,17 @@ class Product extends DataClass implements Insertable<Product> {
     this.barcode,
     this.category,
     this.brand,
+    this.photoUrl,
     required this.unit,
     this.itemsPerCarton,
+    this.itemNumber,
+    this.sizeFrom,
+    this.sizeTo,
+    required this.seriesSize,
+    this.colorDistribution,
+    this.containerRef,
+    this.supplierContactId,
+    required this.businessRole,
     required this.costPrice,
     required this.sellingPrice,
     required this.stockQuantity,
@@ -3430,10 +3711,33 @@ class Product extends DataClass implements Insertable<Product> {
     if (!nullToAbsent || brand != null) {
       map['brand'] = Variable<String>(brand);
     }
+    if (!nullToAbsent || photoUrl != null) {
+      map['photo_url'] = Variable<String>(photoUrl);
+    }
     map['unit'] = Variable<String>(unit);
     if (!nullToAbsent || itemsPerCarton != null) {
       map['items_per_carton'] = Variable<int>(itemsPerCarton);
     }
+    if (!nullToAbsent || itemNumber != null) {
+      map['item_number'] = Variable<String>(itemNumber);
+    }
+    if (!nullToAbsent || sizeFrom != null) {
+      map['size_from'] = Variable<int>(sizeFrom);
+    }
+    if (!nullToAbsent || sizeTo != null) {
+      map['size_to'] = Variable<int>(sizeTo);
+    }
+    map['series_size'] = Variable<int>(seriesSize);
+    if (!nullToAbsent || colorDistribution != null) {
+      map['color_distribution'] = Variable<String>(colorDistribution);
+    }
+    if (!nullToAbsent || containerRef != null) {
+      map['container_ref'] = Variable<String>(containerRef);
+    }
+    if (!nullToAbsent || supplierContactId != null) {
+      map['supplier_contact_id'] = Variable<String>(supplierContactId);
+    }
+    map['business_role'] = Variable<String>(businessRole);
     map['cost_price'] = Variable<String>(costPrice);
     map['selling_price'] = Variable<String>(sellingPrice);
     map['stock_quantity'] = Variable<int>(stockQuantity);
@@ -3462,10 +3766,33 @@ class Product extends DataClass implements Insertable<Product> {
       brand: brand == null && nullToAbsent
           ? const Value.absent()
           : Value(brand),
+      photoUrl: photoUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(photoUrl),
       unit: Value(unit),
       itemsPerCarton: itemsPerCarton == null && nullToAbsent
           ? const Value.absent()
           : Value(itemsPerCarton),
+      itemNumber: itemNumber == null && nullToAbsent
+          ? const Value.absent()
+          : Value(itemNumber),
+      sizeFrom: sizeFrom == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sizeFrom),
+      sizeTo: sizeTo == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sizeTo),
+      seriesSize: Value(seriesSize),
+      colorDistribution: colorDistribution == null && nullToAbsent
+          ? const Value.absent()
+          : Value(colorDistribution),
+      containerRef: containerRef == null && nullToAbsent
+          ? const Value.absent()
+          : Value(containerRef),
+      supplierContactId: supplierContactId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(supplierContactId),
+      businessRole: Value(businessRole),
       costPrice: Value(costPrice),
       sellingPrice: Value(sellingPrice),
       stockQuantity: Value(stockQuantity),
@@ -3492,8 +3819,21 @@ class Product extends DataClass implements Insertable<Product> {
       barcode: serializer.fromJson<String?>(json['barcode']),
       category: serializer.fromJson<String?>(json['category']),
       brand: serializer.fromJson<String?>(json['brand']),
+      photoUrl: serializer.fromJson<String?>(json['photoUrl']),
       unit: serializer.fromJson<String>(json['unit']),
       itemsPerCarton: serializer.fromJson<int?>(json['itemsPerCarton']),
+      itemNumber: serializer.fromJson<String?>(json['itemNumber']),
+      sizeFrom: serializer.fromJson<int?>(json['sizeFrom']),
+      sizeTo: serializer.fromJson<int?>(json['sizeTo']),
+      seriesSize: serializer.fromJson<int>(json['seriesSize']),
+      colorDistribution: serializer.fromJson<String?>(
+        json['colorDistribution'],
+      ),
+      containerRef: serializer.fromJson<String?>(json['containerRef']),
+      supplierContactId: serializer.fromJson<String?>(
+        json['supplierContactId'],
+      ),
+      businessRole: serializer.fromJson<String>(json['businessRole']),
       costPrice: serializer.fromJson<String>(json['costPrice']),
       sellingPrice: serializer.fromJson<String>(json['sellingPrice']),
       stockQuantity: serializer.fromJson<int>(json['stockQuantity']),
@@ -3515,8 +3855,17 @@ class Product extends DataClass implements Insertable<Product> {
       'barcode': serializer.toJson<String?>(barcode),
       'category': serializer.toJson<String?>(category),
       'brand': serializer.toJson<String?>(brand),
+      'photoUrl': serializer.toJson<String?>(photoUrl),
       'unit': serializer.toJson<String>(unit),
       'itemsPerCarton': serializer.toJson<int?>(itemsPerCarton),
+      'itemNumber': serializer.toJson<String?>(itemNumber),
+      'sizeFrom': serializer.toJson<int?>(sizeFrom),
+      'sizeTo': serializer.toJson<int?>(sizeTo),
+      'seriesSize': serializer.toJson<int>(seriesSize),
+      'colorDistribution': serializer.toJson<String?>(colorDistribution),
+      'containerRef': serializer.toJson<String?>(containerRef),
+      'supplierContactId': serializer.toJson<String?>(supplierContactId),
+      'businessRole': serializer.toJson<String>(businessRole),
       'costPrice': serializer.toJson<String>(costPrice),
       'sellingPrice': serializer.toJson<String>(sellingPrice),
       'stockQuantity': serializer.toJson<int>(stockQuantity),
@@ -3536,8 +3885,17 @@ class Product extends DataClass implements Insertable<Product> {
     Value<String?> barcode = const Value.absent(),
     Value<String?> category = const Value.absent(),
     Value<String?> brand = const Value.absent(),
+    Value<String?> photoUrl = const Value.absent(),
     String? unit,
     Value<int?> itemsPerCarton = const Value.absent(),
+    Value<String?> itemNumber = const Value.absent(),
+    Value<int?> sizeFrom = const Value.absent(),
+    Value<int?> sizeTo = const Value.absent(),
+    int? seriesSize,
+    Value<String?> colorDistribution = const Value.absent(),
+    Value<String?> containerRef = const Value.absent(),
+    Value<String?> supplierContactId = const Value.absent(),
+    String? businessRole,
     String? costPrice,
     String? sellingPrice,
     int? stockQuantity,
@@ -3554,10 +3912,23 @@ class Product extends DataClass implements Insertable<Product> {
     barcode: barcode.present ? barcode.value : this.barcode,
     category: category.present ? category.value : this.category,
     brand: brand.present ? brand.value : this.brand,
+    photoUrl: photoUrl.present ? photoUrl.value : this.photoUrl,
     unit: unit ?? this.unit,
     itemsPerCarton: itemsPerCarton.present
         ? itemsPerCarton.value
         : this.itemsPerCarton,
+    itemNumber: itemNumber.present ? itemNumber.value : this.itemNumber,
+    sizeFrom: sizeFrom.present ? sizeFrom.value : this.sizeFrom,
+    sizeTo: sizeTo.present ? sizeTo.value : this.sizeTo,
+    seriesSize: seriesSize ?? this.seriesSize,
+    colorDistribution: colorDistribution.present
+        ? colorDistribution.value
+        : this.colorDistribution,
+    containerRef: containerRef.present ? containerRef.value : this.containerRef,
+    supplierContactId: supplierContactId.present
+        ? supplierContactId.value
+        : this.supplierContactId,
+    businessRole: businessRole ?? this.businessRole,
     costPrice: costPrice ?? this.costPrice,
     sellingPrice: sellingPrice ?? this.sellingPrice,
     stockQuantity: stockQuantity ?? this.stockQuantity,
@@ -3576,10 +3947,31 @@ class Product extends DataClass implements Insertable<Product> {
       barcode: data.barcode.present ? data.barcode.value : this.barcode,
       category: data.category.present ? data.category.value : this.category,
       brand: data.brand.present ? data.brand.value : this.brand,
+      photoUrl: data.photoUrl.present ? data.photoUrl.value : this.photoUrl,
       unit: data.unit.present ? data.unit.value : this.unit,
       itemsPerCarton: data.itemsPerCarton.present
           ? data.itemsPerCarton.value
           : this.itemsPerCarton,
+      itemNumber: data.itemNumber.present
+          ? data.itemNumber.value
+          : this.itemNumber,
+      sizeFrom: data.sizeFrom.present ? data.sizeFrom.value : this.sizeFrom,
+      sizeTo: data.sizeTo.present ? data.sizeTo.value : this.sizeTo,
+      seriesSize: data.seriesSize.present
+          ? data.seriesSize.value
+          : this.seriesSize,
+      colorDistribution: data.colorDistribution.present
+          ? data.colorDistribution.value
+          : this.colorDistribution,
+      containerRef: data.containerRef.present
+          ? data.containerRef.value
+          : this.containerRef,
+      supplierContactId: data.supplierContactId.present
+          ? data.supplierContactId.value
+          : this.supplierContactId,
+      businessRole: data.businessRole.present
+          ? data.businessRole.value
+          : this.businessRole,
       costPrice: data.costPrice.present ? data.costPrice.value : this.costPrice,
       sellingPrice: data.sellingPrice.present
           ? data.sellingPrice.value
@@ -3607,8 +3999,17 @@ class Product extends DataClass implements Insertable<Product> {
           ..write('barcode: $barcode, ')
           ..write('category: $category, ')
           ..write('brand: $brand, ')
+          ..write('photoUrl: $photoUrl, ')
           ..write('unit: $unit, ')
           ..write('itemsPerCarton: $itemsPerCarton, ')
+          ..write('itemNumber: $itemNumber, ')
+          ..write('sizeFrom: $sizeFrom, ')
+          ..write('sizeTo: $sizeTo, ')
+          ..write('seriesSize: $seriesSize, ')
+          ..write('colorDistribution: $colorDistribution, ')
+          ..write('containerRef: $containerRef, ')
+          ..write('supplierContactId: $supplierContactId, ')
+          ..write('businessRole: $businessRole, ')
           ..write('costPrice: $costPrice, ')
           ..write('sellingPrice: $sellingPrice, ')
           ..write('stockQuantity: $stockQuantity, ')
@@ -3623,15 +4024,24 @@ class Product extends DataClass implements Insertable<Product> {
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     name,
     sku,
     barcode,
     category,
     brand,
+    photoUrl,
     unit,
     itemsPerCarton,
+    itemNumber,
+    sizeFrom,
+    sizeTo,
+    seriesSize,
+    colorDistribution,
+    containerRef,
+    supplierContactId,
+    businessRole,
     costPrice,
     sellingPrice,
     stockQuantity,
@@ -3641,7 +4051,7 @@ class Product extends DataClass implements Insertable<Product> {
     updatedAt,
     isDeleted,
     deletedAt,
-  );
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -3652,8 +4062,17 @@ class Product extends DataClass implements Insertable<Product> {
           other.barcode == this.barcode &&
           other.category == this.category &&
           other.brand == this.brand &&
+          other.photoUrl == this.photoUrl &&
           other.unit == this.unit &&
           other.itemsPerCarton == this.itemsPerCarton &&
+          other.itemNumber == this.itemNumber &&
+          other.sizeFrom == this.sizeFrom &&
+          other.sizeTo == this.sizeTo &&
+          other.seriesSize == this.seriesSize &&
+          other.colorDistribution == this.colorDistribution &&
+          other.containerRef == this.containerRef &&
+          other.supplierContactId == this.supplierContactId &&
+          other.businessRole == this.businessRole &&
           other.costPrice == this.costPrice &&
           other.sellingPrice == this.sellingPrice &&
           other.stockQuantity == this.stockQuantity &&
@@ -3672,8 +4091,17 @@ class ProductsCompanion extends UpdateCompanion<Product> {
   final Value<String?> barcode;
   final Value<String?> category;
   final Value<String?> brand;
+  final Value<String?> photoUrl;
   final Value<String> unit;
   final Value<int?> itemsPerCarton;
+  final Value<String?> itemNumber;
+  final Value<int?> sizeFrom;
+  final Value<int?> sizeTo;
+  final Value<int> seriesSize;
+  final Value<String?> colorDistribution;
+  final Value<String?> containerRef;
+  final Value<String?> supplierContactId;
+  final Value<String> businessRole;
   final Value<String> costPrice;
   final Value<String> sellingPrice;
   final Value<int> stockQuantity;
@@ -3691,8 +4119,17 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     this.barcode = const Value.absent(),
     this.category = const Value.absent(),
     this.brand = const Value.absent(),
+    this.photoUrl = const Value.absent(),
     this.unit = const Value.absent(),
     this.itemsPerCarton = const Value.absent(),
+    this.itemNumber = const Value.absent(),
+    this.sizeFrom = const Value.absent(),
+    this.sizeTo = const Value.absent(),
+    this.seriesSize = const Value.absent(),
+    this.colorDistribution = const Value.absent(),
+    this.containerRef = const Value.absent(),
+    this.supplierContactId = const Value.absent(),
+    this.businessRole = const Value.absent(),
     this.costPrice = const Value.absent(),
     this.sellingPrice = const Value.absent(),
     this.stockQuantity = const Value.absent(),
@@ -3711,8 +4148,17 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     this.barcode = const Value.absent(),
     this.category = const Value.absent(),
     this.brand = const Value.absent(),
+    this.photoUrl = const Value.absent(),
     this.unit = const Value.absent(),
     this.itemsPerCarton = const Value.absent(),
+    this.itemNumber = const Value.absent(),
+    this.sizeFrom = const Value.absent(),
+    this.sizeTo = const Value.absent(),
+    this.seriesSize = const Value.absent(),
+    this.colorDistribution = const Value.absent(),
+    this.containerRef = const Value.absent(),
+    this.supplierContactId = const Value.absent(),
+    this.businessRole = const Value.absent(),
     this.costPrice = const Value.absent(),
     this.sellingPrice = const Value.absent(),
     this.stockQuantity = const Value.absent(),
@@ -3734,8 +4180,17 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     Expression<String>? barcode,
     Expression<String>? category,
     Expression<String>? brand,
+    Expression<String>? photoUrl,
     Expression<String>? unit,
     Expression<int>? itemsPerCarton,
+    Expression<String>? itemNumber,
+    Expression<int>? sizeFrom,
+    Expression<int>? sizeTo,
+    Expression<int>? seriesSize,
+    Expression<String>? colorDistribution,
+    Expression<String>? containerRef,
+    Expression<String>? supplierContactId,
+    Expression<String>? businessRole,
     Expression<String>? costPrice,
     Expression<String>? sellingPrice,
     Expression<int>? stockQuantity,
@@ -3754,8 +4209,17 @@ class ProductsCompanion extends UpdateCompanion<Product> {
       if (barcode != null) 'barcode': barcode,
       if (category != null) 'category': category,
       if (brand != null) 'brand': brand,
+      if (photoUrl != null) 'photo_url': photoUrl,
       if (unit != null) 'unit': unit,
       if (itemsPerCarton != null) 'items_per_carton': itemsPerCarton,
+      if (itemNumber != null) 'item_number': itemNumber,
+      if (sizeFrom != null) 'size_from': sizeFrom,
+      if (sizeTo != null) 'size_to': sizeTo,
+      if (seriesSize != null) 'series_size': seriesSize,
+      if (colorDistribution != null) 'color_distribution': colorDistribution,
+      if (containerRef != null) 'container_ref': containerRef,
+      if (supplierContactId != null) 'supplier_contact_id': supplierContactId,
+      if (businessRole != null) 'business_role': businessRole,
       if (costPrice != null) 'cost_price': costPrice,
       if (sellingPrice != null) 'selling_price': sellingPrice,
       if (stockQuantity != null) 'stock_quantity': stockQuantity,
@@ -3776,8 +4240,17 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     Value<String?>? barcode,
     Value<String?>? category,
     Value<String?>? brand,
+    Value<String?>? photoUrl,
     Value<String>? unit,
     Value<int?>? itemsPerCarton,
+    Value<String?>? itemNumber,
+    Value<int?>? sizeFrom,
+    Value<int?>? sizeTo,
+    Value<int>? seriesSize,
+    Value<String?>? colorDistribution,
+    Value<String?>? containerRef,
+    Value<String?>? supplierContactId,
+    Value<String>? businessRole,
     Value<String>? costPrice,
     Value<String>? sellingPrice,
     Value<int>? stockQuantity,
@@ -3796,8 +4269,17 @@ class ProductsCompanion extends UpdateCompanion<Product> {
       barcode: barcode ?? this.barcode,
       category: category ?? this.category,
       brand: brand ?? this.brand,
+      photoUrl: photoUrl ?? this.photoUrl,
       unit: unit ?? this.unit,
       itemsPerCarton: itemsPerCarton ?? this.itemsPerCarton,
+      itemNumber: itemNumber ?? this.itemNumber,
+      sizeFrom: sizeFrom ?? this.sizeFrom,
+      sizeTo: sizeTo ?? this.sizeTo,
+      seriesSize: seriesSize ?? this.seriesSize,
+      colorDistribution: colorDistribution ?? this.colorDistribution,
+      containerRef: containerRef ?? this.containerRef,
+      supplierContactId: supplierContactId ?? this.supplierContactId,
+      businessRole: businessRole ?? this.businessRole,
       costPrice: costPrice ?? this.costPrice,
       sellingPrice: sellingPrice ?? this.sellingPrice,
       stockQuantity: stockQuantity ?? this.stockQuantity,
@@ -3832,11 +4314,38 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     if (brand.present) {
       map['brand'] = Variable<String>(brand.value);
     }
+    if (photoUrl.present) {
+      map['photo_url'] = Variable<String>(photoUrl.value);
+    }
     if (unit.present) {
       map['unit'] = Variable<String>(unit.value);
     }
     if (itemsPerCarton.present) {
       map['items_per_carton'] = Variable<int>(itemsPerCarton.value);
+    }
+    if (itemNumber.present) {
+      map['item_number'] = Variable<String>(itemNumber.value);
+    }
+    if (sizeFrom.present) {
+      map['size_from'] = Variable<int>(sizeFrom.value);
+    }
+    if (sizeTo.present) {
+      map['size_to'] = Variable<int>(sizeTo.value);
+    }
+    if (seriesSize.present) {
+      map['series_size'] = Variable<int>(seriesSize.value);
+    }
+    if (colorDistribution.present) {
+      map['color_distribution'] = Variable<String>(colorDistribution.value);
+    }
+    if (containerRef.present) {
+      map['container_ref'] = Variable<String>(containerRef.value);
+    }
+    if (supplierContactId.present) {
+      map['supplier_contact_id'] = Variable<String>(supplierContactId.value);
+    }
+    if (businessRole.present) {
+      map['business_role'] = Variable<String>(businessRole.value);
     }
     if (costPrice.present) {
       map['cost_price'] = Variable<String>(costPrice.value);
@@ -3880,8 +4389,17 @@ class ProductsCompanion extends UpdateCompanion<Product> {
           ..write('barcode: $barcode, ')
           ..write('category: $category, ')
           ..write('brand: $brand, ')
+          ..write('photoUrl: $photoUrl, ')
           ..write('unit: $unit, ')
           ..write('itemsPerCarton: $itemsPerCarton, ')
+          ..write('itemNumber: $itemNumber, ')
+          ..write('sizeFrom: $sizeFrom, ')
+          ..write('sizeTo: $sizeTo, ')
+          ..write('seriesSize: $seriesSize, ')
+          ..write('colorDistribution: $colorDistribution, ')
+          ..write('containerRef: $containerRef, ')
+          ..write('supplierContactId: $supplierContactId, ')
+          ..write('businessRole: $businessRole, ')
           ..write('costPrice: $costPrice, ')
           ..write('sellingPrice: $sellingPrice, ')
           ..write('stockQuantity: $stockQuantity, ')
@@ -10613,6 +11131,7 @@ typedef $$ContactsTableCreateCompanionBuilder =
       Value<bool> isWholesaler,
       Value<bool> isBroker,
       Value<bool> isSupplier,
+      Value<bool> isImporter,
       Value<bool> isDeleted,
       Value<DateTime?> deletedAt,
       Value<int> rowid,
@@ -10638,6 +11157,7 @@ typedef $$ContactsTableUpdateCompanionBuilder =
       Value<bool> isWholesaler,
       Value<bool> isBroker,
       Value<bool> isSupplier,
+      Value<bool> isImporter,
       Value<bool> isDeleted,
       Value<DateTime?> deletedAt,
       Value<int> rowid,
@@ -10767,6 +11287,11 @@ class $$ContactsTableFilterComposer
 
   ColumnFilters<bool> get isSupplier => $composableBuilder(
     column: $table.isSupplier,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isImporter => $composableBuilder(
+    column: $table.isImporter,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -10910,6 +11435,11 @@ class $$ContactsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get isImporter => $composableBuilder(
+    column: $table.isImporter,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get isDeleted => $composableBuilder(
     column: $table.isDeleted,
     builder: (column) => ColumnOrderings(column),
@@ -11017,6 +11547,11 @@ class $$ContactsTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get isImporter => $composableBuilder(
+    column: $table.isImporter,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<bool> get isDeleted =>
       $composableBuilder(column: $table.isDeleted, builder: (column) => column);
 
@@ -11096,6 +11631,7 @@ class $$ContactsTableTableManager
                 Value<bool> isWholesaler = const Value.absent(),
                 Value<bool> isBroker = const Value.absent(),
                 Value<bool> isSupplier = const Value.absent(),
+                Value<bool> isImporter = const Value.absent(),
                 Value<bool> isDeleted = const Value.absent(),
                 Value<DateTime?> deletedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -11119,6 +11655,7 @@ class $$ContactsTableTableManager
                 isWholesaler: isWholesaler,
                 isBroker: isBroker,
                 isSupplier: isSupplier,
+                isImporter: isImporter,
                 isDeleted: isDeleted,
                 deletedAt: deletedAt,
                 rowid: rowid,
@@ -11144,6 +11681,7 @@ class $$ContactsTableTableManager
                 Value<bool> isWholesaler = const Value.absent(),
                 Value<bool> isBroker = const Value.absent(),
                 Value<bool> isSupplier = const Value.absent(),
+                Value<bool> isImporter = const Value.absent(),
                 Value<bool> isDeleted = const Value.absent(),
                 Value<DateTime?> deletedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -11167,6 +11705,7 @@ class $$ContactsTableTableManager
                 isWholesaler: isWholesaler,
                 isBroker: isBroker,
                 isSupplier: isSupplier,
+                isImporter: isImporter,
                 isDeleted: isDeleted,
                 deletedAt: deletedAt,
                 rowid: rowid,
@@ -12073,8 +12612,17 @@ typedef $$ProductsTableCreateCompanionBuilder =
       Value<String?> barcode,
       Value<String?> category,
       Value<String?> brand,
+      Value<String?> photoUrl,
       Value<String> unit,
       Value<int?> itemsPerCarton,
+      Value<String?> itemNumber,
+      Value<int?> sizeFrom,
+      Value<int?> sizeTo,
+      Value<int> seriesSize,
+      Value<String?> colorDistribution,
+      Value<String?> containerRef,
+      Value<String?> supplierContactId,
+      Value<String> businessRole,
       Value<String> costPrice,
       Value<String> sellingPrice,
       Value<int> stockQuantity,
@@ -12094,8 +12642,17 @@ typedef $$ProductsTableUpdateCompanionBuilder =
       Value<String?> barcode,
       Value<String?> category,
       Value<String?> brand,
+      Value<String?> photoUrl,
       Value<String> unit,
       Value<int?> itemsPerCarton,
+      Value<String?> itemNumber,
+      Value<int?> sizeFrom,
+      Value<int?> sizeTo,
+      Value<int> seriesSize,
+      Value<String?> colorDistribution,
+      Value<String?> containerRef,
+      Value<String?> supplierContactId,
+      Value<String> businessRole,
       Value<String> costPrice,
       Value<String> sellingPrice,
       Value<int> stockQuantity,
@@ -12219,6 +12776,11 @@ class $$ProductsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get photoUrl => $composableBuilder(
+    column: $table.photoUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<String> get unit => $composableBuilder(
     column: $table.unit,
     builder: (column) => ColumnFilters(column),
@@ -12226,6 +12788,46 @@ class $$ProductsTableFilterComposer
 
   ColumnFilters<int> get itemsPerCarton => $composableBuilder(
     column: $table.itemsPerCarton,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get itemNumber => $composableBuilder(
+    column: $table.itemNumber,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sizeFrom => $composableBuilder(
+    column: $table.sizeFrom,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sizeTo => $composableBuilder(
+    column: $table.sizeTo,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get seriesSize => $composableBuilder(
+    column: $table.seriesSize,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get colorDistribution => $composableBuilder(
+    column: $table.colorDistribution,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get containerRef => $composableBuilder(
+    column: $table.containerRef,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get supplierContactId => $composableBuilder(
+    column: $table.supplierContactId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get businessRole => $composableBuilder(
+    column: $table.businessRole,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -12390,6 +12992,11 @@ class $$ProductsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get photoUrl => $composableBuilder(
+    column: $table.photoUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get unit => $composableBuilder(
     column: $table.unit,
     builder: (column) => ColumnOrderings(column),
@@ -12397,6 +13004,46 @@ class $$ProductsTableOrderingComposer
 
   ColumnOrderings<int> get itemsPerCarton => $composableBuilder(
     column: $table.itemsPerCarton,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get itemNumber => $composableBuilder(
+    column: $table.itemNumber,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get sizeFrom => $composableBuilder(
+    column: $table.sizeFrom,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get sizeTo => $composableBuilder(
+    column: $table.sizeTo,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get seriesSize => $composableBuilder(
+    column: $table.seriesSize,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get colorDistribution => $composableBuilder(
+    column: $table.colorDistribution,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get containerRef => $composableBuilder(
+    column: $table.containerRef,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get supplierContactId => $composableBuilder(
+    column: $table.supplierContactId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get businessRole => $composableBuilder(
+    column: $table.businessRole,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -12473,11 +13120,50 @@ class $$ProductsTableAnnotationComposer
   GeneratedColumn<String> get brand =>
       $composableBuilder(column: $table.brand, builder: (column) => column);
 
+  GeneratedColumn<String> get photoUrl =>
+      $composableBuilder(column: $table.photoUrl, builder: (column) => column);
+
   GeneratedColumn<String> get unit =>
       $composableBuilder(column: $table.unit, builder: (column) => column);
 
   GeneratedColumn<int> get itemsPerCarton => $composableBuilder(
     column: $table.itemsPerCarton,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get itemNumber => $composableBuilder(
+    column: $table.itemNumber,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get sizeFrom =>
+      $composableBuilder(column: $table.sizeFrom, builder: (column) => column);
+
+  GeneratedColumn<int> get sizeTo =>
+      $composableBuilder(column: $table.sizeTo, builder: (column) => column);
+
+  GeneratedColumn<int> get seriesSize => $composableBuilder(
+    column: $table.seriesSize,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get colorDistribution => $composableBuilder(
+    column: $table.colorDistribution,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get containerRef => $composableBuilder(
+    column: $table.containerRef,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get supplierContactId => $composableBuilder(
+    column: $table.supplierContactId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get businessRole => $composableBuilder(
+    column: $table.businessRole,
     builder: (column) => column,
   );
 
@@ -12629,8 +13315,17 @@ class $$ProductsTableTableManager
                 Value<String?> barcode = const Value.absent(),
                 Value<String?> category = const Value.absent(),
                 Value<String?> brand = const Value.absent(),
+                Value<String?> photoUrl = const Value.absent(),
                 Value<String> unit = const Value.absent(),
                 Value<int?> itemsPerCarton = const Value.absent(),
+                Value<String?> itemNumber = const Value.absent(),
+                Value<int?> sizeFrom = const Value.absent(),
+                Value<int?> sizeTo = const Value.absent(),
+                Value<int> seriesSize = const Value.absent(),
+                Value<String?> colorDistribution = const Value.absent(),
+                Value<String?> containerRef = const Value.absent(),
+                Value<String?> supplierContactId = const Value.absent(),
+                Value<String> businessRole = const Value.absent(),
                 Value<String> costPrice = const Value.absent(),
                 Value<String> sellingPrice = const Value.absent(),
                 Value<int> stockQuantity = const Value.absent(),
@@ -12648,8 +13343,17 @@ class $$ProductsTableTableManager
                 barcode: barcode,
                 category: category,
                 brand: brand,
+                photoUrl: photoUrl,
                 unit: unit,
                 itemsPerCarton: itemsPerCarton,
+                itemNumber: itemNumber,
+                sizeFrom: sizeFrom,
+                sizeTo: sizeTo,
+                seriesSize: seriesSize,
+                colorDistribution: colorDistribution,
+                containerRef: containerRef,
+                supplierContactId: supplierContactId,
+                businessRole: businessRole,
                 costPrice: costPrice,
                 sellingPrice: sellingPrice,
                 stockQuantity: stockQuantity,
@@ -12669,8 +13373,17 @@ class $$ProductsTableTableManager
                 Value<String?> barcode = const Value.absent(),
                 Value<String?> category = const Value.absent(),
                 Value<String?> brand = const Value.absent(),
+                Value<String?> photoUrl = const Value.absent(),
                 Value<String> unit = const Value.absent(),
                 Value<int?> itemsPerCarton = const Value.absent(),
+                Value<String?> itemNumber = const Value.absent(),
+                Value<int?> sizeFrom = const Value.absent(),
+                Value<int?> sizeTo = const Value.absent(),
+                Value<int> seriesSize = const Value.absent(),
+                Value<String?> colorDistribution = const Value.absent(),
+                Value<String?> containerRef = const Value.absent(),
+                Value<String?> supplierContactId = const Value.absent(),
+                Value<String> businessRole = const Value.absent(),
                 Value<String> costPrice = const Value.absent(),
                 Value<String> sellingPrice = const Value.absent(),
                 Value<int> stockQuantity = const Value.absent(),
@@ -12688,8 +13401,17 @@ class $$ProductsTableTableManager
                 barcode: barcode,
                 category: category,
                 brand: brand,
+                photoUrl: photoUrl,
                 unit: unit,
                 itemsPerCarton: itemsPerCarton,
+                itemNumber: itemNumber,
+                sizeFrom: sizeFrom,
+                sizeTo: sizeTo,
+                seriesSize: seriesSize,
+                colorDistribution: colorDistribution,
+                containerRef: containerRef,
+                supplierContactId: supplierContactId,
+                businessRole: businessRole,
                 costPrice: costPrice,
                 sellingPrice: sellingPrice,
                 stockQuantity: stockQuantity,

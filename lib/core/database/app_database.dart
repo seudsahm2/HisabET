@@ -59,7 +59,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 25;
+  int get schemaVersion => 27;
 
   @override
   MigrationStrategy get migration {
@@ -217,6 +217,43 @@ class AppDatabase extends _$AppDatabase {
           }
           if (!await _hasColumn('products', 'deleted_at')) {
             await m.addColumn(products, products.deletedAt);
+          }
+        }
+        if (from < 26) {
+          if (!await _hasColumn('products', 'item_number')) {
+            await m.addColumn(products, products.itemNumber);
+          }
+          if (!await _hasColumn('products', 'size_from')) {
+            await m.addColumn(products, products.sizeFrom);
+          }
+          if (!await _hasColumn('products', 'size_to')) {
+            await m.addColumn(products, products.sizeTo);
+          }
+          if (!await _hasColumn('products', 'series_size')) {
+            await m.addColumn(products, products.seriesSize);
+          }
+          if (!await _hasColumn('products', 'color_distribution')) {
+            await m.addColumn(products, products.colorDistribution);
+          }
+          if (!await _hasColumn('products', 'container_ref')) {
+            await m.addColumn(products, products.containerRef);
+          }
+          // Note: importer_contact_id was renamed to supplier_contact_id in v27.
+          // We keep this here only for users upgrading from before v26.
+          if (!await _hasColumn('products', 'importer_contact_id')) {
+            // Old column name — this DB will be migrated via v27 below.
+          }
+          if (!await _hasColumn('contacts', 'is_importer')) {
+            await m.addColumn(contacts, contacts.isImporter);
+          }
+        }
+        if (from < 27) {
+          // Replace importer_contact_id with supplier_contact_id
+          if (!await _hasColumn('products', 'supplier_contact_id')) {
+            await m.addColumn(products, products.supplierContactId);
+          }
+          if (!await _hasColumn('products', 'business_role')) {
+            await m.addColumn(products, products.businessRole);
           }
         }
       },

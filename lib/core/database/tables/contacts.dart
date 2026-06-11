@@ -31,6 +31,7 @@ class Contacts extends Table {
   BoolColumn get isWholesaler => boolean().withDefault(const Constant(false))();
   BoolColumn get isBroker => boolean().withDefault(const Constant(false))();
   BoolColumn get isSupplier => boolean().withDefault(const Constant(false))();
+  BoolColumn get isImporter => boolean().withDefault(const Constant(false))();
 
   // Soft-delete tracking
   BoolColumn get isDeleted => boolean().withDefault(const Constant(false))();

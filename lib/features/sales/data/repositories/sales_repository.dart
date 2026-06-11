@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:decimal/decimal.dart';
 import 'package:drift/drift.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -190,6 +191,19 @@ class SalesRepositoryImpl implements SalesRepository {
         if (amountOwed > Decimal.zero) {
           final transactionId = const Uuid().v4();
 
+          final snapshotMetadata = {
+            'source': 'pos_sale',
+            'product_snapshots': cartItems.map((item) => {
+               'name': item.product.name,
+               'itemNumber': item.product.itemNumber,
+               'photoUrl': item.product.photoUrl,
+               'cartons': item.quantity,
+               'seriesSize': item.product.seriesSize,
+               'colorDistribution': item.product.colorDistribution,
+               'costPrice': item.product.sellingPrice.toString(),
+            }).toList(),
+          };
+
           await _db.into(_db.transactions).insert(
             TransactionsCompanion.insert(
               id: transactionId,
@@ -200,6 +214,7 @@ class SalesRepositoryImpl implements SalesRepository {
               date: now,
               description: Value('Unpaid balance from POS Sale #$saleId'),
               saleId: Value(saleId),
+              metadata: Value(jsonEncode(snapshotMetadata)),
             ),
           );
 
