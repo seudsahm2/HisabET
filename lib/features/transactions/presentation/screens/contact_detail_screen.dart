@@ -118,7 +118,7 @@ class _ContactDetailScreenState extends ConsumerState<ContactDetailScreen> {
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       backgroundColor: Theme.of(context).colorScheme.surface,
-                      foregroundColor: AppColors.primary,
+                      foregroundColor: Theme.of(context).brightness == Brightness.dark ? AppColors.primaryBright : AppColors.primary,
                       elevation: 0,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
@@ -166,9 +166,9 @@ class _ContactDetailScreenState extends ConsumerState<ContactDetailScreen> {
   Widget _buildVerificationBadge(ContactVerificationStatus status) {
     switch (status) {
       case ContactVerificationStatus.verified:
-        return const Tooltip(
+        return Tooltip(
           message: 'Verified Account',
-          child: Icon(Icons.verified_rounded, color: Colors.blue, size: 20),
+          child: Icon(Icons.verified_rounded, color: Theme.of(context).brightness == Brightness.dark ? Colors.lightBlue : Colors.blue, size: 20),
         );
       case ContactVerificationStatus.pending:
         return AppStatusBadge.warning(label: 'Pending', small: true);
@@ -312,7 +312,7 @@ class _ContactHeaderTitle extends StatelessWidget {
                 ),
               Text(
                 contact.roleLabels.join(' · '),
-                style: const TextStyle(color: AppColors.primary, fontSize: 11, fontWeight: FontWeight.w600),
+                style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? AppColors.primaryBright : AppColors.primary, fontSize: 11, fontWeight: FontWeight.w600),
               ),
             ],
           ),
@@ -395,7 +395,7 @@ class _TransactionTile extends StatelessWidget {
 
     return AppListTile(
       leadingIcon: isPositive ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
-      leadingColor: isPositive ? AppColors.give : AppColors.take,
+      leadingColor: isPositive ? Theme.of(context).colorScheme.secondary : Theme.of(context).colorScheme.error,
       title: '${transaction.saleId != null ? '[SALE] ' : ''}${_getTypeLabel(transaction.type)}',
       subtitle: '${DateFormat('MMM dd • hh:mm a').format(transaction.date)}${transaction.description != null ? '\n${transaction.description}' : ''}',
       trailing: Row(
@@ -452,7 +452,7 @@ class _TransactionTile extends StatelessWidget {
               const PopupMenuItem(value: 'disputed', child: Text('Mark Disputed')),
               const PopupMenuDivider(),
               const PopupMenuItem(value: 'edit', child: Text('Edit')),
-              const PopupMenuItem(value: 'delete', child: Text('Delete', style: TextStyle(color: AppColors.negative))),
+              PopupMenuItem(value: 'delete', child: Text('Delete', style: TextStyle(color: Theme.of(context).colorScheme.error))),
             ],
           ),
         ],

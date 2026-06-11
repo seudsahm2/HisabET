@@ -40,6 +40,30 @@ final allContactsProvider = FutureProvider<List<ContactModel>>((ref) async {
   return repo.getAllContacts();
 });
 
+/// Provider for importer contacts only (used by brokers for "Bought From")
+final importerContactsProvider = FutureProvider<List<ContactModel>>((ref) async {
+  final all = await ref.watch(allContactsProvider.future);
+  return all.where((c) => c.isImporter).toList();
+});
+
+/// Provider for broker contacts only (used by wholesalers for "Bought From")
+final brokerContactsProvider = FutureProvider<List<ContactModel>>((ref) async {
+  final all = await ref.watch(allContactsProvider.future);
+  return all.where((c) => c.isBroker).toList();
+});
+
+/// Provider for wholesaler contacts only (used by retailers for "Bought From")
+final wholesalerContactsProvider = FutureProvider<List<ContactModel>>((ref) async {
+  final all = await ref.watch(allContactsProvider.future);
+  return all.where((c) => c.isWholesaler).toList();
+});
+
+/// Provider for retailer contacts only
+final retailerContactsProvider = FutureProvider<List<ContactModel>>((ref) async {
+  final all = await ref.watch(allContactsProvider.future);
+  return all.where((c) => c.isRetailer).toList();
+});
+
 /// Provider for a single contact (reactive to balance updates)
 final contactProvider = StreamProvider.family<ContactModel?, String>((
   ref,
@@ -68,4 +92,10 @@ final connectionRequestsProvider = StreamProvider<List<Map<String, dynamic>>>((r
           return data;
         }).toList();
       });
+});
+
+/// Provider for network suggestions (People you may know)
+final networkSuggestionsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  final repo = ref.watch(contactsRepositoryProvider);
+  return repo.getNetworkSuggestions();
 });
