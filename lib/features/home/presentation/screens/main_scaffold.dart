@@ -62,6 +62,7 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBody: true,
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: PageView(
         controller: _pageController,
@@ -75,45 +76,74 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
           _ProfileTab(), // Replaced Menu Tab
         ],
       ),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.shadowMedium,
-              blurRadius: 20,
-              offset: const Offset(0, -5),
-            ),
-          ],
+      bottomNavigationBar: _buildFloatingNavBar(),
+    );
+  }
+
+  Widget _buildFloatingNavBar() {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 24, left: 24, right: 24),
+        child: Container(
+          height: 64,
+          decoration: AppGlass.surface(
+            context,
+            borderRadius: BorderRadius.circular(32),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _buildNavItem(0, Icons.home_outlined, Icons.home_rounded, 'Home'),
+              _buildNavItem(1, Icons.menu_book_outlined, Icons.menu_book_rounded, 'Ledger'),
+              _buildNavItem(2, Icons.inventory_2_outlined, Icons.inventory_2_rounded, 'Items'),
+              _buildNavItem(3, Icons.business_center_outlined, Icons.business_center_rounded, 'Hub'),
+              _buildNavItem(4, Icons.person_outline_rounded, Icons.person_rounded, 'Profile'),
+            ],
+          ),
         ),
-        child: NavigationBar(
-          selectedIndex: _currentIndex,
-          onDestinationSelected: _onNavigate,
-          destinations: const [
-            NavigationDestination(
-              icon: Icon(Icons.home_outlined),
-              selectedIcon: Icon(Icons.home_rounded),
-              label: 'Home',
+      ),
+    );
+  }
+
+  Widget _buildNavItem(int index, IconData unselectedIcon, IconData selectedIcon, String label) {
+    final isSelected = _currentIndex == index;
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    final activeColor = isDark ? AppColors.primaryBright : AppColors.primary;
+    final inactiveColor = colorScheme.onSurfaceVariant;
+    
+    return GestureDetector(
+      onTap: () => _onNavigate(index),
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutCubic,
+        padding: EdgeInsets.symmetric(horizontal: isSelected ? 16 : 10, vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected ? activeColor.withOpacity(0.12) : Colors.transparent,
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isSelected ? selectedIcon : unselectedIcon,
+              color: isSelected ? activeColor : inactiveColor,
+              size: 24,
             ),
-            NavigationDestination(
-              icon: Icon(Icons.menu_book_outlined),
-              selectedIcon: Icon(Icons.menu_book_rounded),
-              label: 'Ledger',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.inventory_2_outlined),
-              selectedIcon: Icon(Icons.inventory_2_rounded),
-              label: 'Inventory',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.business_center_outlined),
-              selectedIcon: Icon(Icons.business_center_rounded),
-              label: 'Business',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.settings_outlined),
-              selectedIcon: Icon(Icons.settings_rounded),
-              label: 'Settings',
-            ),
+            if (isSelected) ...[
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  color: activeColor,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 13,
+                  letterSpacing: -0.3,
+                ),
+              ),
+            ]
           ],
         ),
       ),
@@ -256,7 +286,7 @@ class _PremiumQuickActions extends ConsumerWidget {
             context: context,
             icon: Icons.person_add,
             label: "Add Contact",
-            accentColor: AppColors.info,
+            accentColor: colorScheme.secondary,
             onTap: () {
               Navigator.push(
                 context,
@@ -268,7 +298,7 @@ class _PremiumQuickActions extends ConsumerWidget {
             context: context,
             icon: Icons.inventory_2,
             label: "Add Product",
-            accentColor: AppColors.positive,
+            accentColor: colorScheme.secondary,
             onTap: () {
               Navigator.push(
                 context,
@@ -358,7 +388,7 @@ class _PremiumTransactionTile extends StatelessWidget {
 
     return AppListTile(
       leadingIcon: isPositive ? Icons.arrow_downward : Icons.arrow_upward,
-      leadingColor: isPositive ? AppColors.positive : AppColors.negative,
+      leadingColor: isPositive ? Theme.of(context).colorScheme.secondary : Theme.of(context).colorScheme.error,
       title: transaction.description ?? "Untitled",
       subtitle: DateFormat('MMM d • h:mm a').format(transaction.date),
       trailing: Column(
