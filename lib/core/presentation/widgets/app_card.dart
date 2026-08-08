@@ -2,6 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:hisabet/core/theme/theme.dart';
 import 'package:hisabet/core/presentation/widgets/app_glass.dart';
 
+/// Surface treatment for [AppCard].
+///
+/// Both values now render the same flat, hairline-bordered surface. `glass`
+/// is kept only so existing call sites compile — the gradient-and-shadow
+/// treatment it used to apply was the main reason the app read as generic.
+/// Prefer `solid` in new code.
 enum AppCardStyle { glass, solid }
 
 /// Standard card widget used across the entire app.
@@ -53,12 +59,11 @@ class AppCard extends StatelessWidget {
         : AppColors.shadowLight;
 
     BoxDecoration buildDecoration() {
-      if (style == AppCardStyle.glass && color == null && border == null) {
-        return AppGlass.surface(
-          context,
-          borderRadius: radius,
-          withShadow: true,
-        );
+      // Default path: a flat surface separated by a hairline. No shadow — a
+      // card sitting in the page flow is not floating, so it should not cast
+      // one. Shadows are reserved for sheets and dialogs (AppGlass.floating).
+      if (color == null && border == null) {
+        return AppGlass.surface(context, borderRadius: radius);
       }
 
       return BoxDecoration(
@@ -73,13 +78,7 @@ class AppCard extends StatelessWidget {
                   offset: Offset(0, 4 * elevation),
                 ),
               ]
-            : const [
-                BoxShadow(
-                  color: AppColors.shadowLight,
-                  blurRadius: 10,
-                  offset: Offset(0, 4),
-                ),
-              ],
+            : null,
       );
     }
 

@@ -14,26 +14,27 @@ abstract final class AppTheme {
 
   static ThemeData _build({required Brightness brightness}) {
     final isDark = brightness == Brightness.dark;
-    final backgroundColor = isDark ? const Color(0xFF0E1113) : AppColors.background;
-    final surfaceColor = isDark ? const Color(0xFF151A1C) : AppColors.surface;
-    final elevatedSurfaceColor = isDark ? const Color(0xFF1B2124) : AppColors.surfaceElevated;
-    final surfaceVariantColor = isDark ? const Color(0xFF21282B) : AppColors.surfaceVariant;
-    final onSurfaceColor = isDark ? Colors.white : AppColors.textPrimary;
-    final onSurfaceVariantColor = isDark ? Colors.white70 : AppColors.textSecondary;
-    final outlineColor = isDark ? Colors.white24 : AppColors.border;
-    final outlineVariantColor = isDark ? Colors.white12 : AppColors.neutral200;
-    final dividerColor = isDark ? Colors.white12 : AppColors.divider;
-    final appBarColor = isDark ? const Color(0xFF151A1C) : AppColors.background;
-    final navigationBarColor = isDark ? const Color(0xFF151A1C) : AppColors.surface;
-    final inputFillColor = isDark ? const Color(0xFF1F2629) : AppColors.surfaceVariant;
+    final backgroundColor = isDark ? AppColors.backgroundDark : AppColors.background;
+    final surfaceColor = isDark ? AppColors.surfaceDark : AppColors.surface;
+    final elevatedSurfaceColor = isDark ? AppColors.surfaceVariantDark : AppColors.surfaceElevated;
+    final surfaceVariantColor = isDark ? AppColors.surfaceVariantDark : AppColors.surfaceVariant;
+    final onSurfaceColor = isDark ? AppColors.textOnDark : AppColors.textPrimary;
+    final onSurfaceVariantColor = isDark ? AppColors.neutral400 : AppColors.textSecondary;
+    final outlineColor = isDark ? AppColors.borderDark : AppColors.border;
+    final outlineVariantColor = isDark ? AppColors.hairlineDark : AppColors.hairline;
+    final dividerColor = isDark ? AppColors.hairlineDark : AppColors.divider;
+    // Flat app bar: same ground as the scaffold, separated by a hairline only.
+    final appBarColor = isDark ? AppColors.backgroundDark : AppColors.background;
+    final navigationBarColor = isDark ? AppColors.surfaceDark : AppColors.surface;
+    final inputFillColor = isDark ? AppColors.surfaceVariantDark : AppColors.surfaceVariant;
 
     final positiveColor = isDark ? AppColors.positiveMid : AppColors.positive;
     final negativeColor = isDark ? AppColors.negativeMid : AppColors.negative;
 
     final colorScheme = ColorScheme(
       brightness: brightness,
-      primary: AppColors.primary,
-      onPrimary: AppColors.textOnPrimary,
+      primary: isDark ? AppColors.primaryBright : AppColors.primary,
+      onPrimary: isDark ? AppColors.neutral900 : AppColors.textOnPrimary,
       primaryContainer: AppColors.primaryContainer,
       onPrimaryContainer: AppColors.primaryDark,
       secondary: positiveColor,
@@ -54,8 +55,8 @@ abstract final class AppTheme {
         onSurfaceVariant: onSurfaceVariantColor,
         outline: outlineColor,
         outlineVariant: outlineVariantColor,
-      shadow: Colors.black,
-      scrim: Colors.black54,
+      shadow: AppColors.neutral900,
+      scrim: AppColors.overlayScrim,
       inverseSurface: isDark ? Colors.white : AppColors.neutral900,
       onInverseSurface: isDark ? AppColors.neutral900 : Colors.white,
       inversePrimary: AppColors.primaryLight,

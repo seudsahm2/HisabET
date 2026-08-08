@@ -1,3 +1,4 @@
+import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -9,8 +10,11 @@ import 'package:hisabet/features/settings/presentation/screens/trash_screen.dart
 import 'package:hisabet/features/settings/presentation/screens/profile_edit_screen.dart';
 import 'package:hisabet/core/theme/theme_provider.dart';
 
+import 'package:hisabet/features/contacts/presentation/providers/contacts_providers.dart';
 import 'package:hisabet/features/contacts/presentation/screens/contacts_list_screen.dart';
 import 'package:hisabet/features/contacts/presentation/screens/add_contact_screen.dart';
+import 'package:hisabet/features/expenses/presentation/screens/expenses_screen.dart';
+import 'package:hisabet/features/reports/presentation/screens/reports_screen.dart';
 import 'package:hisabet/features/home/presentation/providers/dashboard_providers.dart';
 import 'package:hisabet/features/home/presentation/screens/merchant_modules_screen.dart';
 import 'package:hisabet/features/inventory/presentation/providers/products_providers.dart';
@@ -86,9 +90,11 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
         padding: const EdgeInsets.only(bottom: 24, left: 24, right: 24),
         child: Container(
           height: 64,
-          decoration: AppGlass.surface(
+          // The nav bar is the one element that genuinely floats above the
+          // page, so it is the one element that earns a shadow.
+          decoration: AppGlass.floating(
             context,
-            borderRadius: BorderRadius.circular(32),
+            borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -117,12 +123,16 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
       onTap: () => _onNavigate(index),
       behavior: HitTestBehavior.opaque,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
+        // 200ms sits inside the 150-300ms micro-interaction band; the previous
+        // 300ms made every tab switch feel a beat slow.
+        duration: const Duration(milliseconds: 200),
         curve: Curves.easeOutCubic,
-        padding: EdgeInsets.symmetric(horizontal: isSelected ? 16 : 10, vertical: 10),
+        padding: EdgeInsets.symmetric(horizontal: isSelected ? 14 : 10, vertical: 10),
         decoration: BoxDecoration(
-          color: isSelected ? activeColor.withOpacity(0.12) : Colors.transparent,
-          borderRadius: BorderRadius.circular(24),
+          color: isSelected
+              ? activeColor.withValues(alpha: 0.12)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -136,11 +146,10 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
               const SizedBox(width: 6),
               Text(
                 label,
-                style: TextStyle(
+                style: AppTextStyles.badgeLabel.copyWith(
                   color: activeColor,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 13,
-                  letterSpacing: -0.3,
+                  fontSize: 12.5,
+                  letterSpacing: -0.1,
                 ),
               ),
             ]
@@ -164,247 +173,308 @@ class _HomeDashboard extends ConsumerWidget {
     final activityAsync = ref.watch(recentActivityProvider);
 
     return SafeArea(
-      child: CustomScrollView(
-        physics: const BouncingScrollPhysics(),
-        slivers: [
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(
-              AppDimensions.pagePaddingH,
-              AppDimensions.pagePaddingH,
-              AppDimensions.pagePaddingH,
-              0,
-            ),
-            sliver: SliverToBoxAdapter(
-              child: AppPersonalizedHeader(
-                onAvatarTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const ProfileEditScreen()),
-                ),
-              ),
-            ),
+      bottom: false,
+      child: RefreshIndicator(
+        onRefresh: () async {
+          ref.invalidate(dashboardStatsProvider);
+          ref.invalidate(allContactsProvider);
+        },
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(
+            parent: BouncingScrollPhysics(),
           ),
+          slivers: [
+            const SliverToBoxAdapter(child: _GreetingHeader()),
 
-          // Premium gradient hero card
-          SliverToBoxAdapter(
-            child: statsAsync.when(
-              data: (stats) => AppGradientCard(
-                label: 'TOTAL NET BALANCE',
-                value: 'ETB ${stats.netBalance}',
-                backgroundIcon: Icons.account_balance_wallet,
-                children: [
-                  AppGradientCardStatRow(
-                    leftLabel: 'To Collect',
-                    leftValue: 'ETB ${stats.totalReceivable}',
-                    rightLabel: 'To Pay',
-                    rightValue: 'ETB ${stats.totalPayable.abs()}',
+            // Balance statement
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(
+                  AppDimensions.pagePaddingH, 0, AppDimensions.pagePaddingH, 0),
+              sliver: SliverToBoxAdapter(
+                child: statsAsync.when(
+                  data: (stats) => AppBalancePanel(
+                    label: 'Net position',
+                    netBalance: stats.netBalance,
+                    receivable: stats.totalReceivable,
+                    payable: stats.totalPayable,
+                    footnote: stats.netBalance >= Decimal.zero
+                        ? 'Owed to you across all contacts'
+                        : 'You owe more than you are owed',
                   ),
-                ],
-              ),
-              loading: () => Container(
-                height: 180,
-                margin: const EdgeInsets.symmetric(
-                    horizontal: AppDimensions.pagePaddingH, vertical: AppDimensions.md),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surface,
-                  borderRadius: BorderRadius.circular(AppDimensions.radiusXxl),
-                  border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+                  loading: () => const _PanelSkeleton(),
+                  error: (e, _) => const _PanelError(),
                 ),
-                child: const Center(child: CircularProgressIndicator()),
               ),
-              error: (e, s) => const SizedBox(),
             ),
-          ),
 
-          // Quick Actions
-          const SliverToBoxAdapter(child: _PremiumQuickActions()),
+            const SliverToBoxAdapter(child: SizedBox(height: AppDimensions.md)),
 
-          // Recent Activity Header
-          const SliverToBoxAdapter(
-            child: AppSectionHeader(
-              title: 'Recent Activity',
-              actionLabel: 'See All',
+            // Actions
+            const SliverPadding(
+              padding:
+                  EdgeInsets.symmetric(horizontal: AppDimensions.pagePaddingH),
+              sliver: SliverToBoxAdapter(child: _DashboardActions()),
             ),
-          ),
 
-          // Activity List
-          activityAsync.when(
-            data: (transactions) {
-              if (transactions.isEmpty) {
-                return const SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: AppEmptyState(
-                    icon: Icons.receipt_long_outlined,
-                    title: 'No Recent Activity',
+            const SliverToBoxAdapter(child: SizedBox(height: AppDimensions.xxl)),
+
+            // Recent activity
+            const SliverToBoxAdapter(
+              child: AppSectionHeader(
+                title: 'Recent activity',
+                uppercase: true,
+              ),
+            ),
+
+            activityAsync.when(
+              data: (transactions) {
+                if (transactions.isEmpty) {
+                  return const SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: AppDimensions.pagePaddingH,
+                      ),
+                      child: AppEmptyState(
+                        icon: Icons.receipt_long_outlined,
+                        title: 'Nothing recorded yet',
+                        subtitle:
+                            'Transactions you record with a contact appear here.',
+                      ),
+                    ),
+                  );
+                }
+                return SliverPadding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppDimensions.pagePaddingH,
+                  ),
+                  sliver: SliverToBoxAdapter(
+                    child: AppLedgerGroup(
+                      children: [
+                        for (final tx in transactions) _activityRow(tx),
+                      ],
+                    ),
                   ),
                 );
-              }
-              return SliverList(
-                delegate: SliverChildBuilderDelegate((context, index) {
-                  final tx = transactions[index];
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: AppDimensions.pagePaddingH),
-                    child: _PremiumTransactionTile(transaction: tx),
-                  );
-                }, childCount: transactions.length),
-              );
-            },
-            loading: () => const SliverToBoxAdapter(child: LinearProgressIndicator()),
-            error: (e, s) => SliverToBoxAdapter(child: Text('Error: $e')),
-          ),
+              },
+              loading: () => const SliverToBoxAdapter(child: _ListSkeleton()),
+              error: (e, _) => const SliverToBoxAdapter(child: _PanelError()),
+            ),
 
-          const SliverPadding(padding: EdgeInsets.only(bottom: 100)),
+            const SliverPadding(padding: EdgeInsets.only(bottom: 120)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _activityRow(TransactionModel tx) {
+    final isIncoming = tx.balanceEffect >= Decimal.zero;
+    final (statusLabel, statusTone) = switch (tx.status) {
+      TransactionStatus.confirmed => ('Confirmed', AppColors.positive),
+      TransactionStatus.disputed => ('Disputed', AppColors.negative),
+      TransactionStatus.pending => ('Pending', AppColors.warning),
+    };
+
+    return AppLedgerRow(
+      title: tx.description?.trim().isNotEmpty == true
+          ? tx.description!
+          : _fallbackTitle(tx.type),
+      amount: tx.amount,
+      direction:
+          isIncoming ? LedgerDirection.incoming : LedgerDirection.outgoing,
+      status: statusLabel,
+      statusTone: statusTone,
+      meta: DateFormat('MMM d').format(tx.date),
+      onTap: () {},
+    );
+  }
+
+  String _fallbackTitle(TransactionType type) => switch (type) {
+        TransactionType.goodsGiven => 'Goods given',
+        TransactionType.goodsTaken => 'Goods taken',
+        TransactionType.paymentGiven => 'Payment made',
+        TransactionType.paymentReceived => 'Payment received',
+      };
+}
+
+class _GreetingHeader extends ConsumerWidget {
+  const _GreetingHeader();
+
+  String get _timeGreeting {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
+    return 'Good evening';
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final profile = ref.watch(userProfileProvider).value;
+    final user = FirebaseAuth.instance.currentUser;
+    final name = profile?.displayName ?? user?.displayName ?? 'Merchant';
+    final photoUrl = profile?.photoUrl ?? user?.photoURL;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppDimensions.pagePaddingH,
+        AppDimensions.lg,
+        AppDimensions.pagePaddingH,
+        AppDimensions.lg,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _timeGreeting,
+                  style: AppTextStyles.labelSmall.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.titleLarge.copyWith(
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: AppDimensions.md),
+          Semantics(
+            button: true,
+            label: 'Open profile',
+            child: InkWell(
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ProfileEditScreen()),
+              ),
+              borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
+              child: CircleAvatar(
+                radius: 21,
+                backgroundColor: colorScheme.surfaceContainerHighest,
+                backgroundImage:
+                    photoUrl != null ? NetworkImage(photoUrl) : null,
+                child: photoUrl == null
+                    ? Text(
+                        name.characters.first.toUpperCase(),
+                        style: AppTextStyles.cardTitle.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      )
+                    : null,
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 }
 
-class _PremiumQuickActions extends ConsumerWidget {
-  const _PremiumQuickActions();
-
-  void _showComingSoon(BuildContext context, String moduleName) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$moduleName will be available in the next major update! 🚀'),
-        backgroundColor: AppColors.primary,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
+class _DashboardActions extends ConsumerWidget {
+  const _DashboardActions();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colorScheme = Theme.of(context).colorScheme;
+    void open(Widget screen) => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => screen),
+        );
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-          horizontal: AppDimensions.pagePaddingH, vertical: AppDimensions.sm),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          _buildActionItem(
-            context: context,
-            icon: Icons.person_add,
-            label: "Add Contact",
-            accentColor: colorScheme.secondary,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const AddContactScreen()),
-              );
-            },
-          ),
-          _buildActionItem(
-            context: context,
-            icon: Icons.inventory_2,
-            label: "Add Product",
-            accentColor: colorScheme.secondary,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const ProductUpsertScreen()),
-              );
-            },
-          ),
-          _buildActionItem(
-            context: context,
-            icon: Icons.receipt_long,
-            label: "Add Expense",
-            accentColor: colorScheme.outline,
-            disabled: true,
-            onTap: () => _showComingSoon(context, 'Expense Tracking'),
-          ),
-          _buildActionItem(
-            context: context,
-            icon: Icons.bar_chart,
-            label: "Reports",
-            accentColor: colorScheme.outline,
-            disabled: true,
-            onTap: () => _showComingSoon(context, 'Analytics & Reports'),
-          ),
-        ],
-      ),
+    return AppQuickActions(
+      actions: [
+        AppQuickAction(
+          icon: Icons.person_add_alt_1_rounded,
+          label: 'Add contact',
+          onTap: () => open(const AddContactScreen()),
+        ),
+        AppQuickAction(
+          icon: Icons.inventory_2_outlined,
+          label: 'Add item',
+          onTap: () => open(const ProductUpsertScreen()),
+        ),
+        AppQuickAction(
+          icon: Icons.receipt_long_outlined,
+          label: 'Expenses',
+          onTap: () => open(const ExpensesScreen()),
+        ),
+        AppQuickAction(
+          icon: Icons.insights_outlined,
+          label: 'Reports',
+          onTap: () => open(const ReportsScreen()),
+        ),
+      ],
     );
   }
+}
 
-  Widget _buildActionItem({
-    required BuildContext context,
-    required IconData icon,
-    required String label,
-    required Color accentColor,
-    required VoidCallback onTap,
-    bool disabled = false,
-  }) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final labelColor = disabled ? colorScheme.onSurfaceVariant : colorScheme.onSurface;
-    final iconTone = disabled ? colorScheme.onSurfaceVariant : accentColor;
+/// Skeletons reserve the real content height so nothing jumps when data lands.
+class _PanelSkeleton extends StatelessWidget {
+  const _PanelSkeleton();
 
-    return Expanded(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4),
-        child: AppCard(
-          style: AppCardStyle.glass,
-          margin: EdgeInsets.zero,
-          onTap: disabled ? null : onTap,
-          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
-          child: Column(
-            children: [
-              Container(
-                height: 44,
-                width: 44,
-                decoration: BoxDecoration(
-                  color: iconTone.withValues(alpha: disabled ? 0.10 : 0.14),
-                  borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
-                ),
-                child: Icon(icon, color: iconTone, size: 24),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                label,
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: AppTextStyles.badgeLabel.copyWith(
-                  color: labelColor,
-                  fontSize: 11.5,
-                  height: 1.05,
-                ),
-              ),
-            ],
-          ),
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      height: 168,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+        border: Border.all(
+          color: isDark ? AppColors.hairlineDark : AppColors.hairline,
         ),
       ),
     );
   }
 }
 
-class _PremiumTransactionTile extends StatelessWidget {
-  final TransactionModel transaction;
-  const _PremiumTransactionTile({required this.transaction});
+class _ListSkeleton extends StatelessWidget {
+  const _ListSkeleton();
 
   @override
   Widget build(BuildContext context) {
-    final isPositive = transaction.balanceEffect.toDouble() >= 0;
+    return const Padding(
+      padding: EdgeInsets.symmetric(horizontal: AppDimensions.pagePaddingH),
+      child: SizedBox(
+        height: 180,
+        child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+      ),
+    );
+  }
+}
 
-    return AppListTile(
-      leadingIcon: isPositive ? Icons.arrow_downward : Icons.arrow_upward,
-      leadingColor: isPositive ? Theme.of(context).colorScheme.secondary : Theme.of(context).colorScheme.error,
-      title: transaction.description ?? "Untitled",
-      subtitle: DateFormat('MMM d • h:mm a').format(transaction.date),
-      trailing: Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        mainAxisAlignment: MainAxisAlignment.center,
+class _PanelError extends StatelessWidget {
+  const _PanelError();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppDimensions.pagePaddingH,
+        vertical: AppDimensions.lg,
+      ),
+      child: Row(
         children: [
-          AppAmountText(
-            amount: transaction.amount.toString(),
-            isPositive: isPositive,
-            showSign: true,
+          const Icon(Icons.cloud_off_rounded,
+              size: AppDimensions.iconSm, color: AppColors.textSecondary),
+          const SizedBox(width: AppDimensions.sm),
+          Expanded(
+            child: Text(
+              'Could not load this right now. Pull down to retry.',
+              style: AppTextStyles.labelSmall.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
           ),
-          const SizedBox(height: 4),
-          AppStatusBadge.success(label: 'Completed', small: true),
         ],
       ),
-      onTap: () {},
     );
   }
 }
