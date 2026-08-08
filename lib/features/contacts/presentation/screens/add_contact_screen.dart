@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:hisabet/core/domain/business_role.dart';
 import 'package:hisabet/core/presentation/widgets/widgets.dart';
 import 'package:hisabet/core/theme/theme.dart';
 import 'package:hisabet/core/utils/phone_util.dart';
@@ -104,10 +105,14 @@ class _AddContactScreenState extends ConsumerState<AddContactScreen> {
     if (userData['supplierCurrentBalance'] != null) _supplierCurrentBalanceController.text = userData['supplierCurrentBalance'].toString();
 
     _foundUserUid = userData['uid']?.toString();
-    _isRetailer = rolesList.contains('Retailer');
-    _isWholesaler = rolesList.contains('Wholesaler');
-    _isBroker = rolesList.contains('Broker');
-    _isSupplier = rolesList.contains('Supplier');
+    // Parse through BusinessRole rather than matching raw strings: profiles are
+    // stored lowercase now, older ones are capitalised, and 'importer' means
+    // supplier. Direct `contains('Supplier')` checks silently missed all three.
+    final parsedRoles = BusinessRole.parseAll(rolesList);
+    _isRetailer = parsedRoles.contains(BusinessRole.retailer);
+    _isWholesaler = parsedRoles.contains(BusinessRole.wholesaler);
+    _isBroker = parsedRoles.contains(BusinessRole.broker);
+    _isSupplier = parsedRoles.contains(BusinessRole.supplier);
   }
 
   // ─── Clear all form fields ───────────────────────────────────────────────────
@@ -515,7 +520,7 @@ class _AddContactScreenState extends ConsumerState<AddContactScreen> {
                 CheckboxListTile(
                   dense: true,
                   title: const Text('Supplier'),
-                  subtitle: const Text('Provides goods or services to you'),
+                  subtitle: const Text('Imports containers and sells cartons in bulk'),
                   value: _isSupplier,
                   activeColor: AppColors.primary,
                   onChanged: _rolesLocked ? null : (v) => setState(() => _isSupplier = v ?? false),

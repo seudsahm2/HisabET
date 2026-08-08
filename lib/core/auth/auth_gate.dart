@@ -5,7 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:hisabet/features/contacts/presentation/providers/contacts_providers.dart';
 
-import 'package:hisabet/features/sync/presentation/screens/onboarding_screen.dart';
+import 'package:hisabet/core/domain/business_role.dart';
+import 'package:hisabet/features/auth/presentation/screens/profile_setup_screen.dart';
+import 'package:hisabet/features/auth/presentation/screens/welcome_screen.dart';
 import 'package:hisabet/features/home/presentation/screens/main_scaffold.dart';
 
 const bool kDevBypassProfileCheck = bool.fromEnvironment(
@@ -37,7 +39,7 @@ class AuthGate extends StatelessWidget {
         }
 
         debugPrint('[AuthGate] No user logged in -> Login page.');
-        return const OnboardingScreen();
+        return const WelcomeScreen();
       },
     );
   }
@@ -54,7 +56,10 @@ class _ProfileCheckGateState extends ConsumerState<ProfileCheckGate> {
   bool _isProfileComplete(Map<String, dynamic>? data, User user) {
     if (data == null) return false;
     final hasName = data['name']?.toString().trim().isNotEmpty == true;
-    final hasRoles = data['roles'] != null && (data['roles'] as List).isNotEmpty;
+    // Parse through BusinessRole so a profile holding only unrecognised role
+    // strings counts as incomplete instead of silently passing the gate.
+    final hasRoles =
+        BusinessRole.parseAll(data['roles'] as List<dynamic>?).isNotEmpty;
     // Check Firestore-stored contact info first, then fall back to Firebase Auth directly
     final firestorePhone = data['phone']?.toString().trim().isNotEmpty == true;
     final firestoreEmail = data['email']?.toString().trim().isNotEmpty == true;
@@ -88,7 +93,7 @@ class _ProfileCheckGateState extends ConsumerState<ProfileCheckGate> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       debugPrint('[ProfileCheckGate] currentUser is null -> Login page.');
-      return const OnboardingScreen();
+      return const WelcomeScreen();
     }
     if (kDevBypassProfileCheck) {
       debugPrint('[ProfileCheckGate] Dev bypass -> MainScaffold');
@@ -175,16 +180,18 @@ class _ProfileCheckGateState extends ConsumerState<ProfileCheckGate> {
 
           // Brand new user who just authenticated — show profile setup
           debugPrint('[ProfileCheckGate] New user (no Firestore doc) -> Profile setup page.');
-          return const OnboardingScreen(startAtProfile: true);
+          return const ProfileSetupScreen();
         }
 
         // Doc exists but profile is still incomplete (e.g. missing roles, name, or contact).
         // Show Profile page so the user can complete it.
-        final existingRoles = (data?['roles'] as List<dynamic>?)
-            ?.map((e) => e.toString())
-            .toList() ?? [];
+        // Normalise through BusinessRole so legacy values ('Importer', mixed
+        // case) survive the round-trip into the new picker.
+        final existingRoles = BusinessRole.toStorageKeys(
+          BusinessRole.parseAll(data?['roles'] as List<dynamic>?),
+        );
         debugPrint('[ProfileCheckGate] Doc exists but profile INCOMPLETE -> Profile setup page. existingRoles=$existingRoles');
-        return OnboardingScreen(startAtProfile: true, initialRoles: existingRoles);
+        return ProfileSetupScreen(initialRoles: existingRoles);
       },
     );
   }

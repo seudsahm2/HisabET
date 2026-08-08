@@ -40,10 +40,12 @@ final allContactsProvider = FutureProvider<List<ContactModel>>((ref) async {
   return repo.getAllContacts();
 });
 
-/// Provider for importer contacts only (used by brokers for "Bought From")
-final importerContactsProvider = FutureProvider<List<ContactModel>>((ref) async {
+/// Suppliers — the top of the chain, who import containers. Used by brokers
+/// for "Bought From". Before schema v28 this filtered a separate `isImporter`
+/// flag that nothing could ever set, so the list was always empty.
+final supplierContactsProvider = FutureProvider<List<ContactModel>>((ref) async {
   final all = await ref.watch(allContactsProvider.future);
-  return all.where((c) => c.isImporter).toList();
+  return all.where((c) => c.isSupplier).toList();
 });
 
 /// Provider for broker contacts only (used by wholesalers for "Bought From")

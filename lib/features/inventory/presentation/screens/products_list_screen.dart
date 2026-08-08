@@ -20,7 +20,7 @@ class ProductsListScreen extends ConsumerStatefulWidget {
 }
 
 class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
-  String _selectedRole = 'all'; // 'all' | 'importer' | 'broker' | 'wholesaler' | 'retailer'
+  String _selectedRole = 'all'; // 'all' | 'supplier' | 'broker' | 'wholesaler' | 'retailer'
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
   bool _isGridView = false;
@@ -67,7 +67,7 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
 
             final counts = {
               'all': filteredProducts.length,
-              'importer': filteredProducts.where((p) => p.businessRole == 'importer').length,
+              'supplier': filteredProducts.where((p) => p.businessRole == 'supplier').length,
               'broker': filteredProducts.where((p) => p.businessRole == 'broker').length,
               'wholesaler': filteredProducts.where((p) => p.businessRole == 'wholesaler').length,
               'retailer': filteredProducts.where((p) => p.businessRole == 'retailer').length,
@@ -349,7 +349,7 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                       spacing: 8, runSpacing: 8,
                       children: [
                         _buildModalChip('all', 'All (${counts['all']})', _selectedRole, (v) => setModalState(() => _selectedRole = v)),
-                        _buildModalChip('importer', 'Importer (${counts['importer']})', _selectedRole, (v) => setModalState(() => _selectedRole = v)),
+                        _buildModalChip('supplier', 'Supplier (${counts['supplier']})', _selectedRole, (v) => setModalState(() => _selectedRole = v)),
                         _buildModalChip('broker', 'Broker (${counts['broker']})', _selectedRole, (v) => setModalState(() => _selectedRole = v)),
                         _buildModalChip('wholesaler', 'Wholesaler (${counts['wholesaler']})', _selectedRole, (v) => setModalState(() => _selectedRole = v)),
                         _buildModalChip('retailer', 'Retailer (${counts['retailer']})', _selectedRole, (v) => setModalState(() => _selectedRole = v)),
@@ -474,7 +474,7 @@ class _PremiumProductCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final roleColor = product.businessRole == 'importer'
+    final roleColor = product.businessRole == 'supplier'
         ? AppColors.info
         : product.businessRole == 'broker'
             ? const Color(0xFF8B5CF6)

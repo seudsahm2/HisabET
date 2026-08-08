@@ -34,7 +34,6 @@ class ContactModel {
   final bool isWholesaler;
   final bool isBroker;
   final bool isSupplier;
-  final bool isImporter;
 
   // Soft-delete flags
   final bool isDeleted;
@@ -60,7 +59,6 @@ class ContactModel {
     this.isWholesaler = false,
     this.isBroker = false,
     this.isSupplier = false,
-    this.isImporter = false,
     this.isDeleted = false,
     this.deletedAt,
   }) : creditLimit = creditLimit ?? Decimal.zero;
@@ -85,7 +83,6 @@ class ContactModel {
     bool? isWholesaler,
     bool? isBroker,
     bool? isSupplier,
-    bool? isImporter,
     bool? isDeleted,
     DateTime? deletedAt,
   }) {
@@ -109,7 +106,6 @@ class ContactModel {
       isWholesaler: isWholesaler ?? this.isWholesaler,
       isBroker: isBroker ?? this.isBroker,
       isSupplier: isSupplier ?? this.isSupplier,
-      isImporter: isImporter ?? this.isImporter,
       isDeleted: isDeleted ?? this.isDeleted,
       deletedAt: deletedAt ?? this.deletedAt,
     );
@@ -139,7 +135,6 @@ class ContactModel {
       isWholesaler: dbContact.isWholesaler,
       isBroker: dbContact.isBroker,
       isSupplier: dbContact.isSupplier,
-      isImporter: dbContact.isImporter,
       isDeleted: dbContact.isDeleted,
       deletedAt: dbContact.deletedAt,
     );
@@ -167,7 +162,6 @@ class ContactModel {
       isWholesaler: drift.Value(isWholesaler),
       isBroker: drift.Value(isBroker),
       isSupplier: drift.Value(isSupplier),
-      isImporter: drift.Value(isImporter),
       isDeleted: drift.Value(isDeleted),
       deletedAt: drift.Value(deletedAt),
     );
@@ -180,7 +174,6 @@ class ContactModel {
     if (isWholesaler) labels.add('Wholesaler');
     if (isBroker) labels.add('Broker');
     if (isSupplier) labels.add('Supplier');
-    if (isImporter) labels.add('Importer');
     if (labels.isEmpty) labels.add('Merchant');
     return labels;
   }

@@ -335,7 +335,7 @@ class _ProductUpsertScreenState extends ConsumerState<ProductUpsertScreen> {
     setState(() {
       _selectedBusinessRole = role;
       _selectedSupplierContactId = null;
-      if (role == 'importer' || role == 'broker') {
+      if (role == 'supplier' || role == 'broker') {
         _selectedUnit = 'carton';
       } else if (role == 'retailer') {
         _selectedUnit = 'pcs';
@@ -508,7 +508,7 @@ class _ProductUpsertScreenState extends ConsumerState<ProductUpsertScreen> {
                             crossAxisSpacing: 12,
                             childAspectRatio: 2.5,
                             children: [
-                              _RoleGridCard(role: 'importer', label: 'Importer', icon: Icons.directions_boat_rounded, selected: _selectedBusinessRole == 'importer', onTap: () => _onRoleSelected('importer')),
+                              _RoleGridCard(role: 'supplier', label: 'Supplier', icon: Icons.directions_boat_rounded, selected: _selectedBusinessRole == 'supplier', onTap: () => _onRoleSelected('supplier')),
                               _RoleGridCard(role: 'broker', label: 'Broker', icon: Icons.handshake_rounded, selected: _selectedBusinessRole == 'broker', onTap: () => _onRoleSelected('broker')),
                               _RoleGridCard(role: 'wholesaler', label: 'Wholesaler', icon: Icons.warehouse_rounded, selected: _selectedBusinessRole == 'wholesaler', onTap: () => _onRoleSelected('wholesaler')),
                               _RoleGridCard(role: 'retailer', label: 'Retailer', icon: Icons.storefront_rounded, selected: _selectedBusinessRole == 'retailer', onTap: () => _onRoleSelected('retailer')),
@@ -667,17 +667,17 @@ class _ProductUpsertScreenState extends ConsumerState<ProductUpsertScreen> {
                                   label: 'Item Number',
                                   hintText: 'e.g. AB-15',
                                 ),
-                                if (_selectedBusinessRole != 'importer') ...[
+                                if (_selectedBusinessRole != 'supplier') ...[
                                   const Divider(height: 1),
                                   Consumer(
                                     builder: (context, ref, child) {
                                       final provider = _selectedBusinessRole == 'broker'
-                                          ? importerContactsProvider
+                                          ? supplierContactsProvider
                                           : _selectedBusinessRole == 'wholesaler'
                                               ? brokerContactsProvider
                                               : wholesalerContactsProvider;
                                       final label = _selectedBusinessRole == 'broker'
-                                          ? 'Bought From (Importer)'
+                                          ? 'Bought From (Supplier)'
                                           : _selectedBusinessRole == 'wholesaler'
                                               ? 'Bought From (Broker)'
                                               : 'Bought From (Wholesaler)';
@@ -705,7 +705,7 @@ class _ProductUpsertScreenState extends ConsumerState<ProductUpsertScreen> {
                                     },
                                   ),
                                 ],
-                                if (_selectedBusinessRole == 'importer') ...[
+                                if (_selectedBusinessRole == 'supplier') ...[
                                   const Divider(height: 1),
                                   _buildTextFormField(
                                     controller: _containerRefController,
@@ -750,7 +750,7 @@ class _ProductUpsertScreenState extends ConsumerState<ProductUpsertScreen> {
                           ],
                           const SizedBox(height: AppDimensions.xl),
 
-                          if (_selectedBusinessRole == 'importer' || _selectedBusinessRole == 'wholesaler') ...[
+                          if (_selectedBusinessRole == 'supplier' || _selectedBusinessRole == 'wholesaler') ...[
                             AppFormSection(
                               title: 'Color Ratio',
                               icon: Icons.color_lens_outlined,

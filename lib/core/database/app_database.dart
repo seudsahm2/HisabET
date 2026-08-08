@@ -59,7 +59,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 27;
+  int get schemaVersion => 28;
 
   @override
   MigrationStrategy get migration {
@@ -254,6 +254,28 @@ class AppDatabase extends _$AppDatabase {
           }
           if (!await _hasColumn('products', 'business_role')) {
             await m.addColumn(products, products.businessRole);
+          }
+        }
+        if (from < 28) {
+          // "Importer" and "Supplier" were always the same party — the one who
+          // brings containers in. Earlier revisions used both names, which left
+          // the Tenders module gating on a role onboarding never offered and
+          // `is_importer` permanently false because nothing could ever set it.
+          //
+          // Fold both onto "supplier", the canonical name (BusinessRole).
+          // The is_importer column is left in place deliberately: dropping a
+          // column means rebuilding a table that `transactions` points at via a
+          // foreign key, which is not worth the risk for a dead flag.
+          if (await _hasColumn('contacts', 'is_importer')) {
+            await customStatement(
+              'UPDATE contacts SET is_supplier = 1 WHERE is_importer = 1',
+            );
+          }
+          if (await _hasColumn('products', 'business_role')) {
+            await customStatement(
+              "UPDATE products SET business_role = 'supplier' "
+              "WHERE business_role = 'importer'",
+            );
           }
         }
       },

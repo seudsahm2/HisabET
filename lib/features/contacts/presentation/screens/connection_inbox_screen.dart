@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hisabet/core/domain/business_role.dart';
 import 'package:hisabet/core/presentation/widgets/widgets.dart';
 import 'package:hisabet/core/theme/theme.dart';
 import 'package:hisabet/features/contacts/presentation/providers/contacts_providers.dart';
@@ -18,17 +19,17 @@ class _ConnectionInboxScreenState extends ConsumerState<ConnectionInboxScreen> {
       final repo = ref.read(contactsRepositoryProvider);
       
       // 1. Add them as a verified contact (NO notification back — prevents cycle!)
-      final rolesList = (request['roles'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [];
+      final roles = BusinessRole.parseAll(request['roles'] as List<dynamic>?);
       await repo.addContact(
         request['fromName']?.toString() ?? 'Unknown User',
         request['fromPhone']?.toString(),
         null, // shop
         linkedUserUid: request['fromUid']?.toString(),
         verificationMethod: 'network',
-        isRetailer: rolesList.contains('Retailer'),
-        isWholesaler: rolesList.contains('Wholesaler'),
-        isBroker: rolesList.contains('Broker'),
-        isSupplier: rolesList.contains('Supplier'),
+        isRetailer: roles.contains(BusinessRole.retailer),
+        isWholesaler: roles.contains(BusinessRole.wholesaler),
+        isBroker: roles.contains(BusinessRole.broker),
+        isSupplier: roles.contains(BusinessRole.supplier),
         sendConnectionNotification: false, // 🛡️ Prevents cyclic notification loop
       );
 

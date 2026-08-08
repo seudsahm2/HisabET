@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:hisabet/core/domain/business_role.dart';
 import 'package:hisabet/core/presentation/widgets/widgets.dart';
 import 'package:hisabet/core/theme/theme.dart';
 
@@ -84,7 +85,7 @@ class _ContactsListScreenState extends ConsumerState<ContactsListScreen> {
       
       final email = user['email']?.toString();
       final phone = user['phone']?.toString();
-      final rolesList = (user['roles'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [];
+      final roles = BusinessRole.parseAll(user['roles'] as List<dynamic>?);
       
       await repo.addContact(
         user['name']?.toString() ?? 'Unknown Business',
@@ -92,10 +93,10 @@ class _ContactsListScreenState extends ConsumerState<ContactsListScreen> {
         user['shop']?.toString(),
         linkedUserUid: user['uid']?.toString(),
         verificationMethod: email != null && email.isNotEmpty ? 'email' : 'phone',
-        isRetailer: rolesList.contains('Retailer'),
-        isWholesaler: rolesList.contains('Wholesaler'),
-        isBroker: rolesList.contains('Broker'),
-        isSupplier: rolesList.contains('Supplier'),
+        isRetailer: roles.contains(BusinessRole.retailer),
+        isWholesaler: roles.contains(BusinessRole.wholesaler),
+        isBroker: roles.contains(BusinessRole.broker),
+        isSupplier: roles.contains(BusinessRole.supplier),
       );
 
       if (mounted) {
@@ -125,7 +126,9 @@ class _ContactsListScreenState extends ConsumerState<ContactsListScreen> {
     final name = user['name']?.toString() ?? 'Unknown';
     final email = user['email']?.toString() ?? '';
     final phone = user['phone']?.toString() ?? '';
-    final roles = (user['roles'] as List<dynamic>?)?.map((e) => e.toString()).join(', ') ?? '';
+    final roles = BusinessRole.parseAll(user['roles'] as List<dynamic>?)
+        .map((r) => r.label)
+        .join(', ');
 
     final currentUid = FirebaseAuth.instance.currentUser?.uid;
     final isCurrentUser = uid != null && currentUid == uid;

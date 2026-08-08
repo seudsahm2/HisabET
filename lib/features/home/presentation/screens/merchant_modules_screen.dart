@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import 'package:hisabet/core/domain/business_role.dart';
 import 'package:hisabet/core/presentation/widgets/widgets.dart';
 import 'package:hisabet/core/theme/theme.dart';
 
@@ -352,12 +353,14 @@ class _TendersScreenState extends ConsumerState<TendersScreen>
     final myDoc = myUid != null
         ? await FirebaseFirestore.instance.collection('users').doc(myUid).get()
         : null;
-    final myName = myDoc?.data()?['name'] ?? 'Importer';
-    final roles = List<String>.from(myDoc?.data()?['roles'] ?? []);
-    if (!roles.contains('Importer') && !roles.contains('importer')) {
+    final myName = myDoc?.data()?['name'] ?? 'Supplier';
+    // Parsed through BusinessRole so legacy 'Importer' profiles still qualify —
+    // importer and supplier are the same role (see BusinessRole).
+    final roles = BusinessRole.parseAll(myDoc?.data()?['roles'] as List<dynamic>?);
+    if (!roles.contains(BusinessRole.supplier)) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Only Importers can post tenders.'),
+          content: Text('Only Suppliers can post tenders.'),
           backgroundColor: AppColors.negative,
         ));
       }
@@ -403,7 +406,7 @@ class _OpenTendersTab extends ConsumerWidget {
                     style:
                         TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
-                const Text('Importers can post tenders here.\nBrokers will bid and win them.',
+                const Text('Suppliers can post tenders here.\nBrokers will bid and win them.',
                     textAlign: TextAlign.center,
                     style: TextStyle(color: AppColors.textSecondary)),
               ],

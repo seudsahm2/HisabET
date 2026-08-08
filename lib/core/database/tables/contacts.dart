@@ -31,6 +31,10 @@ class Contacts extends Table {
   BoolColumn get isWholesaler => boolean().withDefault(const Constant(false))();
   BoolColumn get isBroker => boolean().withDefault(const Constant(false))();
   BoolColumn get isSupplier => boolean().withDefault(const Constant(false))();
+
+  /// Deprecated since schema v28 — "importer" and "supplier" are the same role
+  /// and were folded onto [isSupplier]. Kept only so existing databases keep
+  /// opening; nothing reads it. Do not use in new code.
   BoolColumn get isImporter => boolean().withDefault(const Constant(false))();
 
   // Soft-delete tracking
