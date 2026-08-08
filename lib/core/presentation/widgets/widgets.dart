@@ -24,7 +24,6 @@ export 'app_list_tile.dart';
 export 'app_module_card.dart';
 export 'app_pulse_chip.dart';
 export 'app_search_bar.dart';
-export 'app_search_surfaces.dart';
 export 'app_profile_header.dart';
 export 'app_section_header.dart';
 export 'app_stat_tile.dart';
