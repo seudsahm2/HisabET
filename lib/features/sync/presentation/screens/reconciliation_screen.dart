@@ -106,7 +106,7 @@ class _ReconciliationScreenState extends ConsumerState<ReconciliationScreen> {
             icon: const Icon(Icons.refresh_rounded),
             onPressed: () {
                ref.read(transactionsRepositoryProvider).syncAllUnsyncedTransactionsToCloud();
-               ref.refresh(reconciliationProvider((contactId: widget.contactId, contactPhone: widget.contactPhone)));
+               ref.invalidate(reconciliationProvider((contactId: widget.contactId, contactPhone: widget.contactPhone)));
             },
             tooltip: 'Force Sync',
           ),

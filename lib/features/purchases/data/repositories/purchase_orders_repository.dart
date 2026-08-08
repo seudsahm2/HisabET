@@ -1,7 +1,6 @@
 import 'package:decimal/decimal.dart';
 import 'package:drift/drift.dart';
 import 'package:hisabet/core/database/app_database.dart';
-import 'package:hisabet/features/inventory/data/models/product_model.dart';
 import 'package:hisabet/features/purchases/data/models/purchase_order_model.dart';
 import 'package:hisabet/features/purchases/data/models/purchase_order_line_item_model.dart';
 import 'package:uuid/uuid.dart';

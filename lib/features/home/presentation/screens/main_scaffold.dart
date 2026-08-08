@@ -80,82 +80,41 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
           _ProfileTab(), // Replaced Menu Tab
         ],
       ),
-      bottomNavigationBar: _buildFloatingNavBar(),
+      bottomNavigationBar: _buildBottomNav(),
     );
   }
 
-  Widget _buildFloatingNavBar() {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 24, left: 24, right: 24),
-        child: Container(
-          height: 64,
-          // The nav bar is the one element that genuinely floats above the
-          // page, so it is the one element that earns a shadow.
-          decoration: AppGlass.floating(
-            context,
-            borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _buildNavItem(0, Icons.home_outlined, Icons.home_rounded, 'Home'),
-              _buildNavItem(1, Icons.menu_book_outlined, Icons.menu_book_rounded, 'Ledger'),
-              _buildNavItem(2, Icons.inventory_2_outlined, Icons.inventory_2_rounded, 'Items'),
-              _buildNavItem(3, Icons.business_center_outlined, Icons.business_center_rounded, 'Hub'),
-              _buildNavItem(4, Icons.person_outline_rounded, Icons.person_rounded, 'Profile'),
-            ],
-          ),
+  Widget _buildBottomNav() {
+    return AppBottomNav(
+      currentIndex: _currentIndex,
+      onSelect: _onNavigate,
+      items: const [
+        AppBottomNavItem(
+          icon: Icons.home_outlined,
+          activeIcon: Icons.home_rounded,
+          label: 'Home',
         ),
-      ),
-    );
-  }
-
-  Widget _buildNavItem(int index, IconData unselectedIcon, IconData selectedIcon, String label) {
-    final isSelected = _currentIndex == index;
-    final colorScheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    
-    final activeColor = isDark ? AppColors.primaryBright : AppColors.primary;
-    final inactiveColor = colorScheme.onSurfaceVariant;
-    
-    return GestureDetector(
-      onTap: () => _onNavigate(index),
-      behavior: HitTestBehavior.opaque,
-      child: AnimatedContainer(
-        // 200ms sits inside the 150-300ms micro-interaction band; the previous
-        // 300ms made every tab switch feel a beat slow.
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOutCubic,
-        padding: EdgeInsets.symmetric(horizontal: isSelected ? 14 : 10, vertical: 10),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? activeColor.withValues(alpha: 0.12)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
+        AppBottomNavItem(
+          icon: Icons.menu_book_outlined,
+          activeIcon: Icons.menu_book_rounded,
+          label: 'Ledger',
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              isSelected ? selectedIcon : unselectedIcon,
-              color: isSelected ? activeColor : inactiveColor,
-              size: 24,
-            ),
-            if (isSelected) ...[
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: AppTextStyles.badgeLabel.copyWith(
-                  color: activeColor,
-                  fontSize: 12.5,
-                  letterSpacing: -0.1,
-                ),
-              ),
-            ]
-          ],
+        AppBottomNavItem(
+          icon: Icons.inventory_2_outlined,
+          activeIcon: Icons.inventory_2_rounded,
+          label: 'Items',
         ),
-      ),
+        AppBottomNavItem(
+          icon: Icons.business_center_outlined,
+          activeIcon: Icons.business_center_rounded,
+          label: 'Hub',
+        ),
+        AppBottomNavItem(
+          icon: Icons.person_outline_rounded,
+          activeIcon: Icons.person_rounded,
+          label: 'Profile',
+        ),
+      ],
     );
   }
 }
@@ -309,70 +268,18 @@ class _GreetingHeader extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colorScheme = Theme.of(context).colorScheme;
     final profile = ref.watch(userProfileProvider).valueOrNull;
     final user = FirebaseAuth.instance.currentUser;
     final name = profile?.displayName ?? user?.displayName ?? 'Merchant';
     final photoUrl = profile?.photoUrl ?? user?.photoURL;
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppDimensions.pagePaddingH,
-        AppDimensions.lg,
-        AppDimensions.pagePaddingH,
-        AppDimensions.lg,
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _timeGreeting,
-                  style: AppTextStyles.labelSmall.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.titleLarge.copyWith(
-                    color: colorScheme.onSurface,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: AppDimensions.md),
-          Semantics(
-            button: true,
-            label: 'Open profile',
-            child: InkWell(
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const ProfileEditScreen()),
-              ),
-              borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
-              child: CircleAvatar(
-                radius: 21,
-                backgroundColor: colorScheme.surfaceContainerHighest,
-                backgroundImage:
-                    photoUrl != null ? NetworkImage(photoUrl) : null,
-                child: photoUrl == null
-                    ? Text(
-                        name.characters.first.toUpperCase(),
-                        style: AppTextStyles.cardTitle.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                      )
-                    : null,
-              ),
-            ),
-          ),
-        ],
+    return AppTopBar.greeting(
+      greeting: _timeGreeting,
+      name: name,
+      avatar: photoUrl != null ? NetworkImage(photoUrl) : null,
+      onAvatarTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const ProfileEditScreen()),
       ),
     );
   }
@@ -425,10 +332,18 @@ class _PanelSkeleton extends StatelessWidget {
     return Container(
       height: 168,
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
+        // Matches the loaded anchor panel so the surface does not flash from
+        // white to teal when the balance arrives.
+        color: isDark ? AppColors.primaryLight : AppColors.primary,
         borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
-        border: Border.all(
-          color: isDark ? AppColors.hairlineDark : AppColors.hairline,
+      ),
+      alignment: Alignment.center,
+      child: SizedBox(
+        width: 20,
+        height: 20,
+        child: CircularProgressIndicator(
+          strokeWidth: 2,
+          color: Colors.white.withValues(alpha: 0.55),
         ),
       ),
     );

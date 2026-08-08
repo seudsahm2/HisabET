@@ -4,19 +4,35 @@ import 'package:flutter/material.dart';
 import 'package:hisabet/core/presentation/widgets/app_money.dart';
 import 'package:hisabet/core/theme/theme.dart';
 
+/// Surface treatment for [AppBalancePanel].
+enum AppBalanceVariant {
+  /// Solid deep-brand panel. The single dark element on the screen.
+  anchor,
+
+  /// Light surface with a hairline, matching ordinary cards. For secondary
+  /// balances that must not compete with the screen's primary figure.
+  plain,
+}
+
 /// The primary balance statement.
 ///
-/// ## Why this replaced the gradient hero card
+/// ## Why this is one dark panel
 ///
-/// The old version was a saturated gradient rectangle with a giant watermark
-/// icon behind white text — the single most recognisable "generated dashboard"
-/// component there is. It also actively harmed the product: a gradient behind
-/// a number reduces contrast, and this app is used outdoors in Merkato.
+/// It replaced a gradient hero card with a watermark icon — the most
+/// recognisable "generated dashboard" component there is, and one that also
+/// hurt legibility, since a gradient behind a number destroys contrast and this
+/// app is used outdoors in Merkato.
 ///
-/// What a bank actually shows you at the top of an account is quieter and more
-/// confident: a small label, one large number in tabular figures, and the
-/// split beneath it separated by a rule. The restraint *is* the professionalism
-/// — the number is important, so nothing competes with it.
+/// The first replacement went too far the other way: a pure white panel, which
+/// gave the most important number on the screen exactly the same visual weight
+/// as the action strip and the transaction list. Three identical white boxes,
+/// no hierarchy.
+///
+/// So: **one flat, solid, deep-brand anchor at the top, everything below it
+/// light.** This is the Mercury / Ramp / Apple Wallet pattern. The colour is
+/// structural — it marks the screen's centre of gravity — rather than
+/// decorative. The distinction from what we removed is that this is a *flat
+/// fill*: no gradient, no blur, no watermark, no shadow.
 class AppBalancePanel extends StatelessWidget {
   const AppBalancePanel({
     super.key,
@@ -28,6 +44,7 @@ class AppBalancePanel extends StatelessWidget {
     this.payableLabel = 'To pay',
     this.footnote,
     this.onTap,
+    this.variant = AppBalanceVariant.anchor,
   });
 
   final String label;
@@ -38,67 +55,89 @@ class AppBalancePanel extends StatelessWidget {
   final String payableLabel;
   final String? footnote;
   final VoidCallback? onTap;
+  final AppBalanceVariant variant;
+
+  bool get _isAnchor => variant == AppBalanceVariant.anchor;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final hairline = isDark ? AppColors.hairlineDark : AppColors.hairline;
     final isNegative = netBalance < Decimal.zero;
+
+    // In dark mode the deep teal sits too close to the near-black ground, so
+    // the panel lifts to the lighter brand step to stay distinct.
+    final anchorFill = isDark ? AppColors.primaryLight : AppColors.primary;
+
+    final background = _isAnchor ? anchorFill : colorScheme.surface;
+    final rule = _isAnchor
+        ? Colors.white.withValues(alpha: 0.16)
+        : (isDark ? AppColors.hairlineDark : AppColors.hairline);
+
+    final labelColor = _isAnchor
+        ? Colors.white.withValues(alpha: 0.72)
+        : colorScheme.onSurfaceVariant;
+
+    // Headline stays white on the anchor so it never fights the surface; it
+    // turns to the light red only when the book is actually in the red, which
+    // is information rather than decoration.
+    final headlineColor = _isAnchor
+        ? (isNegative ? AppColors.negativeOnDark : Colors.white)
+        : (isNegative ? AppColors.negative : colorScheme.onSurface);
+
+    final positiveTone =
+        _isAnchor ? AppColors.positiveOnDark : AppColors.positive;
+    final negativeTone =
+        _isAnchor ? AppColors.negativeOnDark : AppColors.negative;
 
     return Container(
       decoration: BoxDecoration(
-        color: colorScheme.surface,
+        color: background,
         borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
-        border: Border.all(color: hairline),
+        border: _isAnchor ? null : Border.all(color: rule),
       ),
       clipBehavior: Clip.antiAlias,
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
+          splashColor: _isAnchor ? Colors.white.withValues(alpha: 0.06) : null,
+          highlightColor:
+              _isAnchor ? Colors.white.withValues(alpha: 0.04) : null,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppDimensions.lg,
-                  AppDimensions.lg,
-                  AppDimensions.lg,
-                  AppDimensions.lg,
-                ),
+                padding: const EdgeInsets.all(AppDimensions.lg),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       label.toUpperCase(),
-                      style: AppTextStyles.sectionLabel.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
+                      style:
+                          AppTextStyles.sectionLabel.copyWith(color: labelColor),
                     ),
                     const SizedBox(height: AppDimensions.sm),
                     AppMoney(
                       amount: netBalance,
                       size: AppMoneySize.hero,
-                      // Sign colour only when in the red: a healthy book should
-                      // read as calm and neutral, not as a wall of green.
-                      tone: isNegative
-                          ? AppColors.negative
-                          : colorScheme.onSurface,
+                      color: headlineColor,
                     ),
                     if (footnote != null) ...[
                       const SizedBox(height: 6),
                       Text(
                         footnote!,
                         style: AppTextStyles.labelSmall.copyWith(
-                          color: colorScheme.onSurfaceVariant,
+                          color: _isAnchor
+                              ? Colors.white.withValues(alpha: 0.64)
+                              : colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
                   ],
                 ),
               ),
-              Divider(height: 1, thickness: 1, color: hairline),
+              Divider(height: 1, thickness: 1, color: rule),
               IntrinsicHeight(
                 child: Row(
                   children: [
@@ -106,16 +145,18 @@ class AppBalancePanel extends StatelessWidget {
                       child: _SplitCell(
                         label: receivableLabel,
                         amount: receivable,
-                        tone: AppColors.positive,
+                        tone: positiveTone,
+                        labelColor: labelColor,
                         icon: Icons.south_west_rounded,
                       ),
                     ),
-                    VerticalDivider(width: 1, thickness: 1, color: hairline),
+                    VerticalDivider(width: 1, thickness: 1, color: rule),
                     Expanded(
                       child: _SplitCell(
                         label: payableLabel,
                         amount: payable < Decimal.zero ? -payable : payable,
-                        tone: AppColors.negative,
+                        tone: negativeTone,
+                        labelColor: labelColor,
                         icon: Icons.north_east_rounded,
                       ),
                     ),
@@ -135,18 +176,18 @@ class _SplitCell extends StatelessWidget {
     required this.label,
     required this.amount,
     required this.tone,
+    required this.labelColor,
     required this.icon,
   });
 
   final String label;
   final Decimal amount;
   final Color tone;
+  final Color labelColor;
   final IconData icon;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
     return Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: AppDimensions.lg,
@@ -160,10 +201,12 @@ class _SplitCell extends StatelessWidget {
             children: [
               Icon(icon, size: 13, color: tone),
               const SizedBox(width: 5),
-              Text(
-                label,
-                style: AppTextStyles.labelSmall.copyWith(
-                  color: colorScheme.onSurfaceVariant,
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.labelSmall.copyWith(color: labelColor),
                 ),
               ),
             ],
@@ -173,7 +216,7 @@ class _SplitCell extends StatelessWidget {
             amount: amount,
             size: AppMoneySize.large,
             showCurrency: false,
-            tone: colorScheme.onSurface,
+            color: tone,
           ),
         ],
       ),

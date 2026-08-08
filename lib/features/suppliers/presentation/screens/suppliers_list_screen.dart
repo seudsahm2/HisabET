@@ -9,7 +9,6 @@ import 'package:hisabet/features/contacts/data/models/contact_model.dart';
 import 'package:hisabet/features/contacts/presentation/screens/add_contact_screen.dart';
 import 'package:hisabet/features/suppliers/presentation/providers/suppliers_providers.dart';
 import 'package:hisabet/features/suppliers/presentation/screens/supplier_detail_screen.dart';
-import 'package:hisabet/features/suppliers/presentation/screens/supplier_upsert_screen.dart';
 import 'package:hisabet/features/team/data/models/team_member_model.dart';
 import 'package:hisabet/features/team/presentation/providers/team_providers.dart';
 

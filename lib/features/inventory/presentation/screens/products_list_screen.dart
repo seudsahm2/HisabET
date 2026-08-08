@@ -38,7 +38,6 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
   @override
   Widget build(BuildContext context) {
     final productsAsync = ref.watch(allProductsProvider);
-    final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,

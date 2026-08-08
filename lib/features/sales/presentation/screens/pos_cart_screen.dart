@@ -42,8 +42,6 @@ class _PosCartScreenState extends ConsumerState<PosCartScreen> {
   Widget build(BuildContext context) {
     final productsAsync = ref.watch(allProductsProvider);
     final cart = ref.watch(posCartProvider);
-    final settingsAsync = ref.watch(appSettingsProvider);
-    final defaultTaxPercent = settingsAsync.valueOrNull?.defaultTaxPercent ?? 0.0;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,

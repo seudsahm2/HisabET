@@ -1,8 +1,16 @@
 import 'package:flutter/material.dart';
 
-import 'package:hisabet/core/presentation/widgets/app_glass.dart';
-import 'package:hisabet/core/theme/theme.dart';
+import 'package:hisabet/core/presentation/widgets/app_top_bar.dart';
 
+/// Page header used across the feature screens.
+///
+/// This is now a thin delegate to [AppTopBar] so every screen shares one
+/// header implementation. It used to render a tinted glass card, which made the
+/// header compete with the content cards below it; see [AppTopBar] for why a
+/// header should sit directly on the page ground instead.
+///
+/// The constructor is unchanged so the twelve existing call sites keep working.
+/// Prefer [AppTopBar] directly in new code.
 class AppMissionHeader extends StatelessWidget {
   const AppMissionHeader({
     super.key,
@@ -23,67 +31,13 @@ class AppMissionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Padding(
-      padding: padding ??
-          const EdgeInsets.fromLTRB(
-            AppDimensions.pagePaddingH,
-            AppDimensions.pagePaddingH,
-            AppDimensions.pagePaddingH,
-            0,
-          ),
-      child: Container(
-        padding: const EdgeInsets.all(AppDimensions.lg),
-        decoration: AppGlass.surface(
-          context,
-          borderRadius: BorderRadius.circular(AppDimensions.radiusXl),
-          tintColor: colorScheme.primaryContainer,
-        ),
-        child: Row(
-          children: [
-            if (leading != null) ...[
-              leading!,
-              const SizedBox(width: AppDimensions.md),
-            ],
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    eyebrow,
-                    style: AppTextStyles.sectionLabel.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    title,
-                    style: AppTextStyles.headlineSmall.copyWith(
-                      color: colorScheme.onSurface,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.3,
-                    ),
-                  ),
-                  if (subtitle != null) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle!,
-                      style: AppTextStyles.cardSubtitle.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            if (trailing != null) ...[
-              const SizedBox(width: AppDimensions.md),
-              trailing!,
-            ],
-          ],
-        ),
-      ),
+    return AppTopBar(
+      eyebrow: eyebrow,
+      title: title,
+      subtitle: subtitle,
+      leading: leading,
+      actions: trailing == null ? null : [trailing!],
+      padding: padding,
     );
   }
 }

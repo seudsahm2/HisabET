@@ -11,7 +11,6 @@ import 'package:hisabet/core/theme/theme.dart';
 import 'package:hisabet/features/contacts/presentation/providers/contacts_providers.dart';
 import 'package:hisabet/features/inventory/data/models/product_model.dart';
 import 'package:hisabet/features/inventory/presentation/providers/products_providers.dart';
-import 'package:hisabet/features/inventory/presentation/screens/stock_adjustment_screen.dart';
 import 'package:hisabet/features/team/data/models/team_member_model.dart';
 import 'package:hisabet/features/team/presentation/providers/team_providers.dart';
 

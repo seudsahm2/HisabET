@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:decimal/decimal.dart';
 import 'package:drift/drift.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:hisabet/core/database/app_database.dart';
 import 'package:hisabet/features/sales/data/models/pos_cart_item.dart';

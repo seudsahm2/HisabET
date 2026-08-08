@@ -65,6 +65,13 @@ abstract final class AppColors {
   static const Color infoLight = Color(0xFFEFF6FF);
   static const Color infoMid = Color(0xFF60A5FA);
 
+  // ── Semantic on deep brand surfaces ──────────────────────────────────────
+  // [positive] and [negative] are tuned for white backgrounds and go muddy on
+  // the deep teal anchor panel. These lightened pairs clear WCAG AA (>4.5:1)
+  // against [primary], so direction stays legible on the hero surface.
+  static const Color positiveOnDark = Color(0xFF6EE7B7);
+  static const Color negativeOnDark = Color(0xFFFCA5A5);
+
   // ── Ledger aliases ───────────────────────────────────────────────────────
   static const Color give = positive;
   static const Color giveLight = positiveLight;

@@ -121,21 +121,24 @@ Spec: brokers open one carton as a display sample, so 10 cartons is really 9 ful
 
 ## P4 — Polish
 
-### 13. Working modules advertised as "coming soon" — `OPEN`
-Dashboard quick actions for Expenses and Reports show a "will be available in the next major update" snackbar (`main_scaffold.dart:315,323`) although both modules are fully built and reachable from the Hub.
+### 13. Working modules advertised as "coming soon" — `FIXED` (2026-08-08)
+The dashboard action strip was rebuilt as `AppQuickActions`; Expenses and Reports now push their real screens.
 
 ### 14. `widget_test.dart` is stock template code — `OPEN`
 Tests a counter that does not exist; fails on every run. Delete or replace.
 
-### 15. Analyzer noise: 11 warnings + 152 infos — `OPEN`
-Infos are mostly deprecated `withOpacity` (use `.withValues()`) and `use_build_context_synchronously`.
+### 15. Analyzer warnings — `FIXED` (2026-08-08)
 
-The 11 warnings are all dead code and each is a one-line delete:
-- unused imports — `app_personalized_header.dart:1`, `product_upsert_screen.dart:14`, `purchase_orders_repository.dart:4`, `purchase_orders_providers.dart:2`, `reports_screen.dart:19`, `sales_repository.dart:4`, `suppliers_providers.dart:2`, `suppliers_list_screen.dart:12`
-- unused locals — `products_list_screen.dart:41` (`colorScheme`), `pos_cart_screen.dart:46` (`defaultTaxPercent`)
-- `reconciliation_screen.dart:109` — `unused_result`: the return of `ref.refresh(...)` is discarded. Use `ref.invalidate(...)` instead, which is what the surrounding code does elsewhere.
+All 11 warnings cleared: 9 unused imports, 2 unused locals, and
+`reconciliation_screen.dart:109` which discarded the result of `ref.refresh(...)`
+— switched to `ref.invalidate(...)`, which is what the rest of that screen uses.
 
-Note for future audits: `flutter analyze` prints `warning` lines at column 0 while `info` lines are indented, so a `grep '^\s\+warning'` filter silently reports zero warnings. Match without the leading-whitespace anchor.
+`flutter analyze` is now **0 errors, 0 warnings**. Remaining ~151 infos are
+deprecated `withOpacity` (use `.withValues()`) and `use_build_context_synchronously`.
+
+Note for future audits: `flutter analyze` prints `warning` lines at column 0
+while `info` lines are indented, so a `grep '^\s\+warning'` filter silently
+reports zero warnings. Match without the leading-whitespace anchor.
 
 ### 16. RBAC is decorative — `OPEN`
 `currentRoleProvider` is a `StateProvider` hardcoded to `TeamRole.owner` (`team_providers.dart:31`). Team members are local rows with no linked accounts, and every permission check is client-side with nothing enforced in Firestore rules.
@@ -144,7 +147,7 @@ Note for future audits: `flutter analyze` prints `warning` lines at column 0 whi
 
 ## Verified healthy
 
-- `flutter analyze` → **0 errors**, 11 warnings, 152 info (see issue 15; the warnings are pre-existing dead code, not regressions).
+- `flutter analyze` → **0 errors, 0 warnings**, ~151 info (see issue 15).
 - `flutter test test/core test/features` → 9/9 pass (money precision, balance effects, the −147,440 notebook scenario, `0.1 + 0.2 == 0.3`).
 - Drift migrations v1→v27 are defensively written with `_hasColumn` guards before every `addColumn`.
 - Decimal-as-TEXT money handling is consistent; no `double` in any balance path.

@@ -16,7 +16,6 @@ import 'package:hisabet/features/sales/data/models/sale_model.dart';
 import 'package:hisabet/features/sales/presentation/providers/sales_providers.dart';
 import 'package:hisabet/features/sales/presentation/screens/sales_history_screen.dart';
 import 'package:hisabet/features/transactions/data/models/transaction_model.dart';
-import 'package:hisabet/features/transactions/presentation/providers/transactions_providers.dart';
 
 class ReportsScreen extends ConsumerWidget {
   const ReportsScreen({super.key});
