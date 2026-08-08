@@ -231,9 +231,21 @@ class _ContactsListScreenState extends ConsumerState<ContactsListScreen> {
                   textInputAction: _isGlobalSearch
                       ? TextInputAction.search
                       : TextInputAction.done,
-                  trailing: _SearchScopeButton(
-                    isGlobal: _isGlobalSearch,
+                  trailing: AppSearchScopeButton<bool>(
+                    value: _isGlobalSearch,
                     onChanged: _setScope,
+                    scopes: const [
+                      AppSearchScope(
+                        value: false,
+                        label: 'Local',
+                        icon: Icons.contacts_rounded,
+                      ),
+                      AppSearchScope(
+                        value: true,
+                        label: 'Network',
+                        icon: Icons.public_rounded,
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -547,122 +559,6 @@ class _ContactsListScreenState extends ConsumerState<ContactsListScreen> {
       case ContactVerificationStatus.unverified:
         return const SizedBox.shrink();
     }
-  }
-}
-
-// ── Search scope ────────────────────────────────────────────────────────────
-
-/// Scope selector docked inside the right edge of the search field.
-///
-/// It used to be a filled pill crammed into the field's `prefixIcon` slot,
-/// which put a third background in front of the caret. Here it is part of the
-/// field, behind a hairline, reading as "search *what*" — the label is always
-/// visible, so the current scope is never a guess.
-class _SearchScopeButton extends StatelessWidget {
-  const _SearchScopeButton({required this.isGlobal, required this.onChanged});
-
-  final bool isGlobal;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final accent = isDark ? AppColors.primaryBright : AppColors.primary;
-
-    return PopupMenuButton<bool>(
-      initialValue: isGlobal,
-      tooltip: 'Search scope',
-      position: PopupMenuPosition.under,
-      elevation: 3,
-      color: Theme.of(context).colorScheme.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
-        side: BorderSide(
-          color: isDark ? AppColors.hairlineDark : AppColors.hairline,
-        ),
-      ),
-      onSelected: onChanged,
-      itemBuilder: (context) => [
-        PopupMenuItem(
-          value: false,
-          child: _ScopeMenuRow(
-            icon: Icons.contacts_rounded,
-            label: 'My contacts',
-            active: !isGlobal,
-          ),
-        ),
-        PopupMenuItem(
-          value: true,
-          child: _ScopeMenuRow(
-            icon: Icons.public_rounded,
-            label: 'Network',
-            active: isGlobal,
-          ),
-        ),
-      ],
-      child: SizedBox(
-        height: 46,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppDimensions.md),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                isGlobal ? Icons.public_rounded : Icons.contacts_rounded,
-                size: 16,
-                color: accent,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                isGlobal ? 'Network' : 'Local',
-                style: AppTextStyles.badgeLabel.copyWith(
-                  fontSize: 12.5,
-                  color: accent,
-                ),
-              ),
-              Icon(Icons.arrow_drop_down_rounded, size: 18, color: accent),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ScopeMenuRow extends StatelessWidget {
-  const _ScopeMenuRow({
-    required this.icon,
-    required this.label,
-    required this.active,
-  });
-
-  final IconData icon;
-  final String label;
-  final bool active;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final accent = isDark ? AppColors.primaryBright : AppColors.primary;
-    final tone = active ? accent : colorScheme.onSurfaceVariant;
-
-    return Row(
-      children: [
-        Icon(icon, size: 18, color: tone),
-        const SizedBox(width: AppDimensions.md),
-        Expanded(
-          child: Text(
-            label,
-            style: AppTextStyles.cardTitle.copyWith(
-              fontWeight: active ? FontWeight.w600 : FontWeight.w500,
-              color: active ? colorScheme.onSurface : colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ),
-        if (active) Icon(Icons.check_rounded, size: 16, color: accent),
-      ],
-    );
   }
 }
 

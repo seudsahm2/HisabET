@@ -155,7 +155,14 @@ abstract final class AppTheme {
           borderSide:
               const BorderSide(color: AppColors.negative, width: 2),
         ),
-        labelStyle: AppTextStyles.formLabel,
+        // Same reason as listTileTheme above: an InputDecoration style with a
+        // null colour is not resolved for you.
+        labelStyle: AppTextStyles.formLabel.copyWith(
+          color: onSurfaceVariantColor,
+        ),
+        floatingLabelStyle: AppTextStyles.formLabel.copyWith(
+          color: isDark ? AppColors.primaryBright : AppColors.primary,
+        ),
         hintStyle: AppTextStyles.formLabel.copyWith(
           color: onSurfaceVariantColor,
           fontWeight: FontWeight.w400,
@@ -274,8 +281,17 @@ abstract final class AppTheme {
           horizontal: AppDimensions.lg,
           vertical: AppDimensions.sm,
         ),
-        titleTextStyle: AppTextStyles.cardTitle,
-        subtitleTextStyle: AppTextStyles.cardSubtitle,
+        // Colours must be explicit. A ListTile takes the theme's title/subtitle
+        // styles *whole*, so a style with a null colour drops the colour the
+        // text scale would otherwise have resolved, and the label falls through
+        // to whatever DefaultTextStyle is in scope — which is how tile text
+        // ended up invisible on a white card.
+        titleTextStyle: AppTextStyles.cardTitle.copyWith(color: onSurfaceColor),
+        subtitleTextStyle: AppTextStyles.cardSubtitle.copyWith(
+          color: onSurfaceVariantColor,
+        ),
+        textColor: onSurfaceColor,
+        iconColor: onSurfaceVariantColor,
       ),
 
       // ── SnackBar ──────────────────────────────────────────────────────────

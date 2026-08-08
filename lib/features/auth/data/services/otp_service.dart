@@ -20,6 +20,18 @@ enum OtpAvailability {
   unavailable,
 }
 
+/// What a silent (no-SMS) verification should do when it resolves.
+///
+/// Android can verify the device's own number over the network via Google Play
+/// services, without ever sending an SMS. When that happens Firebase hands back
+/// a finished credential, and the *caller* decides what it means:
+///
+/// - [signIn] — the welcome screen: this credential is the account.
+/// - [link] — profile setup: the user is already signed in with Google and is
+///   only attaching a number. Signing in here would silently swap the session
+///   to a different account halfway through onboarding.
+enum OtpAutoResolveMode { signIn, link }
+
 /// Outcome of starting a verification.
 sealed class OtpStartOutcome {
   const OtpStartOutcome();
@@ -33,8 +45,10 @@ class OtpCodeSent extends OtpStartOutcome {
   final int? resendToken;
 }
 
-/// Android auto-retrieval resolved the code without user input, and sign-in
-/// already completed.
+/// Verification completed without the user typing anything — either Play
+/// services verified the number over the network with no SMS at all, or the
+/// SMS arrived and was auto-read. The requested [OtpAutoResolveMode] has
+/// already been carried out.
 class OtpAutoResolved extends OtpStartOutcome {
   const OtpAutoResolved(this.credential);
 
@@ -68,8 +82,15 @@ abstract class OtpService {
 
   bool get isUsable => availability != OtpAvailability.unavailable;
 
-  /// Sends a verification code to [phoneE164] (must already be normalised).
-  Future<OtpStartOutcome> start(String phoneE164, {int? resendToken});
+  /// Starts verification for [phoneE164] (must already be normalised).
+  ///
+  /// Resolves with [OtpCodeSent] when the user must type a code, or with
+  /// [OtpAutoResolved] when the platform verified the number by itself.
+  Future<OtpStartOutcome> start(
+    String phoneE164, {
+    int? resendToken,
+    OtpAutoResolveMode mode = OtpAutoResolveMode.signIn,
+  });
 
   /// Verifies [code] against [sessionId] and signs the user in.
   Future<UserCredential> verifyAndSignIn({
@@ -105,7 +126,12 @@ class FirebaseOtpService implements OtpService {
 
   static const bool _testingEnabled =
       bool.fromEnvironment('PHONE_AUTH_TESTING');
-  static const bool _liveEnabled = bool.fromEnvironment('PHONE_AUTH_ENABLED');
+
+  /// Live by default. The flag exists to *switch it off* for a build that
+  /// ships before the Firebase project is configured — it is no longer an
+  /// opt-in, because leaving it off left a dead button on the welcome screen.
+  static const bool _liveEnabled =
+      bool.fromEnvironment('PHONE_AUTH_ENABLED', defaultValue: true);
 
   @override
   OtpAvailability get availability {
@@ -125,7 +151,11 @@ class FirebaseOtpService implements OtpService {
   bool get isUsable => availability != OtpAvailability.unavailable;
 
   @override
-  Future<OtpStartOutcome> start(String phoneE164, {int? resendToken}) {
+  Future<OtpStartOutcome> start(
+    String phoneE164, {
+    int? resendToken,
+    OtpAutoResolveMode mode = OtpAutoResolveMode.signIn,
+  }) {
     if (!isUsable) {
       throw const OtpException(
         'Phone sign-in is not enabled for this build yet.',
@@ -150,12 +180,25 @@ class FirebaseOtpService implements OtpService {
           timeout: const Duration(seconds: 60),
           verificationCompleted: (credential) async {
             try {
-              final result = await _auth.signInWithCredential(credential);
-              complete(OtpAutoResolved(result));
+              switch (mode) {
+                case OtpAutoResolveMode.signIn:
+                  final result = await _auth.signInWithCredential(credential);
+                  complete(OtpAutoResolved(result));
+                case OtpAutoResolveMode.link:
+                  // Attach to the account that is already signed in. Calling
+                  // signInWithCredential here would swap the session to the
+                  // phone-only account and lose the Google identity.
+                  final user = _auth.currentUser;
+                  if (user == null) {
+                    throw const OtpException('You are not signed in.');
+                  }
+                  await user.linkWithCredential(credential);
+                  complete(const OtpAutoResolved(null));
+              }
             } catch (e) {
-              // Auto-retrieval fired but sign-in failed; fall back to manual
-              // entry rather than dead-ending the user.
-              debugPrint('[OtpService] auto-resolve sign-in failed: $e');
+              // Silent verification fired but the follow-up failed; fall back
+              // to manual code entry rather than dead-ending the user.
+              debugPrint('[OtpService] auto-resolve failed: $e');
             }
           },
           verificationFailed: (e) => fail(_toOtpException(e)),

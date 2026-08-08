@@ -36,6 +36,7 @@ class AppFormSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accent = isDark ? AppColors.primaryBright : AppColors.primary;
 
     return AppCard(
       margin: margin ??
@@ -58,9 +59,7 @@ class AppFormSection extends StatelessWidget {
                     width: 28,
                     height: 28,
                     decoration: BoxDecoration(
-                      color: isDark
-                          ? colorScheme.primary.withOpacity(0.16)
-                          : AppColors.primaryContainer.withOpacity(0.6),
+                      color: accent.withValues(alpha: isDark ? 0.18 : 0.10),
                       borderRadius:
                           BorderRadius.circular(AppDimensions.radiusXs),
                     ),
@@ -68,7 +67,9 @@ class AppFormSection extends StatelessWidget {
                     child: Icon(
                       icon,
                       size: 16,
-                      color: AppColors.primary,
+                      // Was hardcoded to the deep teal, which is invisible on
+                      // a dark surface.
+                      color: accent,
                     ),
                   ),
                   const SizedBox(width: AppDimensions.sm),

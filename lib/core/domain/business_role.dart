@@ -48,6 +48,15 @@ enum BusinessRole {
         BusinessRole.retailer => 'I sell individual pairs to customers',
       };
 
+  /// The same explanation written about someone else — used wherever the role
+  /// is being assigned to a contact rather than claimed by the account holder.
+  String get contactDescription => switch (this) {
+        BusinessRole.supplier => 'Imports containers, sells cartons in bulk',
+        BusinessRole.broker => 'Buys from importers and resells cartons',
+        BusinessRole.wholesaler => 'Shop owner who buys cartons from brokers',
+        BusinessRole.retailer => 'Sells individual pairs to customers',
+      };
+
   IconData get icon => switch (this) {
         BusinessRole.supplier => Icons.directions_boat_rounded,
         BusinessRole.broker => Icons.handshake_rounded,

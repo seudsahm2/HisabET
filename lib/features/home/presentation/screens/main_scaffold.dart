@@ -66,7 +66,13 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      extendBody: true,
+      // Was `extendBody: true`, left over from the floating-pill nav that
+      // content was meant to scroll behind. The bar is opaque and anchored
+      // now, so nothing should sit under it — and while the body extended to
+      // the screen edge, every tab's own Scaffold put its floating action
+      // button *behind* the bar. That is why "Add Contact" was unreachable
+      // from the Ledger tab but worked when the screen was pushed as a route.
+      extendBody: false,
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: PageView(
         controller: _pageController,

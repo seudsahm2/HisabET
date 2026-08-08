@@ -99,7 +99,10 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
     });
 
     try {
-      final outcome = await ref.read(otpServiceProvider).start(normalized);
+      final outcome = await ref.read(otpServiceProvider).start(
+            normalized,
+            mode: OtpAutoResolveMode.link,
+          );
       if (!mounted) return;
       switch (outcome) {
         case OtpAutoResolved():

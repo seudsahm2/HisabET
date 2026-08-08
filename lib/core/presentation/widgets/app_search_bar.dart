@@ -187,3 +187,132 @@ class _AppSearchBarState extends State<AppSearchBar> {
     );
   }
 }
+
+/// One option in an [AppSearchScopeButton].
+class AppSearchScope<T> {
+  const AppSearchScope({
+    required this.value,
+    required this.label,
+    required this.icon,
+  });
+
+  final T value;
+
+  /// Kept short — it renders inside the field.
+  final String label;
+
+  final IconData icon;
+}
+
+/// "Search *what*" — a scope picker docked in an [AppSearchBar]'s trailing
+/// slot: local contacts vs the network, email vs phone.
+///
+/// It belongs to the field, behind the field's own hairline, rather than
+/// floating inside it. The current scope is always spelled out, so a search
+/// that returns nothing is never ambiguous about where it looked.
+class AppSearchScopeButton<T> extends StatelessWidget {
+  const AppSearchScopeButton({
+    super.key,
+    required this.scopes,
+    required this.value,
+    required this.onChanged,
+    this.tooltip = 'Search scope',
+  });
+
+  final List<AppSearchScope<T>> scopes;
+  final T value;
+  final ValueChanged<T> onChanged;
+  final String tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accent = isDark ? AppColors.primaryBright : AppColors.primary;
+    final active = scopes.firstWhere((scope) => scope.value == value);
+
+    return PopupMenuButton<T>(
+      initialValue: value,
+      tooltip: tooltip,
+      position: PopupMenuPosition.under,
+      elevation: 3,
+      color: colorScheme.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+        side: BorderSide(
+          color: isDark ? AppColors.hairlineDark : AppColors.hairline,
+        ),
+      ),
+      onSelected: onChanged,
+      itemBuilder: (context) => [
+        for (final scope in scopes)
+          PopupMenuItem<T>(
+            value: scope.value,
+            child: _ScopeMenuRow(
+              icon: scope.icon,
+              label: scope.label,
+              active: scope.value == value,
+            ),
+          ),
+      ],
+      child: SizedBox(
+        height: 46,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppDimensions.md),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(active.icon, size: 16, color: accent),
+              const SizedBox(width: 6),
+              Text(
+                active.label,
+                style: AppTextStyles.badgeLabel.copyWith(
+                  fontSize: 12.5,
+                  color: accent,
+                ),
+              ),
+              Icon(Icons.arrow_drop_down_rounded, size: 18, color: accent),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ScopeMenuRow extends StatelessWidget {
+  const _ScopeMenuRow({
+    required this.icon,
+    required this.label,
+    required this.active,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accent = isDark ? AppColors.primaryBright : AppColors.primary;
+
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: active ? accent : colorScheme.onSurfaceVariant),
+        const SizedBox(width: AppDimensions.md),
+        Expanded(
+          child: Text(
+            label,
+            style: AppTextStyles.cardTitle.copyWith(
+              fontWeight: active ? FontWeight.w600 : FontWeight.w500,
+              color:
+                  active ? colorScheme.onSurface : colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+        if (active) Icon(Icons.check_rounded, size: 16, color: accent),
+      ],
+    );
+  }
+}
