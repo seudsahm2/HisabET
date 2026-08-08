@@ -28,11 +28,11 @@ class AppPersonalizedHeader extends ConsumerWidget {
       error: (_, __) => 'Merchant',
     );
     final dateLabel = DateFormat('EEEE, MMM d').format(DateTime.now()).toUpperCase();
-    final photoUrl = userProfileAsync.value?.photoUrl ?? FirebaseAuth.instance.currentUser?.photoURL;
+    final photoUrl = userProfileAsync.valueOrNull?.photoUrl ?? FirebaseAuth.instance.currentUser?.photoURL;
     final localImageAsync = photoUrl != null 
         ? ref.watch(localProfileImageProvider(photoUrl)) 
         : const AsyncValue.data(null);
-    final localImageFile = localImageAsync.value;
+    final localImageFile = localImageAsync.valueOrNull;
 
     return Container(
       padding: const EdgeInsets.all(AppDimensions.lg),

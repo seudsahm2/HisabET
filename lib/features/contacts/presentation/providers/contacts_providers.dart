@@ -9,7 +9,7 @@ final Map<String, AppDatabase> _dbCache = {};
 
 /// Provider for the database instance
 final appDatabaseProvider = Provider<AppDatabase>((ref) {
-  final user = ref.watch(authStateProvider).value;
+  final user = ref.watch(authStateProvider).valueOrNull;
   final uid = user?.uid ?? 'unauthenticated';
 
   // Keep a single active database connection in memory.
@@ -77,7 +77,7 @@ final contactProvider = StreamProvider.family<ContactModel?, String>((
 
 /// Provider for incoming connection requests
 final connectionRequestsProvider = StreamProvider<List<Map<String, dynamic>>>((ref) {
-  final user = ref.watch(authStateProvider).value;
+  final user = ref.watch(authStateProvider).valueOrNull;
   if (user == null) {
     return Stream.value([]);
   }

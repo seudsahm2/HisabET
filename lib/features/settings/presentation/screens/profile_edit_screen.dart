@@ -32,7 +32,7 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
   @override
   void initState() {
     super.initState();
-    final profile = ref.read(userProfileProvider).value;
+    final profile = ref.read(userProfileProvider).valueOrNull;
     _nameCtrl.text = profile?.displayName ?? '';
     _photoUrl = FirebaseAuth.instance.currentUser?.photoURL;
     _joinedDate = FirebaseAuth.instance.currentUser?.metadata.creationTime;

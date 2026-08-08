@@ -41,11 +41,11 @@ class _ReconciliationScreenState extends ConsumerState<ReconciliationScreen> {
   Widget build(BuildContext context) {
     final diffAsync = ref.watch(reconciliationProvider((contactId: widget.contactId, contactPhone: widget.contactPhone)));
     final unsyncedCountAsync = ref.watch(unsyncedTransactionsCountProvider);
-    final unsyncedCount = unsyncedCountAsync.value ?? 0;
+    final unsyncedCount = unsyncedCountAsync.valueOrNull ?? 0;
     
     // Fetch the contact to know if it has a linkedUid even without a phone number
     final contactAsync = ref.watch(contactProvider(widget.contactId));
-    final linkedUid = contactAsync.value?.linkedUserUid;
+    final linkedUid = contactAsync.valueOrNull?.linkedUserUid;
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
 

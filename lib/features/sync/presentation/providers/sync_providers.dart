@@ -57,7 +57,7 @@ final reconciliationProvider =
       // Watch local transactions so the reconciliation reacts to local changes!
       debugPrint('🧠 [SYNC PROVIDER] Watching local transactions...');
       final localAsync = ref.watch(contactTransactionsProvider(contactId));
-      final localList = localAsync.value ?? [];
+      final localList = localAsync.valueOrNull ?? [];
       debugPrint('🧠 [SYNC PROVIDER] Local list fetched. Length: ${localList.length}');
 
       // Yield values from the stream

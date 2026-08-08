@@ -32,7 +32,7 @@ class _ContactDetailScreenState extends ConsumerState<ContactDetailScreen> {
     final contactAsync = ref.watch(contactProvider(widget.contact.id));
     final transactionsAsync = ref.watch(contactTransactionsProvider(widget.contact.id));
 
-    final currentContact = contactAsync.value ?? widget.contact;
+    final currentContact = contactAsync.valueOrNull ?? widget.contact;
     final isPositive = currentContact.netBalance.toDouble() >= 0;
     final balanceColor = isPositive ? AppColors.give : AppColors.take;
 

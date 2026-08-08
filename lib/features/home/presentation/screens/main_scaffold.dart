@@ -310,7 +310,7 @@ class _GreetingHeader extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
-    final profile = ref.watch(userProfileProvider).value;
+    final profile = ref.watch(userProfileProvider).valueOrNull;
     final user = FirebaseAuth.instance.currentUser;
     final name = profile?.displayName ?? user?.displayName ?? 'Merchant';
     final photoUrl = profile?.photoUrl ?? user?.photoURL;
@@ -490,9 +490,9 @@ class _ProfileTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final userProfileAsync = ref.watch(userProfileProvider);
     final user = FirebaseAuth.instance.currentUser;
-    final displayName = userProfileAsync.value?.displayName ?? user?.displayName ?? 'Merchant';
+    final displayName = userProfileAsync.valueOrNull?.displayName ?? user?.displayName ?? 'Merchant';
     final email = user?.email ?? '';
-    final photoUrl = userProfileAsync.value?.photoUrl ?? user?.photoURL;
+    final photoUrl = userProfileAsync.valueOrNull?.photoUrl ?? user?.photoURL;
 
     return SafeArea(
       child: SingleChildScrollView(

@@ -13,7 +13,7 @@ final authStateProvider = StreamProvider<User?>((ref) {
 
 /// Provides the current user's profile data from Firestore as a stream.
 final userProfileProvider = StreamProvider<UserProfile?>((ref) {
-  final user = ref.watch(authStateProvider).value;
+  final user = ref.watch(authStateProvider).valueOrNull;
   if (user == null) {
     return Stream.value(null);
   }
@@ -33,7 +33,7 @@ final userProfileProvider = StreamProvider<UserProfile?>((ref) {
 /// A convenience provider that exposes just the current user's roles.
 /// Returns an empty list if the user is not logged in or has no roles.
 final userRolesProvider = Provider<List<String>>((ref) {
-  final profile = ref.watch(userProfileProvider).value;
+  final profile = ref.watch(userProfileProvider).valueOrNull;
   return profile?.roles ?? [];
 });
 
