@@ -13,6 +13,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:hisabet/features/auth/data/services/pnv_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,6 +22,10 @@ Future<void> main() async {
   await Firebase.initializeApp();
 
   _configurePhoneAuthTesting();
+
+  // PNV test mode has to be armed before the library is used, and exactly once
+  // per process. No-op when no token was passed at build time.
+  await const PnvService().enableTestSession();
 
   final prefs = await SharedPreferences.getInstance();
   final initialLanguageCode = await AppSettingsRepository.readInitialLanguageCode();

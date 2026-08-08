@@ -12,7 +12,20 @@
           "package_name": "com.example.hisabET"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "1033040008588-sis1s7g0b7psvvsjvbuapfatpvajp7pm.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.hisabET",
+            "certificate_hash": "8f6d5cc0ba5e14f1a966b529a0ca52af526149f4"
+          }
+        },
+        {
+          "client_id": "1033040008588-b14dlpudg574iq479joq8jcfmrfg2nrm.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyDi4-xCrzn_K3J9HrDMj9Zo74BtplZLFJ0"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1033040008588-b14dlpudg574iq479joq8jcfmrfg2nrm.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

@@ -10,6 +10,7 @@ import 'package:hisabet/core/presentation/widgets/widgets.dart';
 import 'package:hisabet/core/theme/theme.dart';
 import 'package:hisabet/core/utils/phone_util.dart';
 import 'package:hisabet/features/auth/data/services/otp_service.dart';
+import 'package:hisabet/features/auth/data/services/pnv_service.dart';
 import 'package:hisabet/features/auth/presentation/providers/otp_providers.dart';
 
 /// Collects the profile every other screen depends on: display name, business
@@ -50,6 +51,14 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
   String? _linkSessionId;
   bool _phoneVerified = false;
 
+  /// How the number was proven. Recorded because the two paths do not carry
+  /// the same weight: `otp` puts the number on the Firebase Auth record, where
+  /// the server owns it; `pnv` is the carrier's word relayed by the client, and
+  /// only becomes server-proven once a backend checks the attestation token.
+  String? _phoneVerificationMethod;
+
+  bool _verifyingWithNetwork = false;
+
   @override
   void initState() {
     super.initState();
@@ -61,6 +70,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
       // Signed in by phone — already proven, nothing to verify.
       _phoneController.text = authPhone;
       _phoneVerified = true;
+      _phoneVerificationMethod = 'auth';
     }
     _nameController.text = user?.displayName ?? '';
   }
@@ -108,6 +118,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
         case OtpAutoResolved():
           setState(() {
             _phoneVerified = true;
+            _phoneVerificationMethod = 'otp';
             _linking = false;
             _linkSessionId = null;
           });
@@ -121,6 +132,41 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
       _failLinking(e.message);
     } catch (e) {
       _failLinking('Could not send code. $e');
+    }
+  }
+
+  /// One-tap path: ask the carrier to confirm the SIM's own number. No SMS is
+  /// sent and nothing is typed. Falls back to the code flow on any failure —
+  /// most networks are not integrated with PNV yet, so failure is the expected
+  /// case outside the supported carriers, not an exception.
+  Future<void> _verifyWithNetwork() async {
+    setState(() {
+      _verifyingWithNetwork = true;
+      _error = null;
+    });
+
+    try {
+      final result = await ref.read(pnvServiceProvider).verify();
+      if (!mounted) return;
+      setState(() {
+        _phoneController.text = result.phoneNumber;
+        _phoneVerified = true;
+        _phoneVerificationMethod = 'pnv';
+        _verifyingWithNetwork = false;
+        _linkSessionId = null;
+      });
+    } on PnvException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _verifyingWithNetwork = false;
+        _error = e.message;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _verifyingWithNetwork = false;
+        _error = 'Network verification failed. Use the code instead.';
+      });
     }
   }
 
@@ -149,6 +195,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
       if (!mounted) return;
       setState(() {
         _phoneVerified = true;
+        _phoneVerificationMethod = 'otp';
         _linking = false;
         _linkSessionId = null;
         _otpController.clear();
@@ -205,6 +252,12 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
         payload['contactPhone'] = normalizedPhone;
       }
       payload['phoneVerified'] = _phoneVerified && normalizedPhone != null;
+      // Recorded so the strength of the claim is legible later. 'auth' and
+      // 'otp' are server-owned; 'pnv' is the carrier's word relayed by this
+      // client, and stays that way until a backend verifies the attestation.
+      if (_phoneVerified && normalizedPhone != null) {
+        payload['phoneVerificationMethod'] = _phoneVerificationMethod;
+      }
 
       if (user.email != null && user.email!.isNotEmpty) {
         payload['email'] = user.email!.toLowerCase();
@@ -422,6 +475,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
     final otp = ref.watch(otpServiceProvider);
     final user = FirebaseAuth.instance.currentUser;
     final canVerify = otp.isUsable && !_phoneLockedByAuth && !_phoneVerified;
+    final pnvAvailable = ref.watch(pnvAvailableProvider).valueOrNull ?? false;
 
     return AppFormSection(
       title: 'How partners reach you',
@@ -466,6 +520,41 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
           },
         ),
         if (canVerify) ...[
+          // Carrier verification first when the device supports it: no SMS, no
+          // code, no cost. It fails on networks Firebase has not integrated
+          // with, so the code path stays visible underneath rather than being
+          // replaced by it.
+          if (pnvAvailable && _linkSessionId == null) ...[
+            const SizedBox(height: AppDimensions.md),
+            FilledButton.icon(
+              onPressed: _verifyingWithNetwork || _linking
+                  ? null
+                  : _verifyWithNetwork,
+              icon: _verifyingWithNetwork
+                  ? const SizedBox(
+                      width: AppDimensions.iconSm,
+                      height: AppDimensions.iconSm,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.textOnPrimary,
+                      ),
+                    )
+                  : const Icon(Icons.sim_card_rounded),
+              label: Text(
+                _verifyingWithNetwork
+                    ? 'Checking with your network…'
+                    : 'Verify instantly with your SIM',
+              ),
+            ),
+            const SizedBox(height: AppDimensions.xs),
+            Text(
+              'No SMS, no code. Works only on networks Firebase supports — '
+              'use the code below if it fails.',
+              style: AppTextStyles.labelSmall.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
           const SizedBox(height: AppDimensions.md),
           if (_linkSessionId == null)
             OutlinedButton.icon(

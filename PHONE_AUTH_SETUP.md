@@ -131,22 +131,64 @@ will need Blaze.
 
 ---
 
-## 5. Where a token goes
+## 5. Firebase PNV — carrier verification, no SMS
 
-There is exactly one place: `--dart-define` at run time, read in
-`lib/main.dart`. Nothing secret is committed.
+Firebase Phone Number Verification asks the mobile carrier to confirm the
+number of the SIM in the device. Nothing is sent, nothing is typed. It went
+generally available in May 2026.
 
-Which key it uses depends on what the token is, and the three candidates need
-different wiring:
+### It is wired up, and here is where the token goes
 
-| If your token is… | Where it belongs | Extra work |
-|---|---|---|
-| **App Check debug token** (from the console's App Check tab, or printed by the app on first run) | `--dart-define=APP_CHECK_DEBUG_TOKEN=…` | needs the `firebase_app_check` package added and activated in `main.dart` |
-| **reCAPTCHA / reCAPTCHA Enterprise site key** | `--dart-define=RECAPTCHA_SITE_KEY=…` | web only; Android uses Play Integrity instead |
-| **A Play services / preview-program enrolment token** | nothing to add in code | it is a device-side enrolment, not an app credential |
+```powershell
+flutter run --dart-define=FIREBASE_PNV_TEST_TOKEN=<token from the console>
+```
 
-Tell me which one it is — or paste the console screen it came from — and I will
-wire it up. Do not paste the token into a file that is committed.
+Token comes from Firebase Console → **Security → Phone Verification →
+Testing** → *Generate token*. It expires after **7 days**. Nothing is
+committed — it is read at run time in `lib/main.dart`.
+
+With no token the PNV path simply does not arm, and the app falls back to the
+code flow. That is also the production behaviour.
+
+### How it is put together
+
+There is no FlutterFire plugin for PNV, so the app talks to the Android
+library directly:
+
+| Piece | File |
+|---|---|
+| Gradle dependency `com.google.firebase:firebase-pnv:16.1.1` | `android/app/build.gradle.kts` |
+| `MethodChannel("hisabet/pnv")` — `isAvailable` / `enableTestSession` / `verify` | `android/app/src/main/kotlin/com/example/hisabet/MainActivity.kt` |
+| Dart side | `lib/features/auth/data/services/pnv_service.dart` |
+| Providers | `lib/features/auth/presentation/providers/otp_providers.dart` |
+| UI | profile setup — "Verify instantly with your SIM", with the code flow underneath |
+
+`enableTestSession` throws if called twice, so the native side guards it for
+the whole process — hot restart cannot trip it.
+
+### Two limits that matter
+
+**Ethiopia is not a supported carrier.** PNV works through direct carrier
+integrations. At the time of writing the list is DNA (Finland), Orange
+(France), Deutsche Telekom and Telefónica O2 (Germany), Telkomsel (Indonesia),
+CelcomDigi (Malaysia) and Movistar (Spain). Ethio Telecom is not on it, so on
+a real Ethiopian SIM `verify()` will fail today. Test mode works anywhere
+because it uses a mock number instead of a SIM. This is why PNV is offered as
+a fast path with the code flow still visible underneath, never as the only
+route.
+
+**A PNV result is not a Firebase Auth credential.** Linking an OTP code puts
+the number on the auth record, where the server owns it. PNV returns an
+attestation token that a backend must exchange for a Firebase custom token —
+a Cloud Function that does not exist yet. Until it does, a PNV result is a
+*client* claim: good enough to fill the field and skip the SMS, not good
+enough to treat as proof in someone else's ledger. The profile records which
+path was used in `phoneVerificationMethod` (`auth` / `otp` / `pnv`) so that
+distinction survives.
+
+To ship PNV for real, the missing pieces are: a supported carrier, a Cloud
+Function to verify the token and mint a custom token (Blaze), and the OAuth
+brand / privacy-policy review in the console.
 
 ---
 

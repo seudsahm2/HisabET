@@ -39,6 +39,12 @@ android {
     }
 }
 
+dependencies {
+    // Firebase Phone Number Verification. There is no FlutterFire plugin for
+    // this yet, so the app talks to it over a MethodChannel in MainActivity.
+    implementation("com.google.firebase:firebase-pnv:16.1.1")
+}
+
 flutter {
     source = "../.."
 }

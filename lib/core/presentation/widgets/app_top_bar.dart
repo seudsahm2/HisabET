@@ -177,6 +177,12 @@ class AppAvatarButton extends StatelessWidget {
             radius: radius,
             backgroundColor: colorScheme.surfaceContainerHighest,
             foregroundImage: image,
+            // Without a handler a failed download becomes an unhandled
+            // exception on every build — Firebase Storage returns 402 when the
+            // project has no billing, so the avatar fails on every launch. The
+            // initial underneath is a perfectly good fallback; it should just
+            // show, quietly.
+            onForegroundImageError: image == null ? null : (_, __) {},
             child: Text(
               initial,
               style: AppTextStyles.cardTitle.copyWith(
