@@ -50,6 +50,37 @@ class PhoneClaimRepository {
   final FirebaseAuth _auth;
   final Duration timeout;
 
+  /// Deletes `users/{uid}` and releases the account's phone claim together.
+  ///
+  /// Used by account deletion. Works on the free plan: the rules let an owner
+  /// delete their claim once the profile no longer exists in the same batch.
+  Future<void> deleteProfileAndReleasePhone() async {
+    final user = _auth.currentUser;
+    if (user == null) throw const PhoneClaimException(PhoneClaimFailure.notSignedIn);
+
+    final userRef = _db.collection('users').doc(user.uid);
+    final batch = _db.batch();
+    try {
+      final phone = (await userRef.get(const GetOptions(source: Source.server))
+              .timeout(timeout))
+          .data()?['phone'];
+      if (phone is String && phone.isNotEmpty) {
+        final claimRef = _db.collection('phone_claims').doc(phone);
+        try {
+          final claim = await claimRef.get(const GetOptions(source: Source.server)).timeout(timeout);
+          if (claim.exists) batch.delete(claimRef);
+        } on FirebaseException catch (e) {
+          // Not ours (legacy data): nothing to release.
+          if (e.code != 'permission-denied') rethrow;
+        }
+      }
+      batch.delete(userRef);
+      await batch.commit().timeout(timeout);
+    } on TimeoutException {
+      throw const PhoneClaimException(PhoneClaimFailure.offline);
+    }
+  }
+
   /// Claims the phone number on the current Firebase Auth record.
   ///
   /// [method] is [PhoneVerificationMethod.firebaseAuth] for phone sign-in or

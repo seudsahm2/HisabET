@@ -2,3 +2,5 @@ node_modules/
 lib/
 *.log
 .secret.local
+# Netlify CLI local state
+.netlify/

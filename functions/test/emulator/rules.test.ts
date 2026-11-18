@@ -10,7 +10,7 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { doc, getDoc, serverTimestamp, setDoc, Timestamp, updateDoc, writeBatch } from 'firebase/firestore';
+import { deleteDoc, doc, getDoc, serverTimestamp, setDoc, Timestamp, updateDoc, writeBatch } from 'firebase/firestore';
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 
 const PHONE = '+251911223344';
@@ -125,6 +125,27 @@ describe('phone_claims/{phone}', () => {
   it('hides who holds a number from other users', async () => {
     await seed(`phone_claims/${PHONE}`, { uid: 'bob', method: 'telegram', claimedAt: Timestamp.now() });
     await assertFails(getDoc(doc(google('alice'), `phone_claims/${PHONE}`)));
+  });
+
+  it('lets account deletion release the claim together with the profile', async () => {
+    await seed('users/alice', { name: 'Alice', phone: PHONE, phoneVerified: true, phoneVerificationMethod: 'telegram' });
+    await seed(`phone_claims/${PHONE}`, { uid: 'alice', method: 'telegram', claimedAt: Timestamp.now() });
+    const db = google('alice');
+    const batch = writeBatch(db);
+    batch.delete(doc(db, `phone_claims/${PHONE}`));
+    batch.delete(doc(db, 'users/alice'));
+    await assertSucceeds(batch.commit());
+  });
+
+  it('refuses releasing a claim the profile still uses', async () => {
+    await seed('users/alice', { name: 'Alice', phone: PHONE, phoneVerified: true, phoneVerificationMethod: 'telegram' });
+    await seed(`phone_claims/${PHONE}`, { uid: 'alice', method: 'telegram', claimedAt: Timestamp.now() });
+    await assertFails(deleteDoc(doc(google('alice'), `phone_claims/${PHONE}`)));
+  });
+
+  it('refuses releasing someone else’s claim', async () => {
+    await seed(`phone_claims/${PHONE}`, { uid: 'bob', method: 'telegram', claimedAt: Timestamp.now() });
+    await assertFails(deleteDoc(doc(google('alice'), `phone_claims/${PHONE}`)));
   });
 
   it('never allows edits to an existing claim', async () => {

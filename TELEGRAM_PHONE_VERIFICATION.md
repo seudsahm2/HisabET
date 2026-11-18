@@ -40,12 +40,12 @@ Why each piece is there:
 | **Is it really their number?** | Telegram registers accounts by SMS, and the bot only accepts a contact whose `user_id` equals the sender's id — i.e. the sender's own number, shared with Telegram's "request contact" button. A forwarded or typed contact is refused. |
 | **Uniqueness** | `phone_claims/{E.164}` — the document id *is* the number, so there can only ever be one. The backend claims inside a Firestore transaction; a race between two accounts gives the number to exactly one (tested). It also refuses a number another Firebase Auth account signed in with. |
 | **Clients can't fake it** | `firestore.rules` stop the app writing `phone`, `phoneVerified`, `phoneVerificationMethod` or `phoneVerifiedAt` unless Firebase Auth itself proves the number (`request.auth.token.phone_number`) **and** a matching claim is written in the same batch. Telegram results are written only by the backend. |
-| **Bot token** | Lives only in Google Secret Manager. It is never in the app or the repo. |
+| **Bot token & admin key** | Only in the host's secret settings (Netlify env vars, or Google Secret Manager on Blaze). Never in the app or the repo. |
 | **Forged webhook calls** | The function URL is public, so every request must carry the `X-Telegram-Bot-Api-Secret-Token` header set at `setWebhook`. Compared in constant time. |
 | **Phishing a link** | The bot names the account being verified (display name + masked email) before asking for the number, and says to ignore it if the user didn't start it. Links expire after 10 minutes, bind to the first Telegram account that opens them, and are single-use. |
 | **Anonymous numbers** | `+888` Fragment numbers are refused — they are bought, not SIMs. |
 | **Privacy** | Logs record outcomes only, never numbers or Telegram ids. Claims cannot be listed. The Telegram id is kept only on the private session document. |
-| **Deleted accounts** | `releasePhoneClaimsOnDelete` frees a deleted account's numbers, whether it was deleted in the app or in the console. |
+| **Deleted accounts** | The app's *Delete account* deletes the profile and releases its claim in one batch. On Blaze, `releasePhoneClaimsOnDelete` also covers accounts deleted from the console. |
 
 ### Code map
 
@@ -55,7 +55,7 @@ Why each piece is there:
 | Webhook auth / HTTP | `functions/src/telegram/webhook.ts` |
 | Session rules (expiry, binding) | `functions/src/verification/session.ts` |
 | Firestore transactions | `functions/src/verification/firestore-store.ts` |
-| Function entry points | `functions/src/index.ts` |
+| Entry points | `functions/netlify/*.mts` (free) · `functions/src/index.ts` (Blaze) |
 | Security rules | `firestore.rules` → *Phone identity* section |
 | Flutter domain / data / UI | `lib/features/phone_identity/` |
 | Gate that requires a verified phone | `lib/core/auth/auth_gate.dart` |
@@ -64,12 +64,17 @@ Why each piece is there:
 
 ## Setup
 
-### 0. Requirements
+There are two ways to host the bot. They run the **same code**; only the
+entry point differs.
 
-- **Firebase Blaze plan.** Cloud Functions need it. This workload sits far inside
-  the free tier (2M invocations/month), so expect a bill of about $0 — but a
-  billing account must be attached. Set a budget alert while you're there.
-- Node 22 and the Firebase CLI (`npm i -g firebase-tools`).
+| | **A. Free — Netlify** (recommended now) | **B. Firebase Cloud Functions** |
+|---|---|---|
+| Cost | $0, no card | $0 usage, but needs the **Blaze** plan (billing account) |
+| Firebase plan | Spark (free) is enough | Blaze |
+| Entry point | `functions/netlify/*.mts` | `functions/src/index.ts` |
+| Account deletion frees the number | the app does it (Delete account) | the app **and** an `onDelete` trigger |
+
+Steps 1, 2 and 5 are the same for both.
 
 ### 1. Create the bot
 
@@ -81,38 +86,69 @@ Why each piece is there:
    - `/setuserpic` → the app icon.
    - `/setjoingroups` → **Disable** (the bot is for private chats only).
 
-### 2. Store the secrets
-
-```powershell
-cd functions
-npm ci
-firebase functions:secrets:set TELEGRAM_BOT_TOKEN       # paste the BotFather token
-firebase functions:secrets:set TELEGRAM_WEBHOOK_SECRET  # paste a long random string
-```
-
-Generate the webhook secret with, for example:
+Generate a webhook secret (keep it for step 4):
 
 ```powershell
 node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
 ```
 
-Keep that value for step 4.
-
-### 3. Deploy rules and functions
+### 2. Deploy the Firestore rules and indexes (free on Spark)
 
 ```powershell
-firebase deploy --only firestore,functions
+npm i -g firebase-tools
+firebase login
+firebase deploy --only firestore
 ```
 
-Note the `telegramWebhook` URL it prints, e.g.
-`https://europe-west1-hisabet.cloudfunctions.net/telegramWebhook`.
+### 3A. Host on Netlify (free)
 
-### 4. Point Telegram at the function
+1. **Service-account key.** Firebase Console → ⚙ Project settings →
+   **Service accounts** → **Generate new private key**. This downloads a JSON
+   file that is *full admin access* to your project: never commit it, never
+   send it to anyone, delete the downloaded file after step 3.
+2. Sign up at **netlify.com** (free, no card) with GitHub.
+3. **Add new site → Import an existing project →** pick the `HisabET` repo.
+   - Branch: the one with this code.
+   - **Base directory: `functions`** (everything else comes from
+     `functions/netlify.toml`).
+4. Before the first deploy, **Site configuration → Environment variables**,
+   add three, each marked **Contains secret values**:
+
+   | Key | Value |
+   |---|---|
+   | `FIREBASE_SERVICE_ACCOUNT` | the whole JSON file's contents |
+   | `TELEGRAM_BOT_TOKEN` | the BotFather token |
+   | `TELEGRAM_WEBHOOK_SECRET` | the secret from step 1 |
+
+5. Deploy. Your webhook URL is
+   `https://<your-site>.netlify.app/telegram-webhook`.
+   The daily cleanup job (`cleanup-phone-verifications`) is picked up
+   automatically.
+
+> Check Netlify's current free-plan limits and terms before you rely on it in
+> production. This workload is tiny (a few requests per verification), but
+> limits change.
+
+### 3B. Host on Firebase Cloud Functions (needs Blaze)
+
+```powershell
+cd functions
+npm ci
+firebase functions:secrets:set TELEGRAM_BOT_TOKEN
+firebase functions:secrets:set TELEGRAM_WEBHOOK_SECRET
+firebase deploy --only functions
+```
+
+Webhook URL: `https://europe-west1-<project>.cloudfunctions.net/telegramWebhook`.
+If you move from A to B later, re-run step 4 with the new URL and delete the
+Netlify site.
+
+### 4. Point Telegram at the webhook
 
 ```powershell
 $token  = "<bot token>"
-$secret = "<webhook secret from step 2>"
-$url    = "https://europe-west1-hisabet.cloudfunctions.net/telegramWebhook"
+$secret = "<webhook secret from step 1>"
+$url    = "https://<your-site>.netlify.app/telegram-webhook"   # or the Cloud Functions URL
 
 Invoke-RestMethod "https://api.telegram.org/bot$token/setWebhook" -Method Post -ContentType 'application/json' -Body (@{
   url = $url
@@ -136,14 +172,17 @@ flutter run --dart-define=TELEGRAM_BOT_USERNAME=HisabETBot
 Without it the Telegram button is hidden and only the SMS-code path shows,
 so builds made before the backend exists still work.
 
+> **On the free plan, the SMS fallback only works with Firebase test numbers**
+> (real SMS needs Blaze). Telegram is the path real users take.
+
 ---
 
 ## Testing
 
 | What | Command | Needs |
 |---|---|---|
-| Backend logic (54 tests) | `cd functions; npm test` | nothing |
-| Rules + Firestore transactions against the emulators (56 tests) | `cd functions; npm run test:emulator` | Java 11+ |
+| Backend logic (59 tests) | `cd functions; npm test` | nothing |
+| Rules + Firestore transactions against the emulators (59 tests) | `cd functions; npm run test:emulator` | Java 11+ |
 | Everything backend | `cd functions; npm run test:all` | Java 11+ |
 | Flutter domain/data | `flutter test test/features/phone_identity` | nothing |
 
@@ -160,11 +199,11 @@ so builds made before the backend exists still work.
 
 ## Operations
 
-- **Logs:** `firebase functions:log --only telegramWebhook`. Events:
+- **Logs:** Netlify → Logs → Functions (or `firebase functions:log --only telegramWebhook` on Blaze). Events:
   `telegram_session_open`, `telegram_session_complete`, `telegram_contact_rejected`
   — each with an outcome, no personal data.
-- **Rotating the bot token:** BotFather `/revoke`, then
-  `firebase functions:secrets:set TELEGRAM_BOT_TOKEN`, redeploy, re-run step 4.
+- **Rotating the bot token:** BotFather `/revoke`, update `TELEGRAM_BOT_TOKEN`
+  (Netlify env var, or `firebase functions:secrets:set`), redeploy, re-run step 4.
 - **Rotating the webhook secret:** set the secret, redeploy, re-run step 4 with the new value.
 - **Stale sessions** are deleted daily by `cleanupPhoneVerifications`.
 

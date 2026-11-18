@@ -1,0 +1,11 @@
+# Netlify site for the HisabET backend (free hosting option).
+# In Netlify, create a site from this repo with Base directory = "functions".
+[build]
+  command = "npm run typecheck"
+  publish = "netlify-public"
+
+[functions]
+  directory = "netlify"
+  node_bundler = "esbuild"
+  # firebase-admin is large and uses dynamic requires; ship it as a dependency.
+  external_node_modules = ["firebase-admin"]

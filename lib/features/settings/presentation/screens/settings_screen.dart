@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:hisabet/core/l10n/language_provider.dart';
@@ -13,6 +12,7 @@ import 'package:hisabet/features/settings/presentation/providers/settings_provid
 import 'package:hisabet/features/team/data/models/team_member_model.dart';
 import 'package:hisabet/features/team/presentation/providers/team_providers.dart';
 import 'package:hisabet/features/settings/presentation/screens/trash_screen.dart';
+import 'package:hisabet/features/phone_identity/presentation/providers/phone_identity_providers.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -434,8 +434,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       try {
         final user = FirebaseAuth.instance.currentUser;
         if (user != null) {
-          // Delete from Firestore
-          await FirebaseFirestore.instance.collection('users').doc(user.uid).delete();
+          // Delete the profile and release its phone number in one batch, so
+          // the number is free for its next owner. (The backend's onDelete
+          // trigger does this too, but only exists on the Blaze plan.)
+          await ref.read(phoneClaimRepositoryProvider).deleteProfileAndReleasePhone();
           // Wipe local DB
           await ref.read(appDatabaseProvider).clearAllData();
           // Delete Auth User

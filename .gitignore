@@ -53,3 +53,7 @@ firebase-debug.log
 # Backend dependencies / build output (also ignored in functions/.gitignore)
 functions/node_modules/
 functions/lib/
+
+# Firebase service-account keys (full admin access) - never commit
+*-firebase-adminsdk-*.json
+service-account*.json
