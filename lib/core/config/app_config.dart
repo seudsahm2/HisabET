@@ -43,5 +43,5 @@ abstract final class AppConfig {
 
   static const String _productionTelegramBot = 'hisabetbot';
   static const String _productionBackendUrl = 'hisabet.netlify.app';
-  static const String _productionTelegramClientId = '';
+  static const String _productionTelegramClientId = '9133811843';
 }
