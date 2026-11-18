@@ -33,6 +33,6 @@ abstract final class AppConfig {
   // Fill these in once. Leaving one empty hides the Telegram options in the
   // app instead of showing a button that cannot work.
 
-  static const String _productionTelegramBot = '';
-  static const String _productionBackendUrl = '';
+  static const String _productionTelegramBot = 'hisabetbot';
+  static const String _productionBackendUrl = 'hisabet.netlify.app';
 }
