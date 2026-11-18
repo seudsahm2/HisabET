@@ -1,3 +1,26 @@
 {
-  "snyk.advanced.autoSelectOrganization": true
+  "snyk.advanced.autoSelectOrganization": true,
+
+  // Downloaded dependencies and build output: ~15k files in functions/node_modules
+  // alone. Keep them out of the explorer, search, file watcher and Source Control.
+  "files.exclude": {
+    "functions/node_modules": true,
+    "functions/lib": true,
+    "**/*-debug.log": true
+  },
+  "files.watcherExclude": {
+    "**/node_modules/**": true,
+    "functions/lib/**": true,
+    "build/**": true,
+    ".dart_tool/**": true,
+    "**/Pods/**": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "functions/lib": true,
+    "build": true,
+    ".dart_tool": true
+  },
+  "git.ignoredRepositories": ["functions/node_modules"],
+  "git.repositoryScanIgnoredFolders": ["node_modules", "build", ".dart_tool"]
 }

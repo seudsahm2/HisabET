@@ -49,3 +49,7 @@ firestore-debug.log
 ui-debug.log
 database-debug.log
 firebase-debug.log
+
+# Backend dependencies / build output (also ignored in functions/.gitignore)
+functions/node_modules/
+functions/lib/
