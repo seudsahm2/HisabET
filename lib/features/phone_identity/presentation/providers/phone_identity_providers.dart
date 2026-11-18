@@ -5,53 +5,22 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hisabet/core/auth/providers/auth_providers.dart';
 import 'package:hisabet/features/phone_identity/data/phone_claim_repository.dart';
 import 'package:hisabet/features/phone_identity/data/phone_identity_config.dart';
-import 'package:hisabet/features/phone_identity/data/telegram_launcher.dart';
-import 'package:hisabet/features/phone_identity/data/telegram_phone_verifier.dart';
-import 'package:hisabet/features/phone_identity/data/telegram_sign_in_service.dart';
-import 'package:hisabet/features/phone_identity/domain/telegram_verification.dart';
+import 'package:hisabet/features/phone_identity/data/telegram_login_service.dart';
 import 'package:hisabet/features/phone_identity/domain/verified_phone.dart';
 
-/// Telegram verification, or null when no bot is configured for this build
-/// (`--dart-define=TELEGRAM_BOT_USERNAME=...`). The UI hides the option then.
-final telegramPhoneVerifierProvider = Provider<TelegramPhoneVerifier?>((ref) {
-  final bot = PhoneIdentityConfig.telegramBotUsername;
-  if (bot == null) return null;
-  return FirestoreTelegramPhoneVerifier(
-    firestore: FirebaseFirestore.instance,
-    auth: FirebaseAuth.instance,
-    botUsername: bot,
-  );
+/// "Log In with Telegram", or null when this build has no Telegram client id
+/// or backend URL configured (see AppConfig). The UI hides Telegram then.
+final telegramLoginServiceProvider = Provider<TelegramLoginService?>((ref) {
+  final config = PhoneIdentityConfig.telegramLogin;
+  if (config == null) return null;
+  return TelegramLoginService(auth: FirebaseAuth.instance, config: config);
 });
-
-/// "Continue with Telegram", or null unless both the bot name and the
-/// backend URL are configured for this build.
-final telegramSignInServiceProvider = Provider<TelegramSignInService?>((ref) {
-  final verifier = ref.watch(telegramPhoneVerifierProvider);
-  final exchangeUrl = PhoneIdentityConfig.telegramSignInUrl;
-  if (verifier == null || exchangeUrl == null) return null;
-  return TelegramSignInService(
-    auth: FirebaseAuth.instance,
-    verifier: verifier,
-    exchangeUrl: exchangeUrl,
-  );
-});
-
-final telegramLauncherProvider =
-    Provider<TelegramLauncher>((ref) => const TelegramLauncher());
 
 final phoneClaimRepositoryProvider = Provider<PhoneClaimRepository>((ref) {
   return PhoneClaimRepository(
     firestore: FirebaseFirestore.instance,
     auth: FirebaseAuth.instance,
   );
-});
-
-/// Live state of one Telegram verification session.
-final telegramSessionProvider = StreamProvider.autoDispose
-    .family<TelegramVerificationSession, String>((ref, sessionId) {
-  final verifier = ref.watch(telegramPhoneVerifierProvider);
-  if (verifier == null) return const Stream.empty();
-  return verifier.watch(sessionId);
 });
 
 /// The signed-in account's proven, unique phone number — or null.

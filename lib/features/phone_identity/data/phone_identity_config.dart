@@ -1,4 +1,5 @@
 import 'package:hisabet/core/config/app_config.dart';
+import 'package:hisabet/features/phone_identity/data/telegram_login_service.dart';
 
 /// Parsed, validated phone-verification settings. The raw values come from
 /// [AppConfig] (compiled in, overridable with `--dart-define`).
@@ -13,9 +14,25 @@ abstract final class PhoneIdentityConfig {
   /// Where the Telegram sign-in exchange lives, or null when not configured.
   static Uri? get backendUrl => parseBackendUrl(AppConfig.backendUrl);
 
-  /// The exchange endpoint, under either host's path.
-  static Uri? get telegramSignInUrl =>
-      backendUrl?.replace(path: '${backendUrl!.path}/telegram-signin');
+  /// "Log In with Telegram" settings, or null unless the client id and the
+  /// backend URL are both configured — the Telegram buttons are hidden then.
+  static TelegramLoginConfig? get telegramLogin {
+    final clientId = parseClientId(AppConfig.telegramClientId);
+    final backend = backendUrl;
+    if (clientId == null || backend == null) return null;
+    return TelegramLoginConfig(
+      clientId: clientId,
+      redirectUri: backend.replace(path: '${backend.path}/telegram-callback'),
+      exchangeUrl: backend.replace(path: '${backend.path}/telegram-oidc'),
+    );
+  }
+
+  /// The bot id: digits only. Accepts a pasted bot token and keeps the id
+  /// part, so the secret half can never end up in the app by accident.
+  static String? parseClientId(String raw) {
+    final id = raw.trim().split(':').first;
+    return RegExp(r'^\d{5,20}$').hasMatch(id) ? id : null;
+  }
 
   /// Accepts `site.netlify.app` or `https://site.netlify.app/`; https only,
   /// because an ID token is sent to it.

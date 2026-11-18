@@ -9,12 +9,10 @@ import 'package:hisabet/features/auth/data/services/otp_service.dart';
 import 'package:hisabet/features/auth/data/services/pnv_service.dart';
 import 'package:hisabet/features/auth/presentation/providers/otp_providers.dart';
 import 'package:hisabet/features/phone_identity/data/phone_claim_repository.dart';
-import 'package:hisabet/features/phone_identity/data/telegram_phone_verifier.dart';
+import 'package:hisabet/features/phone_identity/data/telegram_login_service.dart';
 import 'package:hisabet/features/phone_identity/domain/phone_verification_method.dart';
-import 'package:hisabet/features/phone_identity/domain/telegram_verification.dart';
 import 'package:hisabet/features/phone_identity/domain/verified_phone.dart';
 import 'package:hisabet/features/phone_identity/presentation/providers/phone_identity_providers.dart';
-import 'package:hisabet/features/phone_identity/presentation/widgets/telegram_waiting_card.dart';
 
 /// Everything needed to give the signed-in account a verified phone number.
 ///
@@ -46,8 +44,7 @@ class _PhoneVerificationPanelState
   bool _changing = false;
 
   // Telegram
-  String? _sessionId;
-  bool _startingTelegram = false;
+  bool _telegramBusy = false;
   String? _telegramError;
 
   // Sign-in number
@@ -65,7 +62,6 @@ class _PhoneVerificationPanelState
       if (after != null && after != before) {
         setState(() {
           _changing = false;
-          _sessionId = null;
           _telegramError = null;
           _showSms = false;
         });
@@ -82,7 +78,7 @@ class _PhoneVerificationPanelState
       );
     }
 
-    final verifier = ref.watch(telegramPhoneVerifierProvider);
+    final telegram = ref.watch(telegramLoginServiceProvider);
     final signInNumber = FirebaseAuth.instance.currentUser?.phoneNumber;
     final offerSignInNumber =
         !_changing && signInNumber != null && signInNumber.isNotEmpty;
@@ -93,8 +89,8 @@ class _PhoneVerificationPanelState
         if (offerSignInNumber)
           _signInNumberBlock(signInNumber)
         else ...[
-          if (verifier != null) _telegramBlock(verifier),
-          if (verifier != null && !_showSms)
+          if (telegram != null) _telegramBlock(telegram),
+          if (telegram != null && !_showSms)
             Padding(
               padding: const EdgeInsets.only(top: AppDimensions.sm),
               child: TextButton(
@@ -102,8 +98,8 @@ class _PhoneVerificationPanelState
                 child: const Text('Use an SMS code instead'),
               ),
             ),
-          if (verifier == null || _showSms) ...[
-            if (verifier != null) const _OrDivider(),
+          if (telegram == null || _showSms) ...[
+            if (telegram != null) const _OrDivider(),
             const _SmsCodeVerifier(),
           ],
         ],
@@ -113,7 +109,6 @@ class _PhoneVerificationPanelState
             child: TextButton(
               onPressed: () => setState(() {
                 _changing = false;
-                _sessionId = null;
                 _telegramError = null;
               }),
               child: const Text('Keep my current number'),
@@ -169,84 +164,46 @@ class _PhoneVerificationPanelState
 
   // ── Telegram ──────────────────────────────────────────────────────────────
 
-  Widget _telegramBlock(TelegramPhoneVerifier verifier) {
-    final session = _sessionId == null
-        ? null
-        : ref.watch(telegramSessionProvider(_sessionId!)).valueOrNull;
-
-    final waiting = _sessionId != null &&
-        (session == null || !session.status.isTerminal);
-    final failure = session?.failure;
-
-    if (waiting) {
-      return TelegramWaitingCard(
-        status: session?.status ?? TelegramVerificationStatus.pending,
-        onReopen: () => _openTelegram(verifier, _sessionId!),
-        onCancel: () => setState(() => _sessionId = null),
-      );
-    }
-
+  Widget _telegramBlock(TelegramLoginService telegram) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         FilledButton.icon(
-          onPressed:
-              _startingTelegram ? null : () => _startTelegram(verifier),
-          icon: _startingTelegram
+          onPressed: _telegramBusy ? null : () => _verifyWithTelegram(telegram),
+          icon: _telegramBusy
               ? const _ButtonSpinner(onPrimary: true)
               : const Icon(Icons.telegram),
-          label: Text(failure == null
-              ? 'Verify with Telegram'
-              : 'Try Telegram again'),
+          label: Text(_telegramBusy ? 'Waiting for Telegram…' : 'Verify with Telegram'),
         ),
         const SizedBox(height: AppDimensions.xs),
         Text(
-          'Opens Telegram. Tap "Share my phone number" there and come back — nothing to type.',
+          'Telegram asks to share your phone number. Tap "Allow" — nothing to type.',
           style: AppTextStyles.labelSmall.copyWith(
             color: Theme.of(context).colorScheme.onSurfaceVariant,
             height: 1.4,
           ),
         ),
-        if (failure != null || _telegramError != null) ...[
+        if (_telegramError != null) ...[
           const SizedBox(height: AppDimensions.sm),
-          _Notice.error(_telegramError ?? failure!.message),
+          _Notice.error(_telegramError!),
         ],
       ],
     );
   }
 
-  Future<void> _startTelegram(TelegramPhoneVerifier verifier) async {
+  /// The backend saves the number; [verifiedPhoneProvider] then reports it,
+  /// which switches this panel to the verified row.
+  Future<void> _verifyWithTelegram(TelegramLoginService telegram) async {
     setState(() {
-      _startingTelegram = true;
+      _telegramBusy = true;
       _telegramError = null;
-      _sessionId = null;
     });
     try {
-      final session = await verifier.start();
-      if (!mounted) return;
-      setState(() => _sessionId = session.id);
-      await _openTelegram(verifier, session.id);
-    } on TelegramVerificationException catch (e) {
-      if (mounted) setState(() => _telegramError = e.message);
+      await telegram.verifyCurrentUser();
+    } on TelegramLoginException catch (e) {
+      if (mounted && !e.cancelled) setState(() => _telegramError = e.message);
     } finally {
-      if (mounted) setState(() => _startingTelegram = false);
-    }
-  }
-
-  Future<void> _openTelegram(
-    TelegramPhoneVerifier verifier,
-    String sessionId,
-  ) async {
-    final opened = await ref.read(telegramLauncherProvider).open(
-          appLink: verifier.appLink(sessionId),
-          webLink: verifier.webLink(sessionId),
-        );
-    if (!opened && mounted) {
-      setState(() {
-        _sessionId = null;
-        _telegramError =
-            'Could not open Telegram. Install it, or use an SMS code instead.';
-      });
+      if (mounted) setState(() => _telegramBusy = false);
     }
   }
 }

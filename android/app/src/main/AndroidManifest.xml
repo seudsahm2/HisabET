@@ -3,6 +3,20 @@
         android:label="hisabet"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+        <!-- "Log In with Telegram" returns here: the backend's
+             /telegram-callback redirects the browser to hisabet://telegram-auth,
+             which flutter_web_auth_2 catches and hands back to the app. -->
+        <activity
+            android:name="com.linusu.flutter_web_auth_2.CallbackActivity"
+            android:exported="true"
+            android:taskAffinity="">
+            <intent-filter android:label="flutter_web_auth_2">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="hisabet" android:host="telegram-auth" />
+            </intent-filter>
+        </activity>
         <activity
             android:name=".MainActivity"
             android:exported="true"

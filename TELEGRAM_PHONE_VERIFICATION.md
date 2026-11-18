@@ -11,33 +11,45 @@ has it and it costs nothing. The Firebase SMS-code path
 
 ## Quick start — only what you have to do
 
-Already done steps 1–4 of the setup (bot, rules, key, Netlify)? Then:
+HisabET uses Telegram's official **Log In with Telegram** (OpenID Connect) —
+the same screens as any site that "logs in via @SomeBot": Telegram asks
+*"Log in to …?"* and *"Allow access to your phone number?"*, then sends the
+user a "You have successfully logged in" message.
 
-1. **Firebase Console → Authentication → Sign-in method → Add new provider → Anonymous → Enable.**
-   (Free. "Continue with Telegram" uses a temporary anonymous account for a few seconds.)
-2. **Connect the bot to your site** — in the VS Code terminal, from the project folder:
-   ```powershell
-   powershell -ExecutionPolicy Bypass -File functions\scripts\connect-telegram.ps1
-   ```
-   It asks for your bot token, your webhook secret and your Netlify address, then checks it worked.
-3. **Put your bot name and site address in the app, once:** open
-   `lib/core/config/app_config.dart` and fill in `_productionTelegramBot`
-   (e.g. `'HisabETBot'`) and `_productionBackendUrl`
-   (e.g. `'hisabet-backend.netlify.app'`). Both are public values, safe to
-   commit. From then on plain `flutter run` and every release build
-   (`flutter build appbundle`) include them — no flags.
-
-The sign-in screen now shows **Continue with Telegram** above Continue with Google.
+1. **BotFather → your bot → Bot Settings → Login Widget.** If offered,
+   choose **Switch to OpenID Connect**. Then:
+   - **Allowed URLs:** add `https://hisabet.netlify.app` and
+     `https://hisabet.netlify.app/telegram-callback`.
+   - Copy the **Client ID** (your bot's number) and the **Client Secret**.
+2. **Netlify → your site → Environment variables:** add
+   `TELEGRAM_CLIENT_ID` (the Client ID) and `TELEGRAM_CLIENT_SECRET`
+   (the Client Secret, marked *Contains secret values*). Then
+   **Deploys → Trigger deploy**.
+3. **App:** put the Client ID in `lib/core/config/app_config.dart` →
+   `_productionTelegramClientId`. It is public (it is the number before the
+   `:` in the bot token); the secret never goes in the app.
+4. Rebuild and install the app.
 
 ## Two ways Telegram is used
 
 | | Continue with Telegram (sign-in screen) | Verify with Telegram (after Google) |
 |---|---|---|
 | Who | Anyone, no account needed | Someone who signed in with Google |
-| What happens | The Telegram number **is** the account: a returning user gets their account back, a new number gets a new account | The number is added to the Google account |
+| What happens | The Telegram number **is** the account: a returning number gets its account back, a new number gets a new account | The number is added to the Google account |
 | Phone afterwards | Verified and unique | Verified and unique |
 
----
+**Flow:** app → `oauth.telegram.org/auth` (code + PKCE, scopes
+`openid profile phone`) → Telegram's consent screens → redirect to
+`/telegram-callback` → back into the app (`hisabet://telegram-auth`) → app
+posts the code to `/telegram-oidc` → the backend exchanges it with the client
+secret, verifies Telegram's signed ID token (issuer, audience = bot id,
+expiry, signature against Telegram's keys), reads `phone_number`, then signs
+in / creates the account or attaches the number — same `phone_claims`
+uniqueness as everywhere else.
+
+> The older bot-chat ("Share my phone number") flow and its webhook remain in
+> `functions/` but the app no longer uses them. Anonymous sign-in and the
+> `connect-telegram.ps1` webhook step are not needed for Log In with Telegram.
 
 ## How it works
 

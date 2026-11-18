@@ -29,10 +29,19 @@ abstract final class AppConfig {
     defaultValue: _productionBackendUrl,
   );
 
+  /// "Log In with Telegram" client id = the bot's numeric id. It is public:
+  /// the digits before the ":" in the bot token, and shown in BotFather →
+  /// your bot → Login Widget. (The client *secret* stays on the backend.)
+  static const String telegramClientId = String.fromEnvironment(
+    'TELEGRAM_CLIENT_ID',
+    defaultValue: _productionTelegramClientId,
+  );
+
   // ── Production values ─────────────────────────────────────────────────────
   // Fill these in once. Leaving one empty hides the Telegram options in the
   // app instead of showing a button that cannot work.
 
   static const String _productionTelegramBot = 'hisabetbot';
   static const String _productionBackendUrl = 'hisabet.netlify.app';
+  static const String _productionTelegramClientId = '';
 }

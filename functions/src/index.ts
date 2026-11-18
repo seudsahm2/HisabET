@@ -1,8 +1,10 @@
 /**
  * HisabET Cloud Functions.
  *
- * - `telegramWebhook`     — Telegram bot webhook that verifies a user's phone
- *                           number from their Telegram account.
+ * - `telegramOidc` / `telegramCallback` — "Log In with Telegram" (official
+ *                           OpenID Connect): sign in or verify with the
+ *                           Telegram phone number.
+ * - `telegramWebhook`     — the bot's chat webhook (legacy share-contact flow).
  * - `cleanupPhoneVerifications` — daily removal of stale verification sessions.
  * - `releasePhoneClaimsOnDelete` — frees a deleted account's phone numbers.
  *
@@ -12,13 +14,15 @@ import { initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 import { logger } from 'firebase-functions';
-import { defineSecret } from 'firebase-functions/params';
+import { defineSecret, defineString } from 'firebase-functions/params';
 import * as v1 from 'firebase-functions/v1';
 import { onRequest } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { TelegramBotClient } from './telegram/client.js';
 import { handleUpdate } from './telegram/handler.js';
-import { createSignInExchange } from './telegram/signin-exchange.js';
+import { FirestorePhoneAccounts } from './accounts/phone-accounts.js';
+import { TelegramOidcClient } from './telegram/oidc.js';
+import { createOidcExchange } from './telegram/oidc-exchange.js';
 import { createWebhook } from './telegram/webhook.js';
 import { FirestoreVerificationStore } from './verification/firestore-store.js';
 
@@ -28,6 +32,9 @@ initializeApp();
 const botToken = defineSecret('TELEGRAM_BOT_TOKEN');
 /** Random string also passed to setWebhook as `secret_token`. */
 const webhookSecret = defineSecret('TELEGRAM_WEBHOOK_SECRET');
+/** "Log In with Telegram": bot id (public) and client secret (BotFather → Login Widget). */
+const telegramClientId = defineString('TELEGRAM_CLIENT_ID');
+const telegramClientSecret = defineSecret('TELEGRAM_CLIENT_SECRET');
 /** Closest Cloud Functions region to Ethiopia. Used by every function. */
 const region = 'europe-west1';
 
@@ -60,32 +67,49 @@ export const telegramWebhook = onRequest(
   },
 );
 
-/** "Continue with Telegram" token exchange — see src/telegram/signin-exchange.ts. */
-export const telegramSignIn = onRequest(
-  { region, memory: '256MiB', maxInstances: 10, timeoutSeconds: 30 },
+/** Express-style request → web-standard Request, for the shared handlers. */
+function toWebRequest(req: { method: string; protocol: string; originalUrl: string; header(n: string): string | undefined; get(n: string): string | undefined; body?: unknown }): Request {
+  const url = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
+  return new Request(url, {
+    method: req.method,
+    headers: { authorization: req.header('authorization') ?? '', 'content-type': 'application/json' },
+    body: req.method === 'POST' ? JSON.stringify(req.body ?? {}) : undefined,
+  });
+}
+
+/** "Log In with Telegram" code exchange — see src/telegram/oidc-exchange.ts. */
+export const telegramOidc = onRequest(
+  { region, secrets: [telegramClientSecret], memory: '256MiB', maxInstances: 10, timeoutSeconds: 30 },
   async (req, res) => {
     const auth = getAuth();
-    const exchange = createSignInExchange({
-      verifyIdToken: async (token) => {
+    const request = toWebRequest(req);
+    const oidc = new TelegramOidcClient({
+      clientId: telegramClientId.value(),
+      clientSecret: telegramClientSecret.value(),
+      redirectUri: `${new URL(request.url).origin}/telegramCallback`,
+    });
+    const exchange = createOidcExchange({
+      identify: (code, verifier) => oidc.identify(code, verifier),
+      verifyFirebaseIdToken: async (token) => {
         const decoded = await auth.verifyIdToken(token);
         return { uid: decoded.uid, signInProvider: decoded.firebase?.sign_in_provider };
       },
-      store: store(),
+      accounts: new FirestorePhoneAccounts(getFirestore(), auth),
       createCustomToken: (uid) => auth.createCustomToken(uid),
-      deleteUser: (uid) => auth.deleteUser(uid),
       now: Date.now,
+      log: (event, data) => logger.info(event, data),
       logError: (message, error) => logger.error(message, error),
     });
-    const response = await exchange(
-      new Request('https://local/telegram-signin', {
-        method: req.method,
-        headers: { authorization: req.header('authorization') ?? '', 'content-type': 'application/json' },
-        body: req.method === 'POST' ? JSON.stringify(req.body ?? {}) : undefined,
-      }),
-    );
+    const response = await exchange(request);
     res.status(response.status).type('application/json').send(await response.text());
   },
 );
+
+/** OAuth redirect_uri for "Log In with Telegram". */
+export const telegramCallback = onRequest({ region, memory: '128MiB' }, async (req, res) => {
+  const response = await (await import('./telegram/oidc-exchange.js')).telegramCallback(toWebRequest(req));
+  res.status(response.status).set('location', response.headers.get('location') ?? '').send(await response.text());
+});
 
 export const cleanupPhoneVerifications = onSchedule(
   { region, schedule: 'every 24 hours', memory: '256MiB' },
