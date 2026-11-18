@@ -39,8 +39,13 @@ beforeEach(async () => {
   await fetch(`http://${authHost}/emulator/v1/projects/${PROJECT}/accounts`, { method: 'DELETE' });
 });
 
-async function newSession(id: string, uid = 'alice', createdAtMs = T0) {
-  await db.doc(`phone_verifications/${id}`).set({ uid, status: 'pending', createdAt: Timestamp.fromMillis(createdAtMs) });
+async function newSession(id: string, uid = 'alice', createdAtMs = T0, purpose?: 'signin') {
+  await db.doc(`phone_verifications/${id}`).set({
+    uid,
+    status: 'pending',
+    createdAt: Timestamp.fromMillis(createdAtMs),
+    ...(purpose ? { purpose } : {}),
+  });
 }
 
 const sid = (c: string) => c.repeat(43);
@@ -53,7 +58,7 @@ describe('openSession', () => {
 
     const result = await store.openSession(sid('a'), TG, T0 + 1000);
 
-    expect(result).toEqual({ kind: 'opened', accountLabel: 'Alice Shoes · a***e@example.com' });
+    expect(result).toEqual({ kind: 'opened', purpose: 'verify', accountLabel: 'Alice Shoes · a***e@example.com' });
     const session = (await db.doc(`phone_verifications/${sid('a')}`).get()).data();
     expect(session).toMatchObject({ status: 'awaiting_contact', telegramUserId: TG });
     expect((await db.doc(`telegram_links/${TG}`).get()).get('sessionId')).toBe(sid('a'));
@@ -80,7 +85,7 @@ describe('completeWithPhone', () => {
     await db.doc('users/alice').set({ name: 'Alice', contactPhone: PHONE });
     await opened(sid('a'));
 
-    expect(await store.completeWithPhone(TG, PHONE, T0 + 2000)).toEqual({ kind: 'verified', phone: PHONE });
+    expect(await store.completeWithPhone(TG, PHONE, T0 + 2000)).toEqual({ kind: 'verified', phone: PHONE, purpose: 'verify' });
 
     expect((await db.doc(`phone_claims/${PHONE}`).get()).data()).toMatchObject({ uid: 'alice', method: 'telegram' });
     const user = (await db.doc('users/alice').get()).data()!;
@@ -155,6 +160,89 @@ describe('completeWithPhone', () => {
     await opened(sid('a'));
     expect(await store.completeWithPhone(TG, PHONE, T0 + SESSION_TTL_MS + 1)).toEqual({ kind: 'expired' });
     expect((await db.doc(`phone_claims/${PHONE}`).get()).exists).toBe(false);
+  });
+});
+
+describe('Telegram sign-in', () => {
+  async function signInSession(id: string, anonUid: string, tg = TG) {
+    await newSession(id, anonUid, T0, 'signin');
+    return store.openSession(id, tg, T0 + 1000);
+  }
+
+  it('asks for the contact without naming any account', async () => {
+    expect(await signInSession(sid('a'), 'anon1')).toEqual({ kind: 'opened', purpose: 'signin' });
+  });
+
+  it('creates a new account for an unknown number, with the phone on it', async () => {
+    await signInSession(sid('a'), 'anon1');
+    const result = await store.completeWithPhone(TG, PHONE, T0 + 2000, 'Ahmed');
+    expect(result).toEqual({ kind: 'verified', phone: PHONE, purpose: 'signin' });
+
+    const session = (await db.doc(`phone_verifications/${sid('a')}`).get()).data()!;
+    const uid = session.signInUid as string;
+    expect(uid).toBeTruthy();
+    expect(uid).not.toBe('anon1');
+
+    const authUser = await auth.getUser(uid);
+    expect(authUser.phoneNumber).toBe(PHONE);
+    expect(authUser.displayName).toBe('Ahmed');
+    expect((await db.doc(`phone_claims/${PHONE}`).get()).get('uid')).toBe(uid);
+    expect((await db.doc(`users/${uid}`).get()).data()).toMatchObject({
+      phone: PHONE,
+      phoneVerified: true,
+      phoneVerificationMethod: 'telegram',
+    });
+  });
+
+  it('signs a returning user into the account that already holds the number', async () => {
+    await db.doc(`phone_claims/${PHONE}`).set({ uid: 'existing', method: 'telegram', claimedAt: Timestamp.now() });
+    await db.doc('users/existing').set({ name: 'Existing', phone: PHONE, phoneVerified: true, phoneVerificationMethod: 'otp' });
+    await signInSession(sid('a'), 'anon1');
+
+    await store.completeWithPhone(TG, PHONE, T0 + 2000);
+
+    expect((await db.doc(`phone_verifications/${sid('a')}`).get()).get('signInUid')).toBe('existing');
+    // The existing profile is left exactly as it was.
+    expect((await db.doc('users/existing').get()).get('phoneVerificationMethod')).toBe('otp');
+  });
+
+  it('signs into a phone-login account that predates claims, and claims the number for it', async () => {
+    await auth.createUser({ uid: 'smsuser', phoneNumber: PHONE });
+    await signInSession(sid('a'), 'anon1');
+    await store.completeWithPhone(TG, PHONE, T0 + 2000);
+    expect((await db.doc(`phone_verifications/${sid('a')}`).get()).get('signInUid')).toBe('smsuser');
+    expect((await db.doc(`phone_claims/${PHONE}`).get()).get('uid')).toBe('smsuser');
+  });
+
+  it('gives two simultaneous sign-ins for one new number the same single account', async () => {
+    await signInSession(sid('a'), 'anon1', 1);
+    await signInSession(sid('b'), 'anon2', 2);
+
+    const results = await Promise.all([
+      store.completeWithPhone(1, PHONE, T0 + 2000),
+      store.completeWithPhone(2, PHONE, T0 + 2000),
+    ]);
+    expect(results.every((r) => r.kind === 'verified')).toBe(true);
+
+    const a = (await db.doc(`phone_verifications/${sid('a')}`).get()).get('signInUid');
+    const b = (await db.doc(`phone_verifications/${sid('b')}`).get()).get('signInUid');
+    expect(a).toBe(b);
+    expect((await auth.getUserByPhoneNumber(PHONE)).uid).toBe(a);
+  });
+
+  it('exchanges once, for the anonymous owner only', async () => {
+    await signInSession(sid('a'), 'anon1');
+    await store.completeWithPhone(TG, PHONE, T0 + 2000);
+
+    expect(await store.consumeSignIn(sid('a'), 'intruder', T0 + 3000)).toEqual({ kind: 'not_owner' });
+    const ok = await store.consumeSignIn(sid('a'), 'anon1', T0 + 3000);
+    expect(ok.kind).toBe('ok');
+    expect(await store.consumeSignIn(sid('a'), 'anon1', T0 + 4000)).toEqual({ kind: 'already_used' });
+  });
+
+  it('will not exchange before Telegram verified the number', async () => {
+    await signInSession(sid('a'), 'anon1');
+    expect(await store.consumeSignIn(sid('a'), 'anon1', T0 + 3000)).toEqual({ kind: 'not_ready' });
   });
 });
 

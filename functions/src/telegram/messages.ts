@@ -25,6 +25,17 @@ export const Messages = {
     'Tap "Share my phone number" below to confirm the number on this Telegram account.\n\n' +
     'If you did not just start this in the HisabET app, ignore this message.',
 
+  askForSignInContact:
+    'Sign in to HisabET\n\n' +
+    'Tap "Share my phone number" below. If this number has no HisabET account yet, one is created for it.\n\n' +
+    'If you did not just start this in the HisabET app, ignore this message.',
+
+  signedIn: (phone: string) =>
+    `✅ Signed in as ${phone}.\n\nGo back to HisabET — it is opening your account.`,
+
+  accountError:
+    'Something went wrong creating your account. Please try again in a minute.',
+
   notOwnContact:
     'For security, only your own number can be used.\n\n' +
     'Tap the "Share my phone number" button instead of sending a contact.',

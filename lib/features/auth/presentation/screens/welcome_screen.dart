@@ -9,6 +9,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:hisabet/core/presentation/widgets/widgets.dart';
 import 'package:hisabet/core/theme/theme.dart';
 import 'package:hisabet/core/utils/phone_util.dart';
+import 'package:hisabet/features/phone_identity/presentation/widgets/telegram_sign_in_button.dart';
 import 'package:hisabet/features/auth/data/services/otp_service.dart';
 import 'package:hisabet/features/auth/presentation/providers/otp_providers.dart';
 
@@ -452,6 +453,11 @@ class _ChooserBody extends StatelessWidget {
           ),
         ),
         const SizedBox(height: AppDimensions.xl),
+
+        // Primary when configured: almost everyone in Ethiopia has Telegram,
+        // and it brings a verified phone number with it.
+        TelegramSignInButton(enabled: !busy),
+        const SizedBox(height: AppDimensions.md),
 
         ElevatedButton.icon(
           onPressed: busy ? null : onGoogle,

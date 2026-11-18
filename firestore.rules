@@ -6,6 +6,10 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isAnonymous() {
+      return request.auth.token.firebase.sign_in_provider == 'anonymous';
+    }
+
     function isUser(uid) {
       return signedIn() && request.auth.uid == uid;
     }
@@ -95,10 +99,16 @@ service cloud.firestore {
       allow list: if false;
       allow create: if signedIn()
         && sessionId.matches('^[A-Za-z0-9_-]{32,64}$')
-        && request.resource.data.keys().hasOnly(['uid', 'status', 'createdAt'])
+        && request.resource.data.keys().hasOnly(['uid', 'status', 'createdAt', 'purpose'])
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.status == 'pending'
-        && request.resource.data.createdAt == request.time;
+        && request.resource.data.createdAt == request.time
+        // 'signin' ("Continue with Telegram") comes only from the temporary
+        // anonymous account; 'verify' only from a real one, so a throwaway
+        // account can never reserve somebody's number.
+        && (isAnonymous()
+              ? request.resource.data.get('purpose', '') == 'signin'
+              : request.resource.data.get('purpose', 'verify') == 'verify');
       allow update, delete: if false;
     }
 

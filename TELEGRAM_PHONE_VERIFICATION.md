@@ -9,6 +9,32 @@ Telegram is the primary way to verify, because almost everyone in Ethiopia
 has it and it costs nothing. The Firebase SMS-code path
 ([PHONE_AUTH_SETUP.md](PHONE_AUTH_SETUP.md)) stays as a fallback.
 
+## Quick start — only what you have to do
+
+Already done steps 1–4 of the setup (bot, rules, key, Netlify)? Then:
+
+1. **Firebase Console → Authentication → Sign-in method → Add new provider → Anonymous → Enable.**
+   (Free. "Continue with Telegram" uses a temporary anonymous account for a few seconds.)
+2. **Connect the bot to your site** — in the VS Code terminal, from the project folder:
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File functions\scripts\connect-telegram.ps1
+   ```
+   It asks for your bot token, your webhook secret and your Netlify address, then checks it worked.
+3. **Run the app with your bot and site:**
+   ```powershell
+   flutter run --dart-define=TELEGRAM_BOT_USERNAME=YourBotName --dart-define=HISABET_BACKEND_URL=your-site.netlify.app
+   ```
+
+The sign-in screen now shows **Continue with Telegram** above Continue with Google.
+
+## Two ways Telegram is used
+
+| | Continue with Telegram (sign-in screen) | Verify with Telegram (after Google) |
+|---|---|---|
+| Who | Anyone, no account needed | Someone who signed in with Google |
+| What happens | The Telegram number **is** the account: a returning user gets their account back, a new number gets a new account | The number is added to the Google account |
+| Phone afterwards | Verified and unique | Verified and unique |
+
 ---
 
 ## How it works

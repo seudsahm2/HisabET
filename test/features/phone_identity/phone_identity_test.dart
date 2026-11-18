@@ -149,6 +149,46 @@ void main() {
     });
   });
 
+  group('PhoneIdentityConfig.parseBackendUrl', () {
+    test('accepts a bare host or a full https URL, trailing slash or not', () {
+      for (final raw in [
+        'hisabet-backend.netlify.app',
+        'https://hisabet-backend.netlify.app',
+        'https://hisabet-backend.netlify.app/',
+        '  https://hisabet-backend.netlify.app//  ',
+      ]) {
+        expect(
+          PhoneIdentityConfig.parseBackendUrl(raw).toString(),
+          'https://hisabet-backend.netlify.app',
+          reason: raw,
+        );
+      }
+    });
+
+    test('keeps a base path', () {
+      expect(
+        PhoneIdentityConfig.parseBackendUrl('https://x.example.com/api/').toString(),
+        'https://x.example.com/api',
+      );
+    });
+
+    test('refuses plain http and junk, because an ID token is sent there', () {
+      for (final raw in ['', 'http://x.netlify.app', 'ftp://x', 'https://']) {
+        expect(PhoneIdentityConfig.parseBackendUrl(raw), isNull, reason: raw);
+      }
+    });
+  });
+
+  group('TelegramSessionPurpose', () {
+    test('storage keys match the backend and firestore.rules', () {
+      expect(TelegramSessionPurpose.values.map((p) => p.storageKey), ['verify', 'signin']);
+    });
+
+    test('account_error has its own message', () {
+      expect(TelegramVerificationFailure.parse('account_error'), TelegramVerificationFailure.accountError);
+    });
+  });
+
   group('TelegramLauncher', () {
     final app = Uri.parse('tg://resolve?domain=HisabETBot&start=abc');
     final web = Uri.parse('https://t.me/HisabETBot?start=abc');

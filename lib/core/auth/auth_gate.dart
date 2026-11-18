@@ -31,6 +31,13 @@ class AuthGate extends StatelessWidget {
           );
         }
 
+        // A temporary anonymous account exists only while "Continue with
+        // Telegram" is in progress. It is not a HisabET account: stay on the
+        // sign-in screen (same widget, so its state survives).
+        if (snapshot.data?.isAnonymous == true) {
+          return const WelcomeScreen();
+        }
+
         if (snapshot.hasData) {
           debugPrint('[AuthGate] User is logged in: ${snapshot.data!.uid}. Routing to ProfileCheckGate.');
           if (kDevBypassProfileCheck) {

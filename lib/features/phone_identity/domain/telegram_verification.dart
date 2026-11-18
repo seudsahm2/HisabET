@@ -28,10 +28,23 @@ enum TelegramVerificationStatus {
   }
 }
 
+/// What a session is for. Mirrors `SessionPurpose` on the backend.
+enum TelegramSessionPurpose {
+  /// Attach a number to the account that is already signed in.
+  verify('verify'),
+
+  /// "Continue with Telegram": sign into (or create) the number's account.
+  signIn('signin');
+
+  const TelegramSessionPurpose(this.storageKey);
+  final String storageKey;
+}
+
 /// Why a session failed. Mirrors `FailureReason` on the backend.
 enum TelegramVerificationFailure {
   expired('expired'),
   phoneInUse('phone_in_use'),
+  accountError('account_error'),
   unknown('unknown');
 
   const TelegramVerificationFailure(this.storageKey);
@@ -50,6 +63,8 @@ enum TelegramVerificationFailure {
         phoneInUse =>
           'That number is already linked to another HisabET account. '
               'If it is yours, sign in to that account instead.',
+        accountError =>
+          'Your account could not be created. Please try again in a minute.',
         unknown => 'Telegram verification failed. Please try again.',
       };
 }

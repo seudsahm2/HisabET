@@ -57,7 +57,11 @@ async function handleStart(message: TelegramMessage, payload: string, deps: Hand
 
   switch (result.kind) {
     case 'opened':
-      await deps.bot.sendMessage(chatId, Messages.askForContact(result.accountLabel), 'share_contact');
+      await deps.bot.sendMessage(
+        chatId,
+        result.purpose === 'signin' ? Messages.askForSignInContact : Messages.askForContact(result.accountLabel),
+        'share_contact',
+      );
       return;
     case 'expired':
       await deps.bot.sendMessage(chatId, Messages.expired, 'remove');
@@ -101,13 +105,20 @@ async function handleContact(message: TelegramMessage, deps: HandlerDeps): Promi
     return;
   }
 
-  const result = await deps.store.completeWithPhone(telegramUserId, phone.e164, deps.now());
+  const result = await deps.store.completeWithPhone(telegramUserId, phone.e164, deps.now(), contact.first_name);
   deps.log?.('telegram_session_complete', { result: result.kind });
 
   switch (result.kind) {
     case 'verified':
     case 'already_verified':
-      await deps.bot.sendMessage(chatId, Messages.verified(result.phone), 'remove');
+      await deps.bot.sendMessage(
+        chatId,
+        result.purpose === 'signin' ? Messages.signedIn(result.phone) : Messages.verified(result.phone),
+        'remove',
+      );
+      return;
+    case 'account_error':
+      await deps.bot.sendMessage(chatId, Messages.accountError, 'remove');
       return;
     case 'phone_in_use':
       await deps.bot.sendMessage(chatId, Messages.phoneInUse, 'remove');

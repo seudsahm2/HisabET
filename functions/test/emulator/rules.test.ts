@@ -186,6 +186,39 @@ describe('phone_verifications/{sessionId}', () => {
   });
 });
 
+describe('phone_verifications purpose', () => {
+  const anon = (uid = 'anon') =>
+    env.authenticatedContext(uid, { firebase: { sign_in_provider: 'anonymous' } }).firestore();
+  const make = (db: ReturnType<typeof anon>, uid: string, purpose?: string) =>
+    setDoc(doc(db, `phone_verifications/${SESSION}`), {
+      uid,
+      status: 'pending',
+      createdAt: serverTimestamp(),
+      ...(purpose ? { purpose } : {}),
+    });
+
+  it('lets a temporary anonymous account start a Telegram sign-in', async () => {
+    await assertSucceeds(make(anon(), 'anon', 'signin'));
+  });
+
+  it('refuses an anonymous account starting a verify (it would reserve a number for a throwaway account)', async () => {
+    await assertFails(make(anon(), 'anon', 'verify'));
+    await assertFails(make(anon(), 'anon'));
+  });
+
+  it('refuses a real account starting a sign-in session', async () => {
+    await assertFails(make(google('alice'), 'alice', 'signin'));
+  });
+
+  it('accepts verify from a real account, with or without the field', async () => {
+    await assertSucceeds(make(google('alice'), 'alice', 'verify'));
+  });
+
+  it('refuses unknown purposes', async () => {
+    await assertFails(make(google('alice'), 'alice', 'admin'));
+  });
+});
+
 describe('telegram_links', () => {
   it('is invisible to clients', async () => {
     await assertFails(getDoc(doc(google(), 'telegram_links/42')));

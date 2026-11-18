@@ -18,6 +18,7 @@ import { onRequest } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { TelegramBotClient } from './telegram/client.js';
 import { handleUpdate } from './telegram/handler.js';
+import { createSignInExchange } from './telegram/signin-exchange.js';
 import { createWebhook } from './telegram/webhook.js';
 import { FirestoreVerificationStore } from './verification/firestore-store.js';
 
@@ -56,6 +57,33 @@ export const telegramWebhook = onRequest(
       (message, error) => logger.error(message, error),
     );
     await webhook(req, res);
+  },
+);
+
+/** "Continue with Telegram" token exchange — see src/telegram/signin-exchange.ts. */
+export const telegramSignIn = onRequest(
+  { region, memory: '256MiB', maxInstances: 10, timeoutSeconds: 30 },
+  async (req, res) => {
+    const auth = getAuth();
+    const exchange = createSignInExchange({
+      verifyIdToken: async (token) => {
+        const decoded = await auth.verifyIdToken(token);
+        return { uid: decoded.uid, signInProvider: decoded.firebase?.sign_in_provider };
+      },
+      store: store(),
+      createCustomToken: (uid) => auth.createCustomToken(uid),
+      deleteUser: (uid) => auth.deleteUser(uid),
+      now: Date.now,
+      logError: (message, error) => logger.error(message, error),
+    });
+    const response = await exchange(
+      new Request('https://local/telegram-signin', {
+        method: req.method,
+        headers: { authorization: req.header('authorization') ?? '', 'content-type': 'application/json' },
+        body: req.method === 'POST' ? JSON.stringify(req.body ?? {}) : undefined,
+      }),
+    );
+    res.status(response.status).type('application/json').send(await response.text());
   },
 );
 

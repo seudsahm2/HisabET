@@ -3,7 +3,7 @@ import type { BotClient, ReplyKeyboard } from '../../src/telegram/client.js';
 import { handleUpdate } from '../../src/telegram/handler.js';
 import { Messages } from '../../src/telegram/messages.js';
 import type { TelegramMessage, TelegramUpdate } from '../../src/telegram/types.js';
-import type { CompleteResult, OpenResult, VerificationStore } from '../../src/verification/store.js';
+import type { CompleteResult, ConsumeResult, OpenResult, VerificationStore } from '../../src/verification/store.js';
 
 const TG = 42;
 const CHAT = 4200;
@@ -20,17 +20,20 @@ class FakeBot implements BotClient {
 }
 
 class FakeStore implements VerificationStore {
-  openResult: OpenResult = { kind: 'opened', accountLabel: 'Ahmed · s***m@gmail.com' };
-  completeResult: CompleteResult = { kind: 'verified', phone: '+251911223344' };
+  openResult: OpenResult = { kind: 'opened', purpose: 'verify', accountLabel: 'Ahmed · s***m@gmail.com' };
+  completeResult: CompleteResult = { kind: 'verified', phone: '+251911223344', purpose: 'verify' };
   opened: unknown[][] = [];
   completed: unknown[][] = [];
   async openSession(...args: [string, number, number]) {
     this.opened.push(args);
     return this.openResult;
   }
-  async completeWithPhone(...args: [string | number, string, number]) {
+  async completeWithPhone(...args: [number, string, number, string?]) {
     this.completed.push(args);
     return this.completeResult;
+  }
+  async consumeSignIn(): Promise<ConsumeResult> {
+    return { kind: 'not_found' };
   }
 }
 
@@ -67,6 +70,12 @@ describe('handleUpdate', () => {
       });
     });
 
+    it('uses sign-in wording for a sign-in session', async () => {
+      store.openResult = { kind: 'opened', purpose: 'signin' };
+      await run(update({ text: `/start ${SESSION}` }));
+      expect(bot.last).toEqual({ chatId: CHAT, text: Messages.askForSignInContact, keyboard: 'share_contact' });
+    });
+
     it('shows help for a bare /start without touching the store', async () => {
       await run(update({ text: '/start' }));
       expect(store.opened).toEqual([]);
@@ -97,7 +106,7 @@ describe('handleUpdate', () => {
 
     it('verifies the sender’s own contact', async () => {
       await run(update({ contact: ownContact }));
-      expect(store.completed).toEqual([[TG, '+251911223344', 123]]);
+      expect(store.completed).toEqual([[TG, '+251911223344', 123, 'Ahmed']]);
       expect(bot.last).toEqual({ chatId: CHAT, text: Messages.verified('+251911223344'), keyboard: 'remove' });
     });
 
@@ -123,7 +132,9 @@ describe('handleUpdate', () => {
       [{ kind: 'phone_in_use' } as CompleteResult, Messages.phoneInUse],
       [{ kind: 'expired' } as CompleteResult, Messages.expired],
       [{ kind: 'no_active_session' } as CompleteResult, Messages.noActiveSession],
-      [{ kind: 'already_verified', phone: '+251911223344' } as CompleteResult, Messages.verified('+251911223344')],
+      [{ kind: 'already_verified', phone: '+251911223344', purpose: 'verify' } as CompleteResult, Messages.verified('+251911223344')],
+      [{ kind: 'verified', phone: '+251911223344', purpose: 'signin' } as CompleteResult, Messages.signedIn('+251911223344')],
+      [{ kind: 'account_error' } as CompleteResult, Messages.accountError],
     ])('explains %o', async (result, text) => {
       store.completeResult = result;
       await run(update({ contact: ownContact }));

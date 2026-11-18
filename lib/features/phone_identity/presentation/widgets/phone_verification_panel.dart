@@ -14,6 +14,7 @@ import 'package:hisabet/features/phone_identity/domain/phone_verification_method
 import 'package:hisabet/features/phone_identity/domain/telegram_verification.dart';
 import 'package:hisabet/features/phone_identity/domain/verified_phone.dart';
 import 'package:hisabet/features/phone_identity/presentation/providers/phone_identity_providers.dart';
+import 'package:hisabet/features/phone_identity/presentation/widgets/telegram_waiting_card.dart';
 
 /// Everything needed to give the signed-in account a verified phone number.
 ///
@@ -178,7 +179,7 @@ class _PhoneVerificationPanelState
     final failure = session?.failure;
 
     if (waiting) {
-      return _TelegramWaiting(
+      return TelegramWaitingCard(
         status: session?.status ?? TelegramVerificationStatus.pending,
         onReopen: () => _openTelegram(verifier, _sessionId!),
         onCancel: () => setState(() => _sessionId = null),
@@ -504,84 +505,6 @@ class _VerifiedRow extends StatelessWidget {
           ),
           if (onChange != null)
             TextButton(onPressed: onChange, child: const Text('Change')),
-        ],
-      ),
-    );
-  }
-}
-
-class _TelegramWaiting extends StatelessWidget {
-  const _TelegramWaiting({
-    required this.status,
-    required this.onReopen,
-    required this.onCancel,
-  });
-
-  final TelegramVerificationStatus status;
-  final VoidCallback onReopen;
-  final VoidCallback onCancel;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final opened = status == TelegramVerificationStatus.awaitingContact;
-
-    return Container(
-      padding: const EdgeInsets.all(AppDimensions.lg),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
-        border: Border.all(color: AppColors.info.withValues(alpha: 0.35)),
-        color: AppColors.info.withValues(alpha: 0.06),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              const SizedBox(
-                width: AppDimensions.iconSm,
-                height: AppDimensions.iconSm,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-              const SizedBox(width: AppDimensions.md),
-              Expanded(
-                child: Text(
-                  opened
-                      ? 'Now tap "Share my phone number" in Telegram.'
-                      : 'Waiting for Telegram…',
-                  style: AppTextStyles.cardTitle.copyWith(
-                    color: colorScheme.onSurface,
-                    fontSize: 15,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppDimensions.sm),
-          Text(
-            opened
-                ? 'This screen updates by itself as soon as you share it.'
-                : 'In Telegram, press Start in the HisabET bot. The link works for 10 minutes.',
-            style: AppTextStyles.labelSmall.copyWith(
-              color: colorScheme.onSurfaceVariant,
-              height: 1.4,
-            ),
-          ),
-          const SizedBox(height: AppDimensions.md),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: onReopen,
-                  icon: const Icon(Icons.open_in_new_rounded,
-                      size: AppDimensions.iconSm),
-                  label: const Text('Open Telegram'),
-                ),
-              ),
-              const SizedBox(width: AppDimensions.sm),
-              TextButton(onPressed: onCancel, child: const Text('Cancel')),
-            ],
-          ),
         ],
       ),
     );

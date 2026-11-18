@@ -30,7 +30,9 @@ class TelegramVerificationException implements Exception {
 abstract class TelegramPhoneVerifier {
   String get botUsername;
 
-  Future<TelegramVerificationSession> start();
+  Future<TelegramVerificationSession> start({
+    TelegramSessionPurpose purpose = TelegramSessionPurpose.verify,
+  });
 
   Stream<TelegramVerificationSession> watch(String sessionId);
 
@@ -65,7 +67,9 @@ class FirestoreTelegramPhoneVerifier extends TelegramPhoneVerifier {
   static const collection = 'phone_verifications';
 
   @override
-  Future<TelegramVerificationSession> start() async {
+  Future<TelegramVerificationSession> start({
+    TelegramSessionPurpose purpose = TelegramSessionPurpose.verify,
+  }) async {
     final uid = _auth.currentUser?.uid;
     if (uid == null) {
       throw const TelegramVerificationException('You are not signed in.');
@@ -79,6 +83,9 @@ class FirestoreTelegramPhoneVerifier extends TelegramPhoneVerifier {
         'uid': uid,
         'status': TelegramVerificationStatus.pending.storageKey,
         'createdAt': FieldValue.serverTimestamp(),
+        // Only written for sign-in, so verify sessions keep their old shape.
+        if (purpose == TelegramSessionPurpose.signIn)
+          'purpose': purpose.storageKey,
       }).timeout(createTimeout);
     } on TimeoutException {
       throw const TelegramVerificationException(

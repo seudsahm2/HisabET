@@ -7,6 +7,7 @@ import 'package:hisabet/features/phone_identity/data/phone_claim_repository.dart
 import 'package:hisabet/features/phone_identity/data/phone_identity_config.dart';
 import 'package:hisabet/features/phone_identity/data/telegram_launcher.dart';
 import 'package:hisabet/features/phone_identity/data/telegram_phone_verifier.dart';
+import 'package:hisabet/features/phone_identity/data/telegram_sign_in_service.dart';
 import 'package:hisabet/features/phone_identity/domain/telegram_verification.dart';
 import 'package:hisabet/features/phone_identity/domain/verified_phone.dart';
 
@@ -19,6 +20,19 @@ final telegramPhoneVerifierProvider = Provider<TelegramPhoneVerifier?>((ref) {
     firestore: FirebaseFirestore.instance,
     auth: FirebaseAuth.instance,
     botUsername: bot,
+  );
+});
+
+/// "Continue with Telegram", or null unless both the bot name and the
+/// backend URL are configured for this build.
+final telegramSignInServiceProvider = Provider<TelegramSignInService?>((ref) {
+  final verifier = ref.watch(telegramPhoneVerifierProvider);
+  final exchangeUrl = PhoneIdentityConfig.telegramSignInUrl;
+  if (verifier == null || exchangeUrl == null) return null;
+  return TelegramSignInService(
+    auth: FirebaseAuth.instance,
+    verifier: verifier,
+    exchangeUrl: exchangeUrl,
   );
 });
 

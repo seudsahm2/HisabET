@@ -1,3 +1,5 @@
+import type { SessionPurpose } from './session.js';
+
 /**
  * Persistence boundary for Telegram phone verification.
  *
@@ -8,7 +10,8 @@
  */
 
 export type OpenResult =
-  | { kind: 'opened'; accountLabel: string }
+  | { kind: 'opened'; purpose: 'verify'; accountLabel: string }
+  | { kind: 'opened'; purpose: 'signin' }
   | { kind: 'not_found' }
   | { kind: 'expired' }
   | { kind: 'closed' }
@@ -16,11 +19,17 @@ export type OpenResult =
   | { kind: 'other_telegram_account' };
 
 export type CompleteResult =
-  | { kind: 'verified'; phone: string }
-  | { kind: 'already_verified'; phone: string }
+  | { kind: 'verified'; phone: string; purpose: SessionPurpose }
+  | { kind: 'already_verified'; phone: string; purpose: SessionPurpose }
   | { kind: 'no_active_session' }
   | { kind: 'expired' }
-  | { kind: 'phone_in_use' };
+  | { kind: 'phone_in_use' }
+  /** signin: the account could not be created (logged server-side). */
+  | { kind: 'account_error' };
+
+export type ConsumeResult =
+  | { kind: 'ok'; uid: string }
+  | { kind: 'not_found' | 'not_owner' | 'not_signin' | 'not_ready' | 'already_used' | 'expired' };
 
 export interface VerificationStore {
   /**
@@ -34,5 +43,16 @@ export interface VerificationStore {
    * for that session's HisabET user — atomically, so two accounts can never
    * end up holding the same number.
    */
-  completeWithPhone(telegramUserId: number, phoneE164: string, nowMs: number): Promise<CompleteResult>;
+  completeWithPhone(
+    telegramUserId: number,
+    phoneE164: string,
+    nowMs: number,
+    telegramFirstName?: string,
+  ): Promise<CompleteResult>;
+
+  /**
+   * signin only: marks the session used and returns the account the app may
+   * sign into. Single use, owner only — see `decideConsume`.
+   */
+  consumeSignIn(sessionId: string, callerUid: string, nowMs: number): Promise<ConsumeResult>;
 }
