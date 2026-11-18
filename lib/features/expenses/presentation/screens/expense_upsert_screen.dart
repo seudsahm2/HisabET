@@ -156,9 +156,10 @@ class _ExpenseUpsertScreenState extends ConsumerState<ExpenseUpsertScreen> {
       appBar: AppBar(
         title: Text(_isEditing ? 'Edit Expense' : 'New Expense'),
       ),
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(AppDimensions.pagePaddingH),
+      // Lifted above the keyboard so Save is never hidden while typing.
+      bottomNavigationBar: AppBottomActionBar(
+        child: SizedBox(
+          height: AppDimensions.buttonHeight,
           child: ElevatedButton(
             onPressed: _isLoading ? null : _saveExpense,
             child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : Text(_isEditing ? 'UPDATE EXPENSE' : 'SAVE EXPENSE'),

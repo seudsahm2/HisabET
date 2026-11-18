@@ -111,9 +111,10 @@ class _SupplierUpsertScreenState extends ConsumerState<SupplierUpsertScreen> {
         title: Text(_isEditing ? 'Modify B2B Supplier' : 'Register B2B Supplier'),
         leading: IconButton(icon: const Icon(Icons.close_rounded), onPressed: () => Navigator.of(context).pop()),
       ),
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(AppDimensions.pagePaddingH),
+      // Lifted above the keyboard so Save is never hidden while typing.
+      bottomNavigationBar: AppBottomActionBar(
+        child: SizedBox(
+          height: AppDimensions.buttonHeight,
           child: ElevatedButton(
             onPressed: _isLoading ? null : _saveSupplier,
             child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : Text(_isEditing ? 'UPDATE SUPPLIER' : 'REGISTER SUPPLIER'),

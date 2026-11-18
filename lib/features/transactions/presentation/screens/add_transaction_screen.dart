@@ -619,7 +619,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                   child: _isLoading
                       ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3))
                       : Text(
-                          widget.transactionToEdit == null ? "Save Execution" : "Update Protocol",
+                          widget.transactionToEdit == null ? "Save entry" : "Update entry",
                           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
                         ),
                 ),

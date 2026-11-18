@@ -1,4 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- "Import from phone contacts" on the Ledger page. Read-only: the app
+         never writes to the phone book. Asked for only when the user opens
+         the import screen. -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
     <application
         android:label="hisabet"
         android:name="${applicationName}"

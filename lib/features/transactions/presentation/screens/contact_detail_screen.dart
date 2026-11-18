@@ -1,5 +1,5 @@
+import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
@@ -7,14 +7,19 @@ import 'package:hisabet/core/presentation/widgets/widgets.dart';
 import 'package:hisabet/core/theme/theme.dart';
 import 'package:hisabet/features/contacts/data/models/contact_model.dart';
 import 'package:hisabet/features/contacts/presentation/providers/contacts_providers.dart';
-import 'package:hisabet/features/transactions/data/models/transaction_model.dart';
-import 'package:hisabet/features/transactions/presentation/providers/transactions_providers.dart';
-import 'package:hisabet/features/transactions/presentation/screens/add_transaction_screen.dart';
+import 'package:hisabet/features/sales/presentation/screens/invoice_preview_screen.dart';
 import 'package:hisabet/features/sync/presentation/screens/reconciliation_screen.dart';
 import 'package:hisabet/features/team/data/models/team_member_model.dart';
 import 'package:hisabet/features/team/presentation/providers/team_providers.dart';
-import 'package:hisabet/features/sales/presentation/screens/invoice_preview_screen.dart';
+import 'package:hisabet/features/transactions/data/models/transaction_model.dart';
+import 'package:hisabet/features/transactions/presentation/ledger_history.dart';
+import 'package:hisabet/features/transactions/presentation/providers/transactions_providers.dart';
+import 'package:hisabet/features/transactions/presentation/screens/add_transaction_screen.dart';
 
+enum _HistoryFilter { all, sales, manual }
+
+/// One contact's ledger: who they are, where the balance stands, and every
+/// entry grouped by day — the digital version of their pages in the notebook.
 class ContactDetailScreen extends ConsumerStatefulWidget {
   final ContactModel contact;
 
@@ -25,445 +30,546 @@ class ContactDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _ContactDetailScreenState extends ConsumerState<ContactDetailScreen> {
-  String _selectedTab = 'ALL';
+  _HistoryFilter _filter = _HistoryFilter.all;
 
-  @override
-  Widget build(BuildContext context) {
-    final contactAsync = ref.watch(contactProvider(widget.contact.id));
-    final transactionsAsync = ref.watch(contactTransactionsProvider(widget.contact.id));
-
-    final currentContact = contactAsync.valueOrNull ?? widget.contact;
-    final isPositive = currentContact.netBalance.toDouble() >= 0;
-    final balanceColor = isPositive ? AppColors.give : AppColors.take;
-
-    return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(
-        title: _ContactHeaderTitle(
-          contact: currentContact,
-          badge: _buildVerificationBadge(currentContact.verificationStatus),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.delete_outline_rounded, color: AppColors.negative),
-            onPressed: () => _confirmDelete(context, ref, currentContact),
-          ),
-        ],
-      ),
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(AppDimensions.pagePaddingH, 0, AppDimensions.pagePaddingH, AppDimensions.md),
-          child: Row(
-            children: [
-              Expanded(
-                child: AppActionButton(
-                  label: 'I GAVE',
-                  subLabel: '(Collect)',
-                  backgroundColor: AppColors.give,
-                  icon: Icons.arrow_upward_rounded,
-                  onTap: () => _addTransaction(context, ref, TransactionType.goodsGiven),
-                ),
-              ),
-              const SizedBox(width: AppDimensions.md),
-              Expanded(
-                child: AppActionButton(
-                  label: 'I TOOK',
-                  subLabel: '(Pay)',
-                  backgroundColor: AppColors.take,
-                  icon: Icons.arrow_downward_rounded,
-                  onTap: () => _addTransaction(context, ref, TransactionType.goodsTaken),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-      body: transactionsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, s) => Center(child: Text('Error: $e')),
-        data: (transactions) {
-          final filteredTransactions = transactions.where((t) {
-            if (_selectedTab == 'SALES') return t.saleId != null;
-            if (_selectedTab == 'MANUAL') return t.saleId == null;
-            return true;
-          }).toList();
-
-          return RefreshIndicator(
-            onRefresh: () async {
-              ref.invalidate(contactTransactionsProvider(widget.contact.id));
-              ref.invalidate(contactProvider(widget.contact.id));
-              ref.invalidate(allContactsProvider);
-            },
-            child: ListView(
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(
-                AppDimensions.pagePaddingH,
-                AppDimensions.lg,
-                AppDimensions.pagePaddingH,
-                120,
-              ),
-              children: [
-                _BalanceSummaryCard(
-                  contact: currentContact,
-                  isPositive: isPositive,
-                  balanceColor: balanceColor,
-                ),
-                const SizedBox(height: AppDimensions.lg),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: () => _openReconciliation(context, currentContact),
-                    icon: const Icon(Icons.sync_rounded),
-                    label: const Text('Reconcile Ledger'),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      backgroundColor: Theme.of(context).colorScheme.surface,
-                      foregroundColor: Theme.of(context).brightness == Brightness.dark ? AppColors.primaryBright : AppColors.primary,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
-                        side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant, width: 1.5),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: AppDimensions.xl),
-                const AppSectionHeader(title: 'Transaction History', uppercase: true),
-                const SizedBox(height: AppDimensions.sm),
-                AppFilterChips<String>(
-                  options: const ['ALL', 'SALES', 'MANUAL'],
-                  selected: _selectedTab,
-                  labelBuilder: (value) => switch (value) {
-                    'ALL' => 'All',
-                    'SALES' => 'Sales',
-                    'MANUAL' => 'Manual',
-                    _ => value,
-                  },
-                  onSelected: (value) => setState(() => _selectedTab = value),
-                ),
-                const SizedBox(height: AppDimensions.md),
-                if (filteredTransactions.isEmpty)
-                  const AppEmptyState(
-                    icon: Icons.history_rounded,
-                    title: 'No ledger history',
-                    subtitle: 'Transact directly to populate the contact ledger log.',
-                  )
-                else
-                  ...filteredTransactions.map(
-                    (transaction) => Padding(
-                      padding: const EdgeInsets.only(bottom: AppDimensions.sm),
-                      child: _TransactionTile(transaction: transaction, ref: ref, contact: currentContact),
-                    ),
-                  ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildVerificationBadge(ContactVerificationStatus status) {
-    switch (status) {
-      case ContactVerificationStatus.verified:
-        return Tooltip(
-          message: 'Verified Account',
-          child: Icon(Icons.verified_rounded, color: Theme.of(context).brightness == Brightness.dark ? Colors.lightBlue : Colors.blue, size: 20),
-        );
-      case ContactVerificationStatus.pending:
-        return AppStatusBadge.warning(label: 'Pending', small: true);
-      case ContactVerificationStatus.expired:
-        return AppStatusBadge.danger(label: 'Expired', small: true);
-      case ContactVerificationStatus.unverified:
-        return const SizedBox.shrink();
-    }
-  }
-
-  void _openReconciliation(BuildContext context, ContactModel contact) {
-    if (contact.phoneNumber == null && contact.linkedUserUid == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Contact needs a phone number or app link for reconciliation')));
-      return;
-    }
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => ReconciliationScreen(contactId: contact.id, contactName: contact.name, contactPhone: contact.phoneNumber),
-      ),
-    );
-  }
-
-  Future<void> _addTransaction(BuildContext context, WidgetRef ref, TransactionType type) async {
-    final allowed = await _ensureTransactionPermission(context, ref, attemptedAction: 'add_transaction', entityType: 'contact', entityId: widget.contact.id);
-    if (!allowed) return;
-
-    await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => AddTransactionScreen(contactId: widget.contact.id, type: type)),
-    );
+  void _refresh() {
     ref.invalidate(contactTransactionsProvider(widget.contact.id));
     ref.invalidate(contactProvider(widget.contact.id));
     ref.invalidate(allContactsProvider);
   }
 
-  Future<void> _confirmDelete(BuildContext context, WidgetRef ref, ContactModel contact) async {
-    final allowed = await _ensureTransactionPermission(context, ref, attemptedAction: 'delete_contact', entityType: 'contact', entityId: contact.id);
-    if (!allowed) return;
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AppDeleteDialog(
-        title: 'Delete Contact?',
-        content: 'Are you sure you want to delete "${contact.name}" and ALL their transactions?\n\nThis cannot be undone.',
-      ),
-    );
-
-    if (confirmed == true && context.mounted) {
-      try {
-        final repo = ref.read(contactsRepositoryProvider);
-        await repo.deleteContact(contact.id);
-        final actorRole = ref.read(currentRoleProvider);
-        await ref.read(auditRepositoryProvider).logAction(actorRole: actorRole, action: 'contact_deleted', entityType: 'contact', entityId: contact.id, message: 'Contact ${contact.name} was deleted with all transactions.');
-        ref.invalidate(recentAuditLogsProvider);
-        if (context.mounted) {
-          Navigator.of(context).pop();
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Deleted ${contact.name}')));
-        }
-      } catch (e) {
-        // Ignored
-      }
-    }
-  }
-
-  Future<bool> _ensureTransactionPermission(
-    BuildContext context,
-    WidgetRef ref, {
-    required String attemptedAction,
-    required String entityType,
-    required String entityId,
-  }) async {
-    final requiredPermission = attemptedAction == 'delete_contact' ? TeamPermission.manageTeam : TeamPermission.processSales;
-    final allowed = ref.read(hasPermissionProvider(requiredPermission));
-    if (allowed) return true;
-
-    final actorRole = ref.read(currentRoleProvider);
-    await ref.read(auditRepositoryProvider).logAction(
-      actorRole: actorRole,
-      action: 'permission_denied',
-      entityType: entityType,
-      entityId: entityId,
-      message: 'Denied $attemptedAction for role ${actorRole.name}.',
-    );
-    ref.invalidate(recentAuditLogsProvider);
-
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('You do not have permission for this action.')));
-    }
-    return false;
-  }
-}
-
-class _ContactHeaderTitle extends StatelessWidget {
-  final ContactModel contact;
-  final Widget badge;
-
-  const _ContactHeaderTitle({required this.contact, required this.badge});
-
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        CircleAvatar(
-          radius: 18,
-          backgroundColor: AppColors.primary,
-          child: Text(
-            contact.name[0].toUpperCase(),
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-          ),
-        ),
-        const SizedBox(width: AppDimensions.md),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      contact.name,
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
+    final contact = ref.watch(contactProvider(widget.contact.id)).valueOrNull ?? widget.contact;
+    final transactionsAsync = ref.watch(contactTransactionsProvider(widget.contact.id));
+    final transactions = transactionsAsync.valueOrNull ?? const <TransactionModel>[];
+
+    var given = Decimal.zero;
+    var received = Decimal.zero;
+    for (final tx in transactions) {
+      final effect = tx.balanceEffect;
+      if (effect >= Decimal.zero) {
+        given += effect;
+      } else {
+        received -= effect;
+      }
+    }
+
+    final filtered = transactions.where((t) => switch (_filter) {
+          _HistoryFilter.sales => t.saleId != null,
+          _HistoryFilter.manual => t.saleId == null,
+          _HistoryFilter.all => true,
+        }).toList();
+
+    return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      body: SafeArea(
+        bottom: false,
+        child: RefreshIndicator(
+          onRefresh: () async => _refresh(),
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+            slivers: [
+              SliverToBoxAdapter(
+                child: AppTopBar(
+                  eyebrow: contact.roleLabels.isEmpty ? 'CONTACT' : contact.roleLabels.join(' · ').toUpperCase(),
+                  title: contact.name,
+                  leading: AppTopBarAction(
+                    icon: Icons.arrow_back_rounded,
+                    tooltip: 'Back',
+                    onTap: () => Navigator.of(context).pop(),
+                  ),
+                  actions: [
+                    AppTopBarAction(
+                      icon: Icons.sync_rounded,
+                      tooltip: 'Reconcile with their ledger',
+                      onTap: () => _openReconciliation(contact),
+                    ),
+                    AppTopBarAction(
+                      icon: Icons.delete_outline_rounded,
+                      tooltip: 'Delete contact',
+                      onTap: () => _confirmDelete(contact),
+                    ),
+                  ],
+                ),
+              ),
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: AppDimensions.pagePaddingH),
+                sliver: SliverList.list(
+                  children: [
+                    _IdentityLine(contact: contact),
+                    const SizedBox(height: AppDimensions.lg),
+                    AppBalancePanel(
+                      label: contact.netBalance == Decimal.zero
+                          ? 'Settled'
+                          : (contact.netBalance > Decimal.zero ? 'They owe you' : 'You owe them'),
+                      netBalance: contact.netBalance,
+                      receivable: given,
+                      payable: received,
+                      receivableLabel: 'Given to them',
+                      payableLabel: 'Received from them',
+                    ),
+                    if (contact.linkedUserUid != null || (contact.phoneNumber?.isNotEmpty ?? false)) ...[
+                      const SizedBox(height: AppDimensions.md),
+                      _ReconcileRow(name: contact.name, onTap: () => _openReconciliation(contact)),
+                    ],
+                    const SizedBox(height: AppDimensions.xl),
+                    Text('HISTORY', style: AppTextStyles.sectionLabel),
+                    const SizedBox(height: AppDimensions.sm),
+                  ],
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: AppFilterChips<_HistoryFilter>(
+                  options: _HistoryFilter.values,
+                  selected: _filter,
+                  labelBuilder: (f) => switch (f) {
+                    _HistoryFilter.all => 'All',
+                    _HistoryFilter.sales => 'Sales',
+                    _HistoryFilter.manual => 'Manual',
+                  },
+                  countBuilder: (f) => switch (f) {
+                    _HistoryFilter.all => transactions.length,
+                    _HistoryFilter.sales => transactions.where((t) => t.saleId != null).length,
+                    _HistoryFilter.manual => transactions.where((t) => t.saleId == null).length,
+                  },
+                  onSelected: (f) => setState(() => _filter = f),
+                ),
+              ),
+              const SliverToBoxAdapter(child: SizedBox(height: AppDimensions.md)),
+              ...transactionsAsync.when(
+                loading: () => [
+                  const SliverFillRemaining(hasScrollBody: false, child: Center(child: CircularProgressIndicator())),
+                ],
+                error: (e, _) => [
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: AppEmptyState(
+                      icon: Icons.error_outline_rounded,
+                      title: 'Could not load history',
+                      subtitle: '$e',
+                      iconColor: AppColors.negative,
                     ),
                   ),
-                  const SizedBox(width: AppDimensions.sm),
-                  badge,
                 ],
+                data: (_) => filtered.isEmpty
+                    ? [
+                        const SliverFillRemaining(
+                          hasScrollBody: false,
+                          child: AppEmptyState(
+                            icon: Icons.history_rounded,
+                            title: 'No entries yet',
+                            subtitle: 'Record what you give and take with "I gave" and "I took" below.',
+                          ),
+                        ),
+                      ]
+                    : _historySlivers(filtered, contact),
               ),
-              if (contact.phoneNumber != null && contact.phoneNumber!.isNotEmpty)
-                Text(
-                  contact.phoneNumber!,
-                  style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12),
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
-                )
-              else if (contact.verificationMethod == 'email')
-                Text(
-                  'Verified via email',
-                  style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12, fontStyle: FontStyle.italic),
-                ),
-              Text(
-                contact.roleLabels.join(' · '),
-                style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? AppColors.primaryBright : AppColors.primary, fontSize: 11, fontWeight: FontWeight.w600),
+              const SliverToBoxAdapter(child: SizedBox(height: AppDimensions.xxl)),
+            ],
+          ),
+        ),
+      ),
+      bottomNavigationBar: AppBottomActionBar(
+        child: Row(
+          children: [
+            Expanded(
+              child: _EntryButton(
+                label: 'I gave',
+                caption: 'They owe more',
+                icon: Icons.north_east_rounded,
+                tone: AppColors.positive,
+                onTap: () => _addTransaction(TransactionType.goodsGiven),
+              ),
+            ),
+            const SizedBox(width: AppDimensions.md),
+            Expanded(
+              child: _EntryButton(
+                label: 'I took',
+                caption: 'I owe more',
+                icon: Icons.south_west_rounded,
+                tone: AppColors.negative,
+                onTap: () => _addTransaction(TransactionType.goodsTaken),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _historySlivers(List<TransactionModel> transactions, ContactModel contact) {
+    final now = DateTime.now();
+    return [
+      for (final day in groupByDay(transactions))
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(AppDimensions.pagePaddingH, 0, AppDimensions.pagePaddingH, AppDimensions.lg),
+          sliver: SliverList.list(
+            children: [
+              _DayHeader(label: dayLabel(day.day, now), net: day.net),
+              const SizedBox(height: AppDimensions.sm),
+              AppLedgerGroup(
+                children: [
+                  for (final tx in day.entries)
+                    AppLedgerRow(
+                      title: tx.saleId != null ? 'Sale · ${transactionTypeLabel(tx.type)}' : transactionTypeLabel(tx.type),
+                      subtitle: notebookFormula(tx) ?? _shortDescription(tx),
+                      amount: tx.amount.abs(),
+                      direction: tx.balanceEffect >= Decimal.zero ? LedgerDirection.incoming : LedgerDirection.outgoing,
+                      meta: DateFormat('h:mm a').format(tx.date),
+                      status: switch (tx.status) {
+                        TransactionStatus.pending => 'Pending',
+                        TransactionStatus.disputed => 'Disputed',
+                        TransactionStatus.confirmed => null,
+                      },
+                      statusTone: tx.status == TransactionStatus.disputed ? AppColors.negative : AppColors.warning,
+                      onTap: () => _showEntryActions(tx, contact),
+                    ),
+                ],
               ),
             ],
           ),
         ),
+    ];
+  }
+
+  String? _shortDescription(TransactionModel tx) {
+    final text = tx.description?.trim();
+    return text == null || text.isEmpty ? null : text;
+  }
+
+  // ── Entry actions ──────────────────────────────────────────────────────
+
+  Future<void> _showEntryActions(TransactionModel tx, ContactModel contact) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      builder: (context) => _EntryActionsSheet(tx: tx),
+    );
+    if (action == null || !mounted) return;
+
+    final repo = ref.read(transactionsRepositoryProvider);
+    switch (action) {
+      case 'open':
+        if (tx.saleId != null) {
+          await Navigator.of(context).push(MaterialPageRoute(builder: (_) => InvoicePreviewScreen(saleId: tx.saleId!)));
+        } else {
+          await Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => AddTransactionScreen(contactId: contact.id, type: tx.type, transactionToEdit: tx),
+          ));
+        }
+      case 'edit':
+        await Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => AddTransactionScreen(contactId: contact.id, type: tx.type, transactionToEdit: tx),
+        ));
+      case 'pending':
+        await repo.updateTransaction(tx.copyWith(status: TransactionStatus.pending));
+      case 'confirmed':
+        await repo.updateTransaction(tx.copyWith(status: TransactionStatus.confirmed));
+      case 'disputed':
+        await repo.updateTransaction(tx.copyWith(status: TransactionStatus.disputed));
+      case 'delete':
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (_) => AppDeleteDialog(
+            title: 'Delete entry?',
+            content: 'Delete this ${transactionTypeLabel(tx.type).toLowerCase()} of ETB ${tx.amount}? This cannot be undone.',
+          ),
+        );
+        if (confirmed == true) await repo.deleteTransaction(tx.id);
+    }
+    _refresh();
+  }
+
+  // ── Actions ─────────────────────────────────────────────────────────────
+
+  void _openReconciliation(ContactModel contact) {
+    if (contact.phoneNumber == null && contact.linkedUserUid == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Add their phone number to compare ledgers.')),
+      );
+      return;
+    }
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => ReconciliationScreen(
+        contactId: contact.id,
+        contactName: contact.name,
+        contactPhone: contact.phoneNumber,
+      ),
+    ));
+  }
+
+  Future<void> _addTransaction(TransactionType type) async {
+    if (!await _ensurePermission('add_transaction', widget.contact.id)) return;
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => AddTransactionScreen(contactId: widget.contact.id, type: type)),
+    );
+    _refresh();
+  }
+
+  Future<void> _confirmDelete(ContactModel contact) async {
+    if (!await _ensurePermission('delete_contact', contact.id)) return;
+    if (!mounted) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AppDeleteDialog(
+        title: 'Delete contact?',
+        content: 'Delete "${contact.name}" and all their entries? This cannot be undone.',
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    try {
+      await ref.read(contactsRepositoryProvider).deleteContact(contact.id);
+      await ref.read(auditRepositoryProvider).logAction(
+            actorRole: ref.read(currentRoleProvider),
+            action: 'contact_deleted',
+            entityType: 'contact',
+            entityId: contact.id,
+            message: 'Contact ${contact.name} was deleted with all transactions.',
+          );
+      ref.invalidate(recentAuditLogsProvider);
+      ref.invalidate(allContactsProvider);
+      navigator.pop();
+      messenger.showSnackBar(SnackBar(content: Text('Deleted ${contact.name}')));
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Could not delete: $e'), backgroundColor: AppColors.negative));
+    }
+  }
+
+  Future<bool> _ensurePermission(String attemptedAction, String entityId) async {
+    final required = attemptedAction == 'delete_contact' ? TeamPermission.manageTeam : TeamPermission.processSales;
+    if (ref.read(hasPermissionProvider(required))) return true;
+
+    final messenger = ScaffoldMessenger.of(context);
+    final actorRole = ref.read(currentRoleProvider);
+    await ref.read(auditRepositoryProvider).logAction(
+          actorRole: actorRole,
+          action: 'permission_denied',
+          entityType: 'contact',
+          entityId: entityId,
+          message: 'Denied $attemptedAction for role ${actorRole.name}.',
+        );
+    ref.invalidate(recentAuditLogsProvider);
+    messenger.showSnackBar(const SnackBar(content: Text('You do not have permission for this action.')));
+    return false;
+  }
+}
+
+// ── Pieces ────────────────────────────────────────────────────────────────────
+
+/// HisabET badge or "Private record", phone number, and verification state —
+/// one quiet line under the title.
+class _IdentityLine extends StatelessWidget {
+  const _IdentityLine({required this.contact});
+  final ContactModel contact;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final muted = AppTextStyles.labelSmall.copyWith(
+      color: colorScheme.onSurfaceVariant,
+      fontFeatures: const [FontFeature.tabularFigures()],
+    );
+    final phone = contact.phoneNumber;
+    return Wrap(
+      spacing: AppDimensions.sm,
+      runSpacing: AppDimensions.xs,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        if (contact.linkedUserUid != null) const AppHisabetBadge() else Text('Private record', style: muted),
+        if (phone != null && phone.isNotEmpty) Text(phone, style: muted),
+        if (contact.verificationStatus == ContactVerificationStatus.pending)
+          AppStatusBadge.warning(label: 'Pending', small: true),
+        if (contact.verificationStatus == ContactVerificationStatus.expired)
+          AppStatusBadge.danger(label: 'Expired', small: true),
       ],
     );
   }
 }
 
-class _BalanceSummaryCard extends StatelessWidget {
-  final ContactModel contact;
-  final bool isPositive;
-  final Color balanceColor;
-
-  const _BalanceSummaryCard({required this.contact, required this.isPositive, required this.balanceColor});
+class _ReconcileRow extends StatelessWidget {
+  const _ReconcileRow({required this.name, required this.onTap});
+  final String name;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return AppCard(
-      padding: const EdgeInsets.all(AppDimensions.lg),
-      color: balanceColor,
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final brand = isDark ? AppColors.primaryBright : AppColors.primary;
+    return AppGroupedRow(
+      isFirst: true,
+      isLast: true,
+      onTap: onTap,
       child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(10)),
-            child: Icon(isPositive ? Icons.trending_up_rounded : Icons.trending_down_rounded, color: Colors.white, size: 24),
-          ),
+          Icon(Icons.sync_rounded, color: brand, size: AppDimensions.iconMd),
           const SizedBox(width: AppDimensions.md),
           Expanded(
-            child: Text(
-              isPositive ? "They Owe You" : "You Owe Them",
-              style: TextStyle(color: Colors.white.withOpacity(0.95), fontSize: 15, fontWeight: FontWeight.w600),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Reconcile ledgers', style: AppTextStyles.cardTitle.copyWith(color: colorScheme.onSurface)),
+                const SizedBox(height: 2),
+                Text(
+                  'Compare your entries with $name\'s and fix differences',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.labelSmall.copyWith(color: colorScheme.onSurfaceVariant),
+                ),
+              ],
             ),
           ),
-          Text(
-            'ETB ${contact.netBalance.abs()}',
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20, letterSpacing: 0.5),
-          ),
+          Icon(Icons.chevron_right_rounded, color: colorScheme.onSurfaceVariant),
         ],
       ),
     );
   }
 }
 
-class _TransactionTile extends StatelessWidget {
-  final TransactionModel transaction;
-  final WidgetRef ref;
-  final ContactModel contact;
-
-  const _TransactionTile({required this.transaction, required this.ref, required this.contact});
-
-  String _getTypeLabel(TransactionType type) {
-    switch (type) {
-      case TransactionType.goodsGiven:
-        return "Items Given";
-      case TransactionType.goodsTaken:
-        return "Items Received";
-      case TransactionType.paymentReceived:
-        return "Payment In";
-      case TransactionType.paymentGiven:
-        return "Payment Out";
-    }
-  }
-
-  Widget _buildMappedBadge(TransactionStatus status) {
-    switch (status) {
-      case TransactionStatus.pending:
-        return AppStatusBadge.warning(label: 'Pending', small: true);
-      case TransactionStatus.confirmed:
-        return AppStatusBadge.success(label: 'Confirmed', small: true);
-      case TransactionStatus.disputed:
-        return AppStatusBadge.danger(label: 'Disputed', small: true);
-    }
-  }
+class _DayHeader extends StatelessWidget {
+  const _DayHeader({required this.label, required this.net});
+  final String label;
+  final Decimal net;
 
   @override
   Widget build(BuildContext context) {
-    final isPositive = transaction.balanceEffect.toDouble() >= 0;
-
-    return AppListTile(
-      leadingIcon: isPositive ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
-      leadingColor: isPositive ? Theme.of(context).colorScheme.secondary : Theme.of(context).colorScheme.error,
-      title: '${transaction.saleId != null ? '[SALE] ' : ''}${_getTypeLabel(transaction.type)}',
-      subtitle: '${DateFormat('MMM dd • hh:mm a').format(transaction.date)}${transaction.description != null ? '\n${transaction.description}' : ''}',
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              _buildMappedBadge(transaction.status),
-              const SizedBox(height: 4),
-              AppAmountText(amount: transaction.amount.toString(), fontSize: 16, isPositive: isPositive, showSign: true),
-            ],
-          ),
-          const SizedBox(width: AppDimensions.sm),
-          PopupMenuButton<String>(
-            tooltip: 'Transaction options',
-            icon: Icon(Icons.more_vert_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant),
-            onSelected: (value) async {
-              if (value == 'edit') {
-                Navigator.of(context).push(MaterialPageRoute(builder: (_) => AddTransactionScreen(contactId: contact.id, type: transaction.type, transactionToEdit: transaction)));
-              } else if (value == 'delete') {
-                final confirmed = await showDialog<bool>(
-                  context: context,
-                  builder: (context) => AppDeleteDialog(
-                    title: 'Delete Transaction?',
-                    content: 'Are you sure you want to delete this ${transaction.type == TransactionType.goodsGiven ? 'give' : 'take'} transaction of ${transaction.amount}?\n\nThis cannot be undone.',
-                  ),
-                );
-                if (confirmed == true) {
-                  final repo = ref.read(transactionsRepositoryProvider);
-                  await repo.deleteTransaction(transaction.id);
-                  ref.invalidate(contactTransactionsProvider(contact.id));
-                  ref.invalidate(contactProvider(contact.id));
-                  ref.invalidate(allContactsProvider);
-                }
-              } else if (value == 'pending') {
-                final repo = ref.read(transactionsRepositoryProvider);
-                await repo.updateTransaction(transaction.copyWith(status: TransactionStatus.pending));
-                ref.invalidate(contactTransactionsProvider(contact.id));
-              } else if (value == 'confirmed') {
-                final repo = ref.read(transactionsRepositoryProvider);
-                await repo.updateTransaction(transaction.copyWith(status: TransactionStatus.confirmed));
-                ref.invalidate(contactTransactionsProvider(contact.id));
-              } else if (value == 'disputed') {
-                final repo = ref.read(transactionsRepositoryProvider);
-                await repo.updateTransaction(transaction.copyWith(status: TransactionStatus.disputed));
-                ref.invalidate(contactTransactionsProvider(contact.id));
-              }
-            },
-            itemBuilder: (context) => [
-              const PopupMenuItem(value: 'pending', child: Text('Mark Pending')),
-              const PopupMenuItem(value: 'confirmed', child: Text('Mark Confirmed')),
-              const PopupMenuItem(value: 'disputed', child: Text('Mark Disputed')),
-              const PopupMenuDivider(),
-              const PopupMenuItem(value: 'edit', child: Text('Edit')),
-              PopupMenuItem(value: 'delete', child: Text('Delete', style: TextStyle(color: Theme.of(context).colorScheme.error))),
-            ],
-          ),
+    final colorScheme = Theme.of(context).colorScheme;
+    return Row(
+      children: [
+        Expanded(
+          child: Text(label, style: AppTextStyles.cardTitle.copyWith(color: colorScheme.onSurface, fontSize: 14)),
+        ),
+        if (net != Decimal.zero) ...[
+          Text('Net ', style: AppTextStyles.labelSmall.copyWith(color: colorScheme.onSurfaceVariant)),
+          AppMoney.directional(amount: net, size: AppMoneySize.small, showCurrency: false),
         ],
+      ],
+    );
+  }
+}
+
+/// "I gave" / "I took": the two ways a notebook line starts. Coloured by what
+/// it does to the balance, with a caption so meaning never rests on colour.
+class _EntryButton extends StatelessWidget {
+  const _EntryButton({
+    required this.label,
+    required this.caption,
+    required this.icon,
+    required this.tone,
+    required this.onTap,
+  });
+
+  final String label;
+  final String caption;
+  final IconData icon;
+  final Color tone;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: tone,
+      borderRadius: BorderRadius.circular(AppDimensions.buttonRadius),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppDimensions.buttonRadius),
+        child: SizedBox(
+          height: AppDimensions.buttonHeight + 4,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: Colors.white, size: AppDimensions.iconSm),
+              const SizedBox(width: AppDimensions.sm),
+              Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: AppTextStyles.buttonLabel.copyWith(color: Colors.white)),
+                  Text(
+                    caption,
+                    style: AppTextStyles.labelSmall.copyWith(color: Colors.white.withValues(alpha: 0.85), fontSize: 11),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
-      onTap: () {
-        if (transaction.saleId != null) {
-          Navigator.of(context).push(MaterialPageRoute(builder: (_) => InvoicePreviewScreen(saleId: transaction.saleId!)));
-        } else {
-          Navigator.of(context).push(MaterialPageRoute(builder: (_) => AddTransactionScreen(contactId: contact.id, type: transaction.type, transactionToEdit: transaction)));
-        }
-      },
+    );
+  }
+}
+
+class _EntryActionsSheet extends StatelessWidget {
+  const _EntryActionsSheet({required this.tx});
+  final TransactionModel tx;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    Widget option(String value, IconData icon, String label, {Color? tone, bool isFirst = false, bool isLast = false}) {
+      return AppGroupedRow(
+        isFirst: isFirst,
+        isLast: isLast,
+        onTap: () => Navigator.of(context).pop(value),
+        child: Row(
+          children: [
+            Icon(icon, size: AppDimensions.iconSm, color: tone ?? colorScheme.onSurfaceVariant),
+            const SizedBox(width: AppDimensions.md),
+            Text(label, style: AppTextStyles.cardTitle.copyWith(color: tone ?? colorScheme.onSurface)),
+          ],
+        ),
+      );
+    }
+
+    final isSale = tx.saleId != null;
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(AppDimensions.pagePaddingH, 0, AppDimensions.pagePaddingH, AppDimensions.lg),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    transactionTypeLabel(tx.type),
+                    style: AppTextStyles.titleLarge.copyWith(fontWeight: FontWeight.w800),
+                  ),
+                ),
+                AppMoney(amount: tx.amount.abs(), size: AppMoneySize.medium),
+              ],
+            ),
+            Text(
+              DateFormat('EEE d MMM yyyy · h:mm a').format(tx.date),
+              style: AppTextStyles.labelSmall.copyWith(color: colorScheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: AppDimensions.lg),
+            option('open', isSale ? Icons.receipt_long_rounded : Icons.edit_rounded, isSale ? 'Open invoice' : 'Edit entry',
+                isFirst: true, isLast: !isSale),
+            if (isSale) option('edit', Icons.edit_rounded, 'Edit entry', isLast: true),
+            const SizedBox(height: AppDimensions.md),
+            Text('STATUS', style: AppTextStyles.sectionLabel),
+            const SizedBox(height: AppDimensions.sm),
+            if (tx.status != TransactionStatus.confirmed)
+              option('confirmed', Icons.check_circle_outline_rounded, 'Mark confirmed', tone: AppColors.positive, isFirst: true),
+            if (tx.status != TransactionStatus.pending)
+              option('pending', Icons.schedule_rounded, 'Mark pending',
+                  isFirst: tx.status == TransactionStatus.confirmed,
+                  isLast: tx.status == TransactionStatus.disputed),
+            if (tx.status != TransactionStatus.disputed)
+              option('disputed', Icons.report_gmailerrorred_rounded, 'Mark disputed', tone: AppColors.warning, isLast: true),
+            const SizedBox(height: AppDimensions.md),
+            option('delete', Icons.delete_outline_rounded, 'Delete entry', tone: AppColors.negative, isFirst: true, isLast: true),
+          ],
+        ),
+      ),
     );
   }
 }

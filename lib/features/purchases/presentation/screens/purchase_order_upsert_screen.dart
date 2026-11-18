@@ -254,29 +254,31 @@ class _PurchaseOrderUpsertScreenState extends ConsumerState<PurchaseOrderUpsertS
       appBar: AppBar(
         title: Text(_isEditing ? 'Edit Purchase Order' : 'New Purchase Order'),
       ),
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(AppDimensions.pagePaddingH),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              AppCard(
-                padding: const EdgeInsets.symmetric(horizontal: AppDimensions.lg, vertical: AppDimensions.md),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('Order Subtotal', style: AppTextStyles.cardSubtitle),
-                    Text('ETB $_subtotal', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                  ],
+      // Lifted above the keyboard so Save is never hidden while typing.
+      bottomNavigationBar: AppBottomActionBar(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Order subtotal', style: AppTextStyles.cardSubtitle),
+                Text(
+                  'ETB $_subtotal',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, fontFeatures: [FontFeature.tabularFigures()]),
                 ),
-              ),
-              const SizedBox(height: AppDimensions.sm),
-              ElevatedButton(
+              ],
+            ),
+            const SizedBox(height: AppDimensions.sm),
+            SizedBox(
+              height: AppDimensions.buttonHeight,
+              width: double.infinity,
+              child: ElevatedButton(
                 onPressed: _isLoading ? null : _saveOrder,
                 child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : Text(_isEditing ? 'UPDATE ORDER' : 'SAVE ORDER'),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
       body: contactsAsync.when(

@@ -103,9 +103,10 @@ class _CustomerProfileUpsertScreenState extends ConsumerState<CustomerProfileUps
       appBar: AppBar(
         title: Text(_isEditing ? 'Edit Profile' : 'New CRM Profile'),
       ),
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(AppDimensions.pagePaddingH),
+      // Lifted above the keyboard so Save is never hidden while typing.
+      bottomNavigationBar: AppBottomActionBar(
+        child: SizedBox(
+          height: AppDimensions.buttonHeight,
           child: ElevatedButton(
             onPressed: _isLoading ? null : _saveCustomer,
             child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : Text(_isEditing ? 'UPDATE CUSTOMER' : 'SAVE CUSTOMER'),

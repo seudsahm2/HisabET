@@ -360,14 +360,9 @@ class _ProductUpsertScreenState extends ConsumerState<ProductUpsertScreen> {
             ),
         ],
       ),
-      bottomNavigationBar: SafeArea(
-        child: Container(
-          padding: const EdgeInsets.all(AppDimensions.pagePaddingH),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, -4))],
-          ),
-          child: Row(
+      // Lifted above the keyboard so Next / Save is never hidden while typing.
+      bottomNavigationBar: AppBottomActionBar(
+        child: Row(
             children: [
               if (_currentStep > 0) ...[
                 Expanded(
@@ -414,7 +409,6 @@ class _ProductUpsertScreenState extends ConsumerState<ProductUpsertScreen> {
               ),
             ],
           ),
-        ),
       ),
       body: SafeArea(
         child: Form(

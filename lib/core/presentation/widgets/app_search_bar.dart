@@ -32,6 +32,9 @@ class AppSearchBar extends StatefulWidget {
     this.autofocus = false,
     this.trailing,
     this.textInputAction,
+    this.keyboardType,
+    this.leadingIcon = Icons.search_rounded,
+    this.focusNode,
   });
 
   final String hintText;
@@ -50,6 +53,14 @@ class AppSearchBar extends StatefulWidget {
 
   final TextInputAction? textInputAction;
 
+  /// e.g. [TextInputType.phone] when the search is by phone number.
+  final TextInputType? keyboardType;
+
+  final IconData leadingIcon;
+
+  /// Supply one to focus the field from outside (e.g. after switching scope).
+  final FocusNode? focusNode;
+
   @override
   State<AppSearchBar> createState() => _AppSearchBarState();
 }
@@ -57,7 +68,7 @@ class AppSearchBar extends StatefulWidget {
 class _AppSearchBarState extends State<AppSearchBar> {
   late final TextEditingController _controller;
   late final bool _ownsController;
-  final FocusNode _focusNode = FocusNode();
+  late final FocusNode _focusNode = widget.focusNode ?? FocusNode();
   bool _focused = false;
 
   @override
@@ -71,7 +82,7 @@ class _AppSearchBarState extends State<AppSearchBar> {
   @override
   void dispose() {
     _focusNode.removeListener(_syncFocus);
-    _focusNode.dispose();
+    if (widget.focusNode == null) _focusNode.dispose();
     if (_ownsController) _controller.dispose();
     super.dispose();
   }
@@ -110,7 +121,7 @@ class _AppSearchBarState extends State<AppSearchBar> {
         children: [
           const SizedBox(width: AppDimensions.md),
           Icon(
-            Icons.search_rounded,
+            widget.leadingIcon,
             size: AppDimensions.iconSm + 2,
             color: _focused ? accent : colorScheme.onSurfaceVariant,
           ),
@@ -123,6 +134,7 @@ class _AppSearchBarState extends State<AppSearchBar> {
               onChanged: widget.onChanged,
               onSubmitted: widget.onSubmitted,
               textInputAction: widget.textInputAction,
+              keyboardType: widget.keyboardType,
               cursorColor: accent,
               style: AppTextStyles.cardTitle.copyWith(
                 fontWeight: FontWeight.w500,

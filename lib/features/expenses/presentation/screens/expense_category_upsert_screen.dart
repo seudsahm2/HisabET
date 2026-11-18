@@ -139,9 +139,10 @@ class _ExpenseCategoryUpsertScreenState extends ConsumerState<ExpenseCategoryUps
       appBar: AppBar(
         title: Text(_isEditing ? 'Edit Category' : 'New Category'),
       ),
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(AppDimensions.pagePaddingH),
+      // Lifted above the keyboard so Save is never hidden while typing.
+      bottomNavigationBar: AppBottomActionBar(
+        child: SizedBox(
+          height: AppDimensions.buttonHeight,
           child: ElevatedButton(
             onPressed: _isLoading ? null : _save,
             child: _isLoading

@@ -1,31 +1,39 @@
 class PhoneUtil {
-  /// Normalizes phone number to E.164 format (e.g., +251911223344)
-  /// Removing spaces, dashes, and handling '09' prefix for Ethiopia.
+  /// Normalises a phone number to E.164 (e.g. `+251911223344`).
+  ///
+  /// Handles how Ethiopian numbers are actually written and stored in phone
+  /// books — both networks:
+  /// - Ethio Telecom `09…` and Safaricom Ethiopia `07…`
+  /// - local `0911 22 33 44`, bare `911223344`, `251911223344`,
+  ///   `+251 91 122 3344`, `00251911223344`
+  ///
+  /// Anything else is returned with formatting stripped, so foreign numbers
+  /// already written with `+` pass through unchanged.
   static String normalize(String phone) {
     if (phone.isEmpty) return phone;
 
-    // Remove all non-digit characters except leading +
-    String cleaned = phone.replaceAll(RegExp(r'[^\d+]'), '');
+    // Keep digits and a leading +.
+    var cleaned = phone.replaceAll(RegExp(r'[^\d+]'), '');
+    if (cleaned.startsWith('00')) cleaned = '+${cleaned.substring(2)}';
 
-    // Handle Ethiopia specific (09... -> +2519...)
-    if (cleaned.startsWith('09') && cleaned.length == 10) {
+    // Local mobile: 09xxxxxxxx (Ethio Telecom) / 07xxxxxxxx (Safaricom).
+    if (RegExp(r'^0[79]\d{8}$').hasMatch(cleaned)) {
       return '+251${cleaned.substring(1)}';
     }
 
-    // Handle 9... without 0 (e.g. 911223344 -> +251911223344)
-    if (cleaned.startsWith('9') && cleaned.length == 9) {
+    // Without the trunk zero: 9xxxxxxxx / 7xxxxxxxx.
+    if (RegExp(r'^[79]\d{8}$').hasMatch(cleaned)) {
       return '+251$cleaned';
     }
 
-    // Ensure it starts with + if it looks international
-    if (!cleaned.startsWith('+') && cleaned.length > 9) {
-      // Assume manual entry might need checks, for now return cleaned
-      // Or better, if it's 251..., prepend +
-      if (cleaned.startsWith('251')) {
-        return '+$cleaned';
-      }
+    // Country code without the plus.
+    if (RegExp(r'^251\d{9}$').hasMatch(cleaned)) {
+      return '+$cleaned';
     }
 
     return cleaned;
   }
+
+  /// True for a plausible E.164 number after [normalize].
+  static bool isValidE164(String phone) => RegExp(r'^\+\d{8,15}$').hasMatch(phone);
 }
