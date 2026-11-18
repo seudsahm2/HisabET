@@ -20,10 +20,12 @@ Already done steps 1–4 of the setup (bot, rules, key, Netlify)? Then:
    powershell -ExecutionPolicy Bypass -File functions\scripts\connect-telegram.ps1
    ```
    It asks for your bot token, your webhook secret and your Netlify address, then checks it worked.
-3. **Run the app with your bot and site:**
-   ```powershell
-   flutter run --dart-define=TELEGRAM_BOT_USERNAME=YourBotName --dart-define=HISABET_BACKEND_URL=your-site.netlify.app
-   ```
+3. **Put your bot name and site address in the app, once:** open
+   `lib/core/config/app_config.dart` and fill in `_productionTelegramBot`
+   (e.g. `'HisabETBot'`) and `_productionBackendUrl`
+   (e.g. `'hisabet-backend.netlify.app'`). Both are public values, safe to
+   commit. From then on plain `flutter run` and every release build
+   (`flutter build appbundle`) include them — no flags.
 
 The sign-in screen now shows **Continue with Telegram** above Continue with Google.
 
@@ -189,14 +191,13 @@ Invoke-RestMethod "https://api.telegram.org/bot$token/getWebhookInfo"
 
 `getWebhookInfo` should show the URL and no `last_error_message`.
 
-### 5. Build the app with the bot name
+### 5. Put the bot name and backend address in the app
 
-```powershell
-flutter run --dart-define=TELEGRAM_BOT_USERNAME=HisabETBot
-```
-
-Without it the Telegram button is hidden and only the SMS-code path shows,
-so builds made before the backend exists still work.
+Fill in the two production values in `lib/core/config/app_config.dart`.
+They are compiled into every build, debug and release, so no flags are
+needed. Leave one empty and the Telegram options are hidden rather than
+broken. A single build can still override them, e.g. a test bot:
+`flutter run --dart-define=TELEGRAM_BOT_USERNAME=HisabETTestBot`.
 
 > **On the free plan, the SMS fallback only works with Firebase test numbers**
 > (real SMS needs Blaze). Telegram is the path real users take.

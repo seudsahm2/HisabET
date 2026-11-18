@@ -1,30 +1,17 @@
-/// Build-time configuration for phone verification.
-///
-/// ```powershell
-/// flutter run `
-///   --dart-define=TELEGRAM_BOT_USERNAME=HisabETBot `
-///   --dart-define=HISABET_BACKEND_URL=https://your-site.netlify.app
-/// ```
-///
-/// The bot name enables "Verify with Telegram"; the bot name **and** the
-/// backend URL enable "Continue with Telegram" on the sign-in screen.
-///
-/// With no bot configured, the Telegram option is hidden and the SMS-code
-/// path is offered on its own — so a build made before the backend is
-/// deployed still works. See TELEGRAM_PHONE_VERIFICATION.md.
-abstract final class PhoneIdentityConfig {
-  static const String _rawBotUsername =
-      String.fromEnvironment('TELEGRAM_BOT_USERNAME');
+import 'package:hisabet/core/config/app_config.dart';
 
+/// Parsed, validated phone-verification settings. The raw values come from
+/// [AppConfig] (compiled in, overridable with `--dart-define`).
+///
+/// With no bot configured the Telegram options are hidden and the SMS-code
+/// path is offered on its own. See TELEGRAM_PHONE_VERIFICATION.md.
+abstract final class PhoneIdentityConfig {
   /// The bot's @username without the `@`, or null when not configured or
   /// not a valid Telegram bot username.
-  static String? get telegramBotUsername => parseBotUsername(_rawBotUsername);
-
-  static const String _rawBackendUrl =
-      String.fromEnvironment('HISABET_BACKEND_URL');
+  static String? get telegramBotUsername => parseBotUsername(AppConfig.telegramBotUsername);
 
   /// Where the Telegram sign-in exchange lives, or null when not configured.
-  static Uri? get backendUrl => parseBackendUrl(_rawBackendUrl);
+  static Uri? get backendUrl => parseBackendUrl(AppConfig.backendUrl);
 
   /// The exchange endpoint, under either host's path.
   static Uri? get telegramSignInUrl =>
