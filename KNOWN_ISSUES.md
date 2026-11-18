@@ -125,6 +125,18 @@ Spec: brokers open one carton as a display sample, so 10 cartons is really 9 ful
 
 ---
 
+### 17. Any user could set any phone number on their profile — `FIXED` (2026-11-18)
+
+`profile_edit_screen.dart` wrote a free-text `phone` straight to `users/{uid}`, and the rules allowed any owner write. Since `phone` is what network search and ledger reconciliation match on, anyone could take over another trader's number and receive their counterparty matches. `auth_gate.dart` also backfilled `phone` without any uniqueness check.
+
+**Resolution:** phone identity redesigned around `phone_claims/{E.164}` (one owner per number) — see TELEGRAM_PHONE_VERIFICATION.md. The rules now refuse any client change to `phone`/`phoneVerified`/`phoneVerificationMethod`/`phoneVerifiedAt` unless Firebase Auth proves the number and the claim is written in the same batch; Telegram results are written by the backend. Profile edit shows the verified number with a "Change" flow instead of a text field. Covered by `functions/test/emulator/rules.test.ts`.
+
+### 18. Legacy profiles have `phone` without a claim — `OPEN`
+
+Accounts created before 2026-11-18 may have `phone` but no `phone_claims` document, so their number is not reserved. The gate sends them to *Verify your phone* (they need `phoneVerified` + a server-proven method), which writes the claim. A one-off admin script could backfill claims for numbers that are provably unique, if waiting for users to re-verify is too slow.
+
+---
+
 ## P4 — Polish
 
 ### 13. Working modules advertised as "coming soon" — `FIXED` (2026-08-08)

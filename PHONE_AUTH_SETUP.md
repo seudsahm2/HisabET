@@ -1,5 +1,11 @@
 # Phone verification — setup
 
+> **Telegram is now the primary verification path** — see
+> [TELEGRAM_PHONE_VERIFICATION.md](TELEGRAM_PHONE_VERIFICATION.md). This file
+> covers the Firebase SMS-code path, which stays as the fallback, and PNV.
+> Numbers proven here are saved through `PhoneClaimRepository`, so they are
+> unique across all paths.
+
 The app code is ready. What is missing is **Firebase project configuration**,
 and one item in it is currently blocking phone verification *and* native Google
 sign-in at the same time.

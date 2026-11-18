@@ -1,0 +1,28 @@
+{
+  "name": "hisabet-functions",
+  "private": true,
+  "description": "HisabET backend: Telegram phone verification and phone-claim housekeeping.",
+  "main": "lib/index.js",
+  "engines": {
+    "node": "22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run test/unit",
+    "test:emulator": "firebase emulators:exec --only firestore,auth --project demo-hisabet \"vitest run test/emulator\"",
+    "test:all": "npm run typecheck && npm test && npm run test:emulator",
+    "deploy": "npm run build && firebase deploy --only functions"
+  },
+  "dependencies": {
+    "firebase-admin": "^14.5.1",
+    "firebase-functions": "^7.4.0"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.2",
+    "@types/node": "^22.20.5",
+    "firebase": "^12.19.0",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.1"
+  }
+}

@@ -8,10 +8,8 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:hisabet/core/domain/business_role.dart';
 import 'package:hisabet/core/presentation/widgets/widgets.dart';
 import 'package:hisabet/core/theme/theme.dart';
-import 'package:hisabet/core/utils/phone_util.dart';
-import 'package:hisabet/features/auth/data/services/otp_service.dart';
-import 'package:hisabet/features/auth/data/services/pnv_service.dart';
-import 'package:hisabet/features/auth/presentation/providers/otp_providers.dart';
+import 'package:hisabet/features/phone_identity/presentation/providers/phone_identity_providers.dart';
+import 'package:hisabet/features/phone_identity/presentation/widgets/phone_verification_panel.dart';
 
 /// Collects the profile every other screen depends on: display name, business
 /// roles, and — for suppliers — the vendor ledger fields.
@@ -33,8 +31,6 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
   final _formKey = GlobalKey<FormState>();
 
   final _nameController = TextEditingController();
-  final _phoneController = TextEditingController();
-  final _otpController = TextEditingController();
 
   final _addressController = TextEditingController();
   final _termsController = TextEditingController(text: '0');
@@ -46,40 +42,17 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
   bool _saving = false;
   String? _error;
 
-  // Phone-linking sub-flow
-  bool _linking = false;
-  String? _linkSessionId;
-  bool _phoneVerified = false;
-
-  /// How the number was proven. Recorded because the two paths do not carry
-  /// the same weight: `otp` puts the number on the Firebase Auth record, where
-  /// the server owns it; `pnv` is the carrier's word relayed by the client, and
-  /// only becomes server-proven once a backend checks the attestation token.
-  String? _phoneVerificationMethod;
-
-  bool _verifyingWithNetwork = false;
-
   @override
   void initState() {
     super.initState();
     _roles.addAll(BusinessRole.parseAll(widget.initialRoles));
-
-    final user = FirebaseAuth.instance.currentUser;
-    final authPhone = user?.phoneNumber;
-    if (authPhone != null && authPhone.trim().isNotEmpty) {
-      // Signed in by phone — already proven, nothing to verify.
-      _phoneController.text = authPhone;
-      _phoneVerified = true;
-      _phoneVerificationMethod = 'auth';
-    }
-    _nameController.text = user?.displayName ?? '';
+    _nameController.text =
+        FirebaseAuth.instance.currentUser?.displayName ?? '';
   }
 
   @override
   void dispose() {
     _nameController.dispose();
-    _phoneController.dispose();
-    _otpController.dispose();
     _addressController.dispose();
     _termsController.dispose();
     _openingBalanceController.dispose();
@@ -89,123 +62,6 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
 
   bool get _needsSupplierProfile =>
       _roles.any((role) => role.keepsVendorLedger);
-
-  bool get _phoneLockedByAuth =>
-      FirebaseAuth.instance.currentUser?.phoneNumber?.isNotEmpty == true;
-
-  // ── Phone linking ─────────────────────────────────────────────────────────
-
-  Future<void> _startPhoneLink() async {
-    final normalized = PhoneUtil.normalize(_phoneController.text.trim());
-    final digits = normalized.replaceAll(RegExp(r'\D'), '').length;
-    if (!normalized.startsWith('+') || digits < 10 || digits > 15) {
-      setState(() => _error = 'Enter a valid number before verifying.');
-      return;
-    }
-
-    setState(() {
-      _linking = true;
-      _error = null;
-    });
-
-    try {
-      final outcome = await ref.read(otpServiceProvider).start(
-            normalized,
-            mode: OtpAutoResolveMode.link,
-          );
-      if (!mounted) return;
-      switch (outcome) {
-        case OtpAutoResolved():
-          setState(() {
-            _phoneVerified = true;
-            _phoneVerificationMethod = 'otp';
-            _linking = false;
-            _linkSessionId = null;
-          });
-        case OtpCodeSent(:final sessionId):
-          setState(() {
-            _linkSessionId = sessionId;
-            _linking = false;
-          });
-      }
-    } on OtpException catch (e) {
-      _failLinking(e.message);
-    } catch (e) {
-      _failLinking('Could not send code. $e');
-    }
-  }
-
-  /// One-tap path: ask the carrier to confirm the SIM's own number. No SMS is
-  /// sent and nothing is typed. Falls back to the code flow on any failure —
-  /// most networks are not integrated with PNV yet, so failure is the expected
-  /// case outside the supported carriers, not an exception.
-  Future<void> _verifyWithNetwork() async {
-    setState(() {
-      _verifyingWithNetwork = true;
-      _error = null;
-    });
-
-    try {
-      final result = await ref.read(pnvServiceProvider).verify();
-      if (!mounted) return;
-      setState(() {
-        _phoneController.text = result.phoneNumber;
-        _phoneVerified = true;
-        _phoneVerificationMethod = 'pnv';
-        _verifyingWithNetwork = false;
-        _linkSessionId = null;
-      });
-    } on PnvException catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _verifyingWithNetwork = false;
-        _error = e.message;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _verifyingWithNetwork = false;
-        _error = 'Network verification failed. Use the code instead.';
-      });
-    }
-  }
-
-  void _failLinking(String message) {
-    if (!mounted) return;
-    setState(() {
-      _linking = false;
-      _error = message;
-    });
-  }
-
-  Future<void> _confirmPhoneLink() async {
-    final code = _otpController.text.trim();
-    if (code.length != 6 || _linkSessionId == null) return;
-
-    setState(() {
-      _linking = true;
-      _error = null;
-    });
-
-    try {
-      await ref.read(otpServiceProvider).verifyAndLinkToCurrentUser(
-            sessionId: _linkSessionId!,
-            code: code,
-          );
-      if (!mounted) return;
-      setState(() {
-        _phoneVerified = true;
-        _phoneVerificationMethod = 'otp';
-        _linking = false;
-        _linkSessionId = null;
-        _otpController.clear();
-      });
-    } on OtpException catch (e) {
-      _failLinking(e.message);
-    } catch (e) {
-      _failLinking('Verification failed. $e');
-    }
-  }
 
   // ── Save ──────────────────────────────────────────────────────────────────
 
@@ -225,13 +81,16 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
       return;
     }
 
+    // The number itself is already saved by the verification flow (Telegram
+    // via the backend, SMS via PhoneClaimRepository); this only checks it.
+    if (ref.read(verifiedPhoneProvider).valueOrNull == null) {
+      setState(() => _error = 'Verify your phone number to continue.');
+      return;
+    }
+
     setState(() => _saving = true);
 
     try {
-      final rawPhone = _phoneController.text.trim();
-      final normalizedPhone =
-          rawPhone.isEmpty ? null : PhoneUtil.normalize(rawPhone);
-
       final payload = <String, dynamic>{
         'id': user.uid,
         'name': _nameController.text.trim(),
@@ -240,24 +99,6 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
         ),
         'updated_at': FieldValue.serverTimestamp(),
       };
-
-      // `phone` is the identity field other users search and reconcile against,
-      // so only a *proven* number goes there. An unverified number is kept in
-      // `contactPhone` for display, which stops anyone claiming a number they
-      // do not control and quietly hijacking someone else's ledger matching.
-      if (normalizedPhone != null && _phoneVerified) {
-        payload['phone'] = normalizedPhone;
-        payload['contactPhone'] = FieldValue.delete();
-      } else if (normalizedPhone != null) {
-        payload['contactPhone'] = normalizedPhone;
-      }
-      payload['phoneVerified'] = _phoneVerified && normalizedPhone != null;
-      // Recorded so the strength of the claim is legible later. 'auth' and
-      // 'otp' are server-owned; 'pnv' is the carrier's word relayed by this
-      // client, and stays that way until a backend verifies the attestation.
-      if (_phoneVerified && normalizedPhone != null) {
-        payload['phoneVerificationMethod'] = _phoneVerificationMethod;
-      }
 
       if (user.email != null && user.email!.isNotEmpty) {
         payload['email'] = user.email!.toLowerCase();
@@ -274,12 +115,15 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
             _normalizedAmount(_currentBalanceController.text);
       }
 
-      // Only stamp created_at the first time.
+      // Only stamp created_at the first time. Check the field, not the
+      // document: phone verification may already have created the document.
       final docRef =
           FirebaseFirestore.instance.collection('users').doc(user.uid);
-      final existing = await docRef.get();
-      if (!existing.exists) {
+      final existing = (await docRef.get()).data();
+      if (existing?['created_at'] == null) {
         payload['created_at'] = FieldValue.serverTimestamp();
+      }
+      if (existing?['contacts_uids'] == null) {
         payload['contacts_uids'] = <String>[];
       }
 
@@ -471,11 +315,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
   }
 
   Widget _contactSection() {
-    final colorScheme = Theme.of(context).colorScheme;
-    final otp = ref.watch(otpServiceProvider);
     final user = FirebaseAuth.instance.currentUser;
-    final canVerify = otp.isUsable && !_phoneLockedByAuth && !_phoneVerified;
-    final pnvAvailable = ref.watch(pnvAvailableProvider).valueOrNull ?? false;
 
     return AppFormSection(
       title: 'How partners reach you',
@@ -490,134 +330,16 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
           ),
           const SizedBox(height: AppDimensions.md),
         ],
-        TextFormField(
-          controller: _phoneController,
-          enabled: !_phoneLockedByAuth && !_phoneVerified,
-          keyboardType: TextInputType.phone,
-          inputFormatters: [
-            FilteringTextInputFormatter.allow(RegExp(r'[0-9+\s-]')),
-          ],
-          decoration: InputDecoration(
-            labelText: _phoneLockedByAuth ? 'Phone number' : 'Phone number (optional)',
-            hintText: '0911223344',
-            prefixIcon: const Icon(Icons.phone_rounded),
-            suffixIcon: _phoneVerified
-                ? const Icon(
-                    Icons.verified_rounded,
-                    color: AppColors.positive,
-                  )
-                : null,
+        Text(
+          'Phone number — required. Partners find you by it and your ledgers match through it. '
+          'Each number belongs to one HisabET account only.',
+          style: AppTextStyles.labelSmall.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+            height: 1.4,
           ),
-          validator: (value) {
-            final raw = value?.trim() ?? '';
-            if (raw.isEmpty) return null; // optional
-            final normalized = PhoneUtil.normalize(raw);
-            final digits = normalized.replaceAll(RegExp(r'\D'), '').length;
-            if (!normalized.startsWith('+') || digits < 10 || digits > 15) {
-              return 'Enter a valid number, e.g. 0911223344.';
-            }
-            return null;
-          },
         ),
-        if (canVerify) ...[
-          // Carrier verification first when the device supports it: no SMS, no
-          // code, no cost. It fails on networks Firebase has not integrated
-          // with, so the code path stays visible underneath rather than being
-          // replaced by it.
-          if (pnvAvailable && _linkSessionId == null) ...[
-            const SizedBox(height: AppDimensions.md),
-            FilledButton.icon(
-              onPressed: _verifyingWithNetwork || _linking
-                  ? null
-                  : _verifyWithNetwork,
-              icon: _verifyingWithNetwork
-                  ? const SizedBox(
-                      width: AppDimensions.iconSm,
-                      height: AppDimensions.iconSm,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: AppColors.textOnPrimary,
-                      ),
-                    )
-                  : const Icon(Icons.sim_card_rounded),
-              label: Text(
-                _verifyingWithNetwork
-                    ? 'Checking with your network…'
-                    : 'Verify instantly with your SIM',
-              ),
-            ),
-            const SizedBox(height: AppDimensions.xs),
-            Text(
-              'No SMS, no code. Works only on networks Firebase supports — '
-              'use the code below if it fails.',
-              style: AppTextStyles.labelSmall.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-          const SizedBox(height: AppDimensions.md),
-          if (_linkSessionId == null)
-            OutlinedButton.icon(
-              onPressed: _linking ? null : _startPhoneLink,
-              icon: _linking
-                  ? const SizedBox(
-                      width: AppDimensions.iconSm,
-                      height: AppDimensions.iconSm,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.verified_outlined),
-              label: const Text('Verify this number'),
-            )
-          else ...[
-            TextField(
-              controller: _otpController,
-              keyboardType: TextInputType.number,
-              maxLength: 6,
-              textAlign: TextAlign.center,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: const InputDecoration(
-                labelText: '6-digit code',
-                counterText: '',
-              ),
-            ),
-            const SizedBox(height: AppDimensions.sm),
-            ElevatedButton(
-              onPressed: _linking ? null : _confirmPhoneLink,
-              child: _linking
-                  ? const SizedBox(
-                      width: AppDimensions.iconSm,
-                      height: AppDimensions.iconSm,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: AppColors.textOnPrimary,
-                      ),
-                    )
-                  : const Text('Confirm code'),
-            ),
-          ],
-        ],
         const SizedBox(height: AppDimensions.md),
-        _Note(
-          icon: _phoneVerified
-              ? Icons.verified_rounded
-              : Icons.info_outline_rounded,
-          tone: _phoneVerified ? AppColors.positive : AppColors.info,
-          message: _phoneVerified
-              ? 'Verified. Partners can find you by this number and your ledgers will match automatically.'
-              : otp.isUsable
-                  ? 'Unverified numbers are saved as contact details only. Verify to let partners find you by phone.'
-                  : 'Saved as a contact detail. Once SMS verification is switched on you can verify it, and partners will be able to find you by number.',
-        ),
-        if (!_phoneVerified &&
-            (user?.email == null || user!.email!.isEmpty)) ...[
-          const SizedBox(height: AppDimensions.sm),
-          Text(
-            'You need at least one verified way to be found — email or phone.',
-            style: AppTextStyles.labelSmall.copyWith(
-              color: colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ],
+        const PhoneVerificationPanel(),
       ],
     );
   }

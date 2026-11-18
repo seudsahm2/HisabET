@@ -9,6 +9,8 @@ import 'package:hisabet/core/domain/business_role.dart';
 import 'package:hisabet/features/auth/presentation/screens/profile_setup_screen.dart';
 import 'package:hisabet/features/auth/presentation/screens/welcome_screen.dart';
 import 'package:hisabet/features/home/presentation/screens/main_scaffold.dart';
+import 'package:hisabet/features/phone_identity/domain/verified_phone.dart';
+import 'package:hisabet/features/phone_identity/presentation/screens/phone_required_screen.dart';
 
 const bool kDevBypassProfileCheck = bool.fromEnvironment(
   'DEV_BYPASS_PROFILE_CHECK',
@@ -53,21 +55,15 @@ class ProfileCheckGate extends ConsumerStatefulWidget {
 }
 
 class _ProfileCheckGateState extends ConsumerState<ProfileCheckGate> {
-  bool _isProfileComplete(Map<String, dynamic>? data, User user) {
+  /// Name and at least one recognised business role.
+  bool _hasProfileBasics(Map<String, dynamic>? data) {
     if (data == null) return false;
     final hasName = data['name']?.toString().trim().isNotEmpty == true;
     // Parse through BusinessRole so a profile holding only unrecognised role
     // strings counts as incomplete instead of silently passing the gate.
     final hasRoles =
         BusinessRole.parseAll(data['roles'] as List<dynamic>?).isNotEmpty;
-    // Check Firestore-stored contact info first, then fall back to Firebase Auth directly
-    final firestorePhone = data['phone']?.toString().trim().isNotEmpty == true;
-    final firestoreEmail = data['email']?.toString().trim().isNotEmpty == true;
-    final authPhone = user.phoneNumber?.isNotEmpty == true;
-    final authEmail = user.email?.isNotEmpty == true;
-    final hasContact = firestorePhone || firestoreEmail || authPhone || authEmail;
-    debugPrint('[ProfileCheckGate] hasName=$hasName, hasRoles=$hasRoles, firestorePhone=$firestorePhone, firestoreEmail=$firestoreEmail, authPhone=$authPhone, authEmail=$authEmail');
-    return hasName && hasContact && hasRoles;
+    return hasName && hasRoles;
   }
 
   Future<void> _signOutAndWipe() async {
@@ -125,26 +121,27 @@ class _ProfileCheckGateState extends ConsumerState<ProfileCheckGate> {
 
         debugPrint('[ProfileCheckGate] Firestore snapshot received. docExists=$docExists, data keys=${data?.keys.toList()}');
 
-        if (_isProfileComplete(data, user)) {
+        final hasBasics = _hasProfileBasics(data);
+        // A verified, unique phone number is mandatory: it is how partners
+        // find each other and how two ledgers are matched.
+        final verifiedPhone = VerifiedPhone.fromProfile(data);
+        debugPrint('[ProfileCheckGate] hasBasics=$hasBasics, verifiedPhone=${verifiedPhone != null}');
+
+        if (hasBasics && verifiedPhone != null) {
           debugPrint('[ProfileCheckGate] Profile is COMPLETE -> MainScaffold ✓');
 
-          // Silently backfill email/phone into Firestore if missing.
+          // Silently backfill email into Firestore if missing.
           // This fixes existing Google OAuth users whose email was never saved.
+          // (Phone is never backfilled here: it may only be written together
+          // with its phone_claims document — see PhoneClaimRepository.)
           final firestoreEmail = data?['email']?.toString().trim() ?? '';
-          final firestorePhone = data?['phone']?.toString().trim() ?? '';
           final authEmail = user.email ?? '';
-          final authPhone = user.phoneNumber ?? '';
-          final needsUpdate = (firestoreEmail.isEmpty && authEmail.isNotEmpty) ||
-              (firestorePhone.isEmpty && authPhone.isNotEmpty);
-          if (needsUpdate) {
-            final updates = <String, dynamic>{};
-            if (firestoreEmail.isEmpty && authEmail.isNotEmpty) updates['email'] = authEmail;
-            if (firestorePhone.isEmpty && authPhone.isNotEmpty) updates['phone'] = authPhone;
-            debugPrint('[ProfileCheckGate] Backfilling missing fields: $updates');
+          if (firestoreEmail.isEmpty && authEmail.isNotEmpty) {
+            debugPrint('[ProfileCheckGate] Backfilling missing email');
             FirebaseFirestore.instance
                 .collection('users')
                 .doc(user.uid)
-                .update(updates)
+                .update({'email': authEmail})
                 .catchError((e) => debugPrint('[ProfileCheckGate] Backfill error: $e'));
           }
 
@@ -159,6 +156,12 @@ class _ProfileCheckGateState extends ConsumerState<ProfileCheckGate> {
           }
 
           return const MainScaffold();
+        }
+
+        if (hasBasics) {
+          // Older account: everything but a verified phone number.
+          debugPrint('[ProfileCheckGate] No verified phone -> PhoneRequiredScreen');
+          return const PhoneRequiredScreen();
         }
 
         if (!docExists) {

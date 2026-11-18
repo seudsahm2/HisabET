@@ -4,7 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hisabet/features/auth/data/services/otp_service.dart';
 import 'package:hisabet/features/auth/data/services/pnv_service.dart';
 
-/// The active phone-verification provider.
+/// The SMS-code phone-verification provider (the fallback path).
+///
+/// Telegram verification — the primary path — lives in
+/// `lib/features/phone_identity/`; it needs no [OtpService] because the
+/// backend proves the number and writes it.
 ///
 /// To move off Firebase phone auth — e.g. onto Telegram Gateway or a local
 /// Ethiopian SMS aggregator — write a new [OtpService] implementation and

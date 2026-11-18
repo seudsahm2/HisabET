@@ -10,6 +10,7 @@ import 'package:hisabet/core/presentation/widgets/widgets.dart';
 import 'package:hisabet/core/theme/app_colors.dart';
 import 'package:hisabet/core/theme/app_text_styles.dart';
 import 'package:hisabet/core/theme/theme_provider.dart';
+import 'package:hisabet/features/phone_identity/presentation/widgets/phone_verification_panel.dart';
 import 'package:intl/intl.dart';
 
 class ProfileEditScreen extends ConsumerStatefulWidget {
@@ -23,7 +24,6 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
   final _nameCtrl = TextEditingController();
   final _birthdayCtrl = TextEditingController();
   final _roleCtrl = TextEditingController();
-  final _phoneCtrl = TextEditingController();
   bool _saving = false;
   String? _photoUrl;
   File? _localImage;
@@ -48,7 +48,6 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
       setState(() {
         _birthdayCtrl.text = data['birthday'] ?? '';
         _roleCtrl.text = data['role'] ?? '';
-        _phoneCtrl.text = data['phone'] ?? '';
         _photoUrl = data['photoUrl'] ?? _photoUrl;
       });
     }
@@ -86,7 +85,6 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
         'display_name': name,
         'birthday': _birthdayCtrl.text.trim(),
         'role': _roleCtrl.text.trim(),
-        'phone': _phoneCtrl.text.trim(),
       };
       if (uploadedUrl != null) payload['photoUrl'] = uploadedUrl;
 
@@ -118,7 +116,6 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
     _nameCtrl.dispose();
     _birthdayCtrl.dispose();
     _roleCtrl.dispose();
-    _phoneCtrl.dispose();
     super.dispose();
   }
 
@@ -167,13 +164,6 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
                   ),
                   const SizedBox(height: 16),
                   _buildProfileField(
-                    controller: _phoneCtrl,
-                    label: 'Phone Number',
-                    icon: Icons.phone_outlined,
-                    keyboardType: TextInputType.phone,
-                  ),
-                  const SizedBox(height: 16),
-                  _buildProfileField(
                     controller: _birthdayCtrl,
                     label: 'Birthday',
                     icon: Icons.cake_outlined,
@@ -192,6 +182,12 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
                       }
                     },
                   ),
+                  const SizedBox(height: 32),
+                  // Not a text field: the phone number is an identity, so it
+                  // can only change through verification.
+                  _buildSectionHeader('PHONE NUMBER'),
+                  const SizedBox(height: 12),
+                  const PhoneVerificationPanel(allowChange: true),
                   const SizedBox(height: 32),
                   _buildSectionHeader('APPEARANCE'),
                   const SizedBox(height: 12),

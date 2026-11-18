@@ -4,7 +4,10 @@ A new Flutter project.
 
 ## Project Docs
 
-- Phone auth setup and troubleshooting: [PHONE_AUTH_SETUP.md](PHONE_AUTH_SETUP.md)
+- Phone verification with Telegram (primary): [TELEGRAM_PHONE_VERIFICATION.md](TELEGRAM_PHONE_VERIFICATION.md)
+- Phone auth setup and troubleshooting (SMS fallback, PNV): [PHONE_AUTH_SETUP.md](PHONE_AUTH_SETUP.md)
+- Audit backlog: [KNOWN_ISSUES.md](KNOWN_ISSUES.md)
+- Backend (Cloud Functions): [functions/](functions/)
 
 ## Getting Started
 
