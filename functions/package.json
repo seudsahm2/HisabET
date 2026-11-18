@@ -12,7 +12,9 @@
     "test": "vitest run test/unit",
     "test:emulator": "firebase emulators:exec --only firestore,auth --project demo-hisabet \"vitest run test/emulator\"",
     "test:all": "npm run typecheck && npm test && npm run test:emulator",
-    "deploy": "npm run build && firebase deploy --only functions"
+    "deploy": "npm run build && firebase deploy --only functions",
+    "pretest:emulator": "node scripts/stop-stale-emulators.mjs",
+    "posttest:emulator": "node scripts/stop-stale-emulators.mjs"
   },
   "dependencies": {
     "firebase-admin": "^14.5.1",

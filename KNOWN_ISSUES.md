@@ -9,13 +9,15 @@ Status legend: `OPEN` · `IN PROGRESS` · `FIXED`
 
 ## P0 — Feature is dead in production
 
-### 1. B2B Tenders cannot work at all (three independent blockers) — `OPEN` (1 of 3 fixed)
+### 1. B2B Tenders cannot work at all (three independent blockers) — `FIXED` (2026-11-18)
 
-The whole Tenders module is unreachable in a real build. Three separate causes; **1b is fixed, 1a and 1c still block it**.
+The whole Tenders module was unreachable in a real build. All three causes are fixed, plus two more found while fixing them (1d, 1e). Rules covered by `functions/test/emulator/rules-tenders-ledger.test.ts`.
 
 **1a. Firestore denies every tender read/write.**
 `firestore.rules` has no `match /tenders/{id}` block, so the catch-all `match /{document=**} { allow read, write: if false; }` at the bottom blocks everything. `activeTendersProvider` and `myTenderActivityProvider` will always error.
 → Add a `tenders` rule: public read for authenticated users, create restricted to the importer, update of `status`/`winnerUid` restricted to the winner or owner.
+
+**Resolution:** `match /tenders/{id}` — any signed-in user reads; only a verified-phone supplier posts, with validated fields; a verified broker (not the poster) may move `open → won` once, setting only `status`/`winnerUid`/`wonAt`; the poster may withdraw while open.
 
 **1b. No account can ever qualify as an Importer.** — `FIXED` (2026-08-08)
 The gate now parses through `BusinessRole` and checks `BusinessRole.supplier`, which the profile picker offers. Legacy `'Importer'` profiles still pass via the alias in `BusinessRole.tryParse`.
@@ -23,6 +25,12 @@ The gate now parses through `BusinessRole` and checks `BusinessRole.supplier`, w
 **1c. Winning a tender writes an invalid foreign key.**
 `_confirmWin` calls `addTransaction(contactId: tender.importerUid, ...)` — a Firestore UID passed as a local contact primary key. `contacts` has no such row and `PRAGMA foreign_keys = ON` (`app_database.dart:261`), so the insert throws.
 → Resolve/create a local `Contact` for the importer first (match on `linkedUserUid`), then use that contact's local id.
+
+**Resolution:** `ContactsRepository.ensureLinkedContact` (match by linked UID, then by phone, else create) and `TenderWinService`, which claims first and only then writes product + ledger entry with the local contact id. The product also records `supplierContactId`.
+
+**1d. Both tender queries needed composite indexes that did not exist.** `status == open` + `orderBy createdAt` and `winnerUid ==` + `orderBy createdAt` fail without them. → `firestore.indexes.json` (deployed with `firebase deploy --only firestore`). The two collection-group transaction queries in `transaction_sync_service.dart` were in the same position and are included.
+
+**1e. Two brokers could both "win" one tender.** The claim was a plain `update`, so the second overwrote the first. → `TendersRepository.claimWin` runs in a transaction, and the rule refuses any claim on a tender that is not `open`.
 
 ---
 
@@ -82,7 +90,7 @@ Still legacy and untouched: the `contacts.role` int enum used by `getCustomerCon
 
 ## P2 — Security
 
-### 7. Any authenticated user can read any transaction with a phone attached — `OPEN`
+### 7. Any authenticated user can read any transaction with a phone attached — `FIXED` (2026-11-18)
 
 `firestore.rules`:
 ```
@@ -90,6 +98,8 @@ allow read: if request.auth != null && resource.data.contact_phone != null;
 ```
 This appears in both the per-user ledger rule and the collection-group rule. Any signed-in user can read any transaction document in the entire database that has a non-null `contact_phone`. The inline comment admits it is "kept lenient".
 → Require the reader's own phone to match: `resource.data.contact_phone == <caller's verified phone>`. Needs the phone on the auth token or a lookup.
+
+**Resolution:** `holdsPhone(contact_phone)` — the reader must own `phone_claims/{contact_phone}`, which only verification can create. Works for the app's subcollection and collection-group queries (tested); an unfiltered sweep is refused.
 
 ### 8. Live Supabase credentials committed for a backend that no longer exists — `FIXED` (2026-11-18)
 

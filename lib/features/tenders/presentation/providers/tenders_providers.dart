@@ -1,52 +1,28 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class TenderModel {
-  final String id;
-  final String importerUid;
-  final String importerName;
-  final String itemNumber;
-  final String? photoUrl;
-  final int cartons;
-  final int seriesSize;
-  final String? colorDistribution;
-  final double price;
-  final String status; // 'open', 'won', 'lost'
-  final String? winnerUid;
-  final DateTime createdAt;
+import 'package:hisabet/features/contacts/presentation/providers/contacts_providers.dart';
+import 'package:hisabet/features/inventory/presentation/providers/products_providers.dart';
+import 'package:hisabet/features/tenders/data/tender_model.dart';
+import 'package:hisabet/features/tenders/data/tender_win_service.dart';
+import 'package:hisabet/features/tenders/data/tenders_repository.dart';
+import 'package:hisabet/features/transactions/presentation/providers/transactions_providers.dart';
 
-  TenderModel({
-    required this.id,
-    required this.importerUid,
-    required this.importerName,
-    required this.itemNumber,
-    this.photoUrl,
-    required this.cartons,
-    required this.seriesSize,
-    this.colorDistribution,
-    required this.price,
-    required this.status,
-    this.winnerUid,
-    required this.createdAt,
-  });
+export 'package:hisabet/features/tenders/data/tender_model.dart';
 
-  factory TenderModel.fromJson(Map<String, dynamic> json, String id) {
-    return TenderModel(
-      id: id,
-      importerUid: json['importerUid'] ?? '',
-      importerName: json['importerName'] ?? 'Unknown Importer',
-      itemNumber: json['itemNumber'] ?? '',
-      photoUrl: json['photoUrl'],
-      cartons: json['cartons'] ?? 0,
-      seriesSize: json['seriesSize'] ?? 6,
-      colorDistribution: json['colorDistribution'],
-      price: (json['price'] ?? 0.0).toDouble(),
-      status: json['status'] ?? 'open',
-      winnerUid: json['winnerUid'],
-      createdAt: (json['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-    );
-  }
-}
+final tendersRepositoryProvider = Provider<TendersRepository>(
+  (ref) => TendersRepository(FirebaseFirestore.instance),
+);
+
+final tenderWinServiceProvider = Provider<TenderWinService>((ref) {
+  return TenderWinService(
+    tenders: ref.watch(tendersRepositoryProvider),
+    contacts: ref.watch(contactsRepositoryProvider),
+    products: ref.watch(productsRepositoryProvider),
+    transactions: ref.watch(transactionsRepositoryProvider),
+    firestore: FirebaseFirestore.instance,
+  );
+});
 
 final activeTendersProvider = StreamProvider<List<TenderModel>>((ref) {
   return FirebaseFirestore.instance

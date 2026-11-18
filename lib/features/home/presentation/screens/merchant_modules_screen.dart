@@ -24,9 +24,8 @@ import 'package:hisabet/features/team/data/models/team_member_model.dart';
 import 'package:hisabet/features/team/presentation/providers/team_providers.dart';
 import 'package:hisabet/features/team/presentation/screens/team_management_screen.dart';
 import 'package:hisabet/features/inventory/presentation/providers/products_providers.dart';
+import 'package:hisabet/features/tenders/data/tenders_repository.dart';
 import 'package:hisabet/features/tenders/presentation/providers/tenders_providers.dart';
-import 'package:hisabet/features/transactions/presentation/providers/transactions_providers.dart';
-import 'package:hisabet/features/transactions/data/models/transaction_model.dart';
 
 class MerchantModulesScreen extends ConsumerWidget {
   const MerchantModulesScreen({super.key});
@@ -453,66 +452,25 @@ class _OpenTendersTab extends ConsumerWidget {
     double price,
   ) async {
     try {
-      // 1. Mark tender as won in Firestore
-      await FirebaseFirestore.instance
-          .collection('tenders')
-          .doc(tender.id)
-          .update({'status': 'won', 'winnerUid': myUid});
-
-      // 2. Auto-add product to broker's local inventory
-      final productsRepo = ref.read(productsRepositoryProvider);
-      await productsRepo.addProduct(
-        name: productName,
-        itemNumber: tender.itemNumber,
-        photoUrl: tender.photoUrl,
-        colorDistribution: tender.colorDistribution,
-        unit: 'carton',
-        itemsPerCarton: tender.seriesSize,
-        seriesSize: tender.seriesSize,
-        stockQuantity: tender.cartons,
-        costPrice: Decimal.parse(price.toStringAsFixed(2)),
-        sellingPrice: Decimal.parse(price.toStringAsFixed(2)),
-        businessRole: 'broker',
-      );
-
-      // 3. Log a purchase transaction automatically
-      final txRepo = ref.read(transactionsRepositoryProvider);
-      final totalCost = price * tender.cartons;
-      await txRepo.addTransaction(
-        contactId: tender.importerUid,
-        type: TransactionType.goodsTaken,
-        amount: Decimal.parse(totalCost.toStringAsFixed(2)),
-        date: DateTime.now(),
-        description: 'Won Tender: ${tender.itemNumber} — $productName',
-        metadata: {
-          'source': 'tender',
-          'tenderId': tender.id,
-          'importerUid': tender.importerUid,
-          'product_snapshot': {
-            'name': productName,
-            'itemNumber': tender.itemNumber,
-            'photoUrl': tender.photoUrl,
-            'cartons': tender.cartons,
-            'seriesSize': tender.seriesSize,
-            'colorDistribution': tender.colorDistribution,
-            'costPrice': price.toStringAsFixed(2),
-          }
-        },
-      );
-
+      await ref.read(tenderWinServiceProvider).win(
+            tender: tender,
+            winnerUid: myUid,
+            productName: productName,
+            pricePerCarton: Decimal.parse(price.toStringAsFixed(2)),
+          );
       ref.invalidate(allProductsProvider);
 
       if (context.mounted) {
         Navigator.of(context).pop(); // close sheet
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('🎉 Tender won! Product added to inventory.'),
+          content: Text('Tender won. Product added to inventory.'),
           backgroundColor: AppColors.positive,
         ));
       }
-    } catch (e) {
+    } on TenderException catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.negative));
+            SnackBar(content: Text(e.message), backgroundColor: AppColors.negative));
       }
     }
   }
@@ -685,16 +643,16 @@ class _InfoChip extends StatelessWidget {
   }
 }
 
-class _PostTenderSheet extends StatefulWidget {
+class _PostTenderSheet extends ConsumerStatefulWidget {
   final String myUid;
   final String myName;
   const _PostTenderSheet({required this.myUid, required this.myName});
 
   @override
-  State<_PostTenderSheet> createState() => _PostTenderSheetState();
+  ConsumerState<_PostTenderSheet> createState() => _PostTenderSheetState();
 }
 
-class _PostTenderSheetState extends State<_PostTenderSheet> {
+class _PostTenderSheetState extends ConsumerState<_PostTenderSheet> {
   final _itemNumberCtrl = TextEditingController();
   final _cartonsCtrl = TextEditingController();
   final _priceCtrl = TextEditingController();
@@ -721,16 +679,14 @@ class _PostTenderSheetState extends State<_PostTenderSheet> {
     }
     setState(() => _saving = true);
     try {
-      await FirebaseFirestore.instance.collection('tenders').add({
-        'importerUid': widget.myUid,
-        'importerName': widget.myName,
-        'itemNumber': itemNumber,
-        'cartons': cartons,
-        'seriesSize': seriesSize,
-        'price': price,
-        'status': 'open',
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+      await ref.read(tendersRepositoryProvider).postTender(
+            importerUid: widget.myUid,
+            importerName: widget.myName,
+            itemNumber: itemNumber,
+            cartons: cartons,
+            seriesSize: seriesSize,
+            price: price,
+          );
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -738,8 +694,8 @@ class _PostTenderSheetState extends State<_PostTenderSheet> {
           backgroundColor: AppColors.positive,
         ));
       }
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+    } on TenderException catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
     } finally {
       if (mounted) setState(() => _saving = false);
     }

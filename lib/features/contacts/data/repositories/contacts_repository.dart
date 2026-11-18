@@ -25,6 +25,17 @@ abstract class ContactsRepository {
     bool isSupplier = false,
     bool sendConnectionNotification = true, // Set false when accepting to prevent cycle
   });
+  /// The local contact for another HisabET user, created if missing.
+  ///
+  /// Matches on [linkedUserUid] first, then on [phone] (linking that contact
+  /// to the user). Use this whenever a ledger entry must reference a cloud
+  /// user: transactions need a *local* contact id, never a Firestore UID.
+  Future<String> ensureLinkedContact({
+    required String linkedUserUid,
+    required String name,
+    String? phone,
+    bool isSupplier = false,
+  });
   Future<void> deleteContact(String id);
   Future<void> updateCustomerProfile({
     required String id,
@@ -83,6 +94,53 @@ class ContactsRepositoryImpl implements ContactsRepository {
       _db.contacts,
     )..where((tbl) => tbl.id.equals(id))).getSingleOrNull();
     return row != null ? ContactModel.fromDb(row) : null;
+  }
+
+  @override
+  Future<String> ensureLinkedContact({
+    required String linkedUserUid,
+    required String name,
+    String? phone,
+    bool isSupplier = false,
+  }) async {
+    final byUid = await (_db.select(_db.contacts)
+          ..where((t) =>
+              t.linkedUserUid.equals(linkedUserUid) & t.isDeleted.equals(false))
+          ..limit(1))
+        .getSingleOrNull();
+    if (byUid != null) return byUid.id;
+
+    final normalizedPhone =
+        phone == null || phone.trim().isEmpty ? null : PhoneUtil.normalize(phone);
+    if (normalizedPhone != null) {
+      final byPhone = await (_db.select(_db.contacts)
+            ..where((t) =>
+                t.phoneNumber.equals(normalizedPhone) & t.isDeleted.equals(false))
+            ..limit(1))
+          .getSingleOrNull();
+      if (byPhone != null) {
+        // Same person saved by hand before they were on HisabET: link it
+        // rather than creating a duplicate ledger.
+        await (_db.update(_db.contacts)..where((t) => t.id.equals(byPhone.id)))
+            .write(ContactsCompanion(
+          linkedUserUid: Value(linkedUserUid),
+          verificationStatus: Value(ContactVerificationStatus.verified.index),
+          verificationMethod: const Value('phone'),
+          isSupplier: isSupplier ? const Value(true) : const Value.absent(),
+        ));
+        return byPhone.id;
+      }
+    }
+
+    // addContact also restores a soft-deleted contact for this user.
+    return addContact(
+      name,
+      normalizedPhone,
+      null,
+      linkedUserUid: linkedUserUid,
+      verificationMethod: 'phone',
+      isSupplier: isSupplier,
+    );
   }
 
   @override

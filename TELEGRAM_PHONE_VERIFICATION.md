@@ -101,7 +101,7 @@ Keep that value for step 4.
 ### 3. Deploy rules and functions
 
 ```powershell
-firebase deploy --only firestore:rules,functions
+firebase deploy --only firestore,functions
 ```
 
 Note the `telegramWebhook` URL it prints, e.g.
@@ -143,7 +143,7 @@ so builds made before the backend exists still work.
 | What | Command | Needs |
 |---|---|---|
 | Backend logic (54 tests) | `cd functions; npm test` | nothing |
-| Rules + Firestore transactions against the emulators (36 tests) | `cd functions; npm run test:emulator` | Java 11+ |
+| Rules + Firestore transactions against the emulators (56 tests) | `cd functions; npm run test:emulator` | Java 11+ |
 | Everything backend | `cd functions; npm run test:all` | Java 11+ |
 | Flutter domain/data | `flutter test test/features/phone_identity` | nothing |
 

@@ -46,6 +46,14 @@ service cloud.firestore {
         && getAfter(claimPath(d.phone)).data.uid == uid;
     }
 
+    // True when the caller holds [phone]'s claim, i.e. it is their verified number.
+    function holdsPhone(phone) {
+      return signedIn()
+        && phone is string
+        && exists(claimPath(phone))
+        && get(claimPath(phone)).data.uid == request.auth.uid;
+    }
+
     // 1. USERS COLLECTION
     match /users/{userId} {
       // Any authenticated user can read profiles (global search, anti-cycle check)
@@ -111,17 +119,69 @@ service cloud.firestore {
       // A contact can read the transaction if their UID is explicitly attached to it
       allow read: if request.auth != null && resource.data.contact_uid == request.auth.uid;
 
-      // A contact can read the transaction if a phone number is attached.
-      // (This is kept lenient to prevent Firestore from rejecting queries where users haven't linked phone auth yet)
-      allow read: if request.auth != null && resource.data.contact_phone != null;
+      // A contact can read the transaction if it names THEIR number. "Theirs"
+      // means they hold its phone_claims document — unforgeable, unlike the
+      // old check (any signed-in user could read any entry with a phone).
+      allow read: if holdsPhone(resource.data.contact_phone);
     }
 
     // 4. TRANSACTIONS (Collection Group queries across all users)
     match /{path=**}/transactions/{transactionId} {
       allow read: if request.auth != null && resource.data.contact_uid == request.auth.uid;
-      allow read: if request.auth != null && resource.data.contact_phone != null;
+      allow read: if holdsPhone(resource.data.contact_phone);
     }
     
+    // 4b. TENDERS — the B2B board. A supplier posts; brokers compete to win.
+    // Both sides must have a verified phone, so every tender and every win
+    // is tied to a real, unique trader.
+    function hasVerifiedPhone(uid) {
+      return get(userPath(uid)).data.get('phoneVerified', false) == true;
+    }
+
+    function isSupplier(uid) {
+      // Raw strings because rules cannot call BusinessRole: lowercase keys
+      // plus the legacy capitalised / 'importer' values it still accepts.
+      return get(userPath(uid)).data.get('roles', [])
+        .hasAny(['supplier', 'Supplier', 'importer', 'Importer']);
+    }
+
+    function validNewTender() {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['importerUid', 'importerName', 'itemNumber', 'cartons',
+                               'seriesSize', 'price', 'status', 'createdAt',
+                               'photoUrl', 'colorDistribution'])
+        && d.importerUid == request.auth.uid
+        && d.status == 'open'
+        && d.createdAt == request.time
+        && d.importerName is string && d.importerName.size() <= 120
+        && d.itemNumber is string && d.itemNumber.size() > 0 && d.itemNumber.size() <= 64
+        && d.cartons is int && d.cartons > 0 && d.cartons <= 100000
+        && d.seriesSize is int && d.seriesSize > 0 && d.seriesSize <= 100
+        && d.price is number && d.price > 0;
+    }
+
+    match /tenders/{tenderId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && validNewTender()
+        && isSupplier(request.auth.uid)
+        && hasVerifiedPhone(request.auth.uid);
+      // Claim an open tender. Rules see the committed state, so of two
+      // brokers racing, the second finds status == 'won' and is refused.
+      allow update: if signedIn()
+        && resource.data.status == 'open'
+        && resource.data.importerUid != request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['status', 'winnerUid', 'wonAt'])
+        && request.resource.data.status == 'won'
+        && request.resource.data.winnerUid == request.auth.uid
+        && request.resource.data.wonAt == request.time
+        && hasVerifiedPhone(request.auth.uid);
+      // The supplier may withdraw a tender nobody has won yet.
+      allow delete: if isUser(resource.data.importerUid)
+        && resource.data.status == 'open';
+    }
+
     // 5. DEFAULT DENY
     match /{document=**} {
       allow read, write: if false;
