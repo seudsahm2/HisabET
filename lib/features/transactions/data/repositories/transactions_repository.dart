@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:hisabet/core/database/app_database.dart';
 import 'package:hisabet/features/sync/data/services/transaction_sync_service.dart';
 import 'package:hisabet/features/transactions/data/models/transaction_model.dart';
+import 'package:hisabet/features/transactions/data/repositories/contact_balance.dart';
 import 'package:uuid/uuid.dart';
 
 abstract class TransactionsRepository {
@@ -409,13 +410,7 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
 
   @override
   Future<Decimal> calculateNetBalance(String contactId) async {
-    final transactions = await getTransactionsForContact(contactId);
-
-    Decimal balance = Decimal.zero;
-    for (final tx in transactions) {
-      balance += tx.balanceEffect;
-    }
-    return balance;
+    return netBalanceOf(await getTransactionsForContact(contactId));
   }
 
   @override
@@ -449,17 +444,8 @@ class TransactionsRepositoryImpl implements TransactionsRepository {
   }
 
   /// Internal: Update the contact's cached netBalance field
-  Future<void> _updateContactBalance(String contactId) async {
-    final newBalance = await calculateNetBalance(contactId);
-    await (_db.update(
-      _db.contacts,
-    )..where((tbl) => tbl.id.equals(contactId))).write(
-      ContactsCompanion(
-        netBalance: Value(newBalance.toString()),
-        lastTransactionDate: Value(DateTime.now()),
-      ),
-    );
-  }
+  Future<void> _updateContactBalance(String contactId) =>
+      recalculateContactBalance(_db, contactId);
 
   bool _isGoodsTransaction(TransactionType type) {
     return type == TransactionType.goodsGiven ||

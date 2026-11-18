@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 
@@ -46,6 +47,11 @@ class AppDatabase extends _$AppDatabase {
   final String uid;
   
   AppDatabase(this.uid) : super(_openConnection(uid));
+
+  /// Opens the schema on an arbitrary executor, e.g. `NativeDatabase.memory()`
+  /// in tests. Production code always goes through the per-user constructor.
+  @visibleForTesting
+  AppDatabase.forTesting(super.executor) : uid = 'test';
 
   Future<bool> _hasColumn(String tableName, String columnName) async {
     final rows = await customSelect('PRAGMA table_info("$tableName")').get();

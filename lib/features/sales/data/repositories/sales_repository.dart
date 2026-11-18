@@ -1,11 +1,11 @@
 import 'dart:convert';
 import 'package:decimal/decimal.dart';
 import 'package:drift/drift.dart';
-import 'package:flutter/foundation.dart';
 import 'package:hisabet/core/database/app_database.dart';
 import 'package:hisabet/features/sales/data/models/pos_cart_item.dart';
 import 'package:hisabet/features/sales/data/models/sale_line_item_model.dart';
 import 'package:hisabet/features/sales/data/models/sale_model.dart';
+import 'package:hisabet/features/transactions/data/repositories/contact_balance.dart';
 import 'package:uuid/uuid.dart';
 
 abstract class SalesRepository {
@@ -46,7 +46,6 @@ class SalesRepositoryImpl implements SalesRepository {
     String? promotionId,
     String? promotionCode,
   }) async {
-    debugPrint('CHECKOUT TRACE [Repo]: Inside checkoutSale. Generating IDs...');
     if (cartItems.isEmpty) {
       throw Exception('Cart is empty.');
     }
@@ -67,28 +66,34 @@ class SalesRepositoryImpl implements SalesRepository {
     final now = DateTime.now();
     final saleId = const Uuid().v4();
 
-    debugPrint('CHECKOUT TRACE [Repo]: Starting database transaction...');
-    try {
-      debugPrint('CHECKOUT TRACE [Repo]: Transaction started. Inserting Sale record...');
+    // One atomic unit: a failure anywhere (e.g. insufficient stock on the
+    // third item) rolls back the sale row, every stock write, the promotion
+    // redemption and the ledger entry together. Without this, a partial
+    // checkout left stock deducted for some items and a sale that never
+    // completed.
+    await _db.transaction(() async {
+      // Read each product once, inside the transaction, and use that same
+      // row both to validate and to compute the new stock. The cart holds a
+      // snapshot taken when the item was added, which can be stale.
+      final freshProducts = <String, Product>{};
       for (final item in cartItems) {
-        final product = await (_db.select(
-          _db.products,
-        )..where((tbl) => tbl.id.equals(item.product.id))).getSingleOrNull();
+        final product = await (_db.select(_db.products)
+              ..where((tbl) => tbl.id.equals(item.product.id)))
+            .getSingleOrNull();
 
         if (product == null) {
           throw Exception('Product not found: ${item.product.name}');
         }
-
         if (product.stockQuantity < item.quantity) {
           throw Exception(
-            'Insufficient stock for ${item.product.name}. Available: ${product.stockQuantity}',
+            'Insufficient stock for ${item.product.name}. '
+            'Available: ${product.stockQuantity}',
           );
         }
+        freshProducts[product.id] = product;
       }
 
-      await _db
-          .into(_db.sales)
-          .insert(
+      await _db.into(_db.sales).insert(
             SalesCompanion.insert(
               id: saleId,
               contactId: Value(contactId),
@@ -105,9 +110,7 @@ class SalesRepositoryImpl implements SalesRepository {
           );
 
       if (promotionId != null && discountValue > Decimal.zero) {
-        await _db
-            .into(_db.promotionRedemptions)
-            .insert(
+        await _db.into(_db.promotionRedemptions).insert(
               PromotionRedemptionsCompanion.insert(
                 id: const Uuid().v4(),
                 promotionId: promotionId,
@@ -119,31 +122,23 @@ class SalesRepositoryImpl implements SalesRepository {
               ),
             );
 
-        final promoRow = await (_db.select(
-          _db.promotions,
-        )..where((tbl) => tbl.id.equals(promotionId))).getSingleOrNull();
-        if (promoRow != null) {
-          await (_db.update(
-            _db.promotions,
-          )..where((tbl) => tbl.id.equals(promotionId))).write(
-            PromotionsCompanion(
-              usedCount: Value(promoRow.usedCount + 1),
-              updatedAt: Value(now),
-            ),
-          );
-        }
+        // Increment in SQL rather than read-modify-write.
+        await (_db.update(_db.promotions)
+              ..where((tbl) => tbl.id.equals(promotionId)))
+            .write(
+          PromotionsCompanion.custom(
+            usedCount: _db.promotions.usedCount + const Constant(1),
+            updatedAt: Variable(now),
+          ),
+        );
       }
 
-      debugPrint('CHECKOUT TRACE [Repo]: Processing ${cartItems.length} items...');
       for (final item in cartItems) {
-        debugPrint('CHECKOUT TRACE [Repo]: Inserting item ${item.product.name}...');
-        final lineItemId = const Uuid().v4();
+        final product = freshProducts[item.product.id]!;
 
-        await _db
-            .into(_db.saleLineItems)
-            .insert(
+        await _db.into(_db.saleLineItems).insert(
               SaleLineItemsCompanion.insert(
-                id: lineItemId,
+                id: const Uuid().v4(),
                 saleId: saleId,
                 productId: item.product.id,
                 productName: item.product.name,
@@ -156,22 +151,16 @@ class SalesRepositoryImpl implements SalesRepository {
               ),
             );
 
-        debugPrint('CHECKOUT TRACE [Repo]: Updating stock for ${item.product.name}...');
-        final updatedStock = item.product.stockQuantity - item.quantity;
-
-        await (_db.update(
-          _db.products,
-        )..where((tbl) => tbl.id.equals(item.product.id))).write(
+        await (_db.update(_db.products)
+              ..where((tbl) => tbl.id.equals(product.id)))
+            .write(
           ProductsCompanion(
-            stockQuantity: Value(updatedStock),
+            stockQuantity: Value(product.stockQuantity - item.quantity),
             updatedAt: Value(now),
           ),
         );
 
-        debugPrint('CHECKOUT TRACE [Repo]: Inserting stock movement for ${item.product.name}...');
-        await _db
-            .into(_db.stockMovements)
-            .insert(
+        await _db.into(_db.stockMovements).insert(
               StockMovementsCompanion.insert(
                 id: const Uuid().v4(),
                 productId: item.product.id,
@@ -183,61 +172,43 @@ class SalesRepositoryImpl implements SalesRepository {
             );
       }
 
-      // If this sale is linked to a contact and is partially paid (credit), record a Transaction
-      if (contactId != null) {
-        final amountOwed = total - paidAmountValue;
+      // A credit sale to a known contact becomes a ledger entry.
+      final amountOwed = total - paidAmountValue;
+      if (contactId != null && amountOwed > Decimal.zero) {
+        final snapshotMetadata = {
+          'source': 'pos_sale',
+          'product_snapshots': cartItems
+              .map((item) => {
+                    'name': item.product.name,
+                    'itemNumber': item.product.itemNumber,
+                    'photoUrl': item.product.photoUrl,
+                    'cartons': item.quantity,
+                    'seriesSize': item.product.seriesSize,
+                    'colorDistribution': item.product.colorDistribution,
+                    'costPrice': item.product.sellingPrice.toString(),
+                  })
+              .toList(),
+        };
 
-        if (amountOwed > Decimal.zero) {
-          final transactionId = const Uuid().v4();
-
-          final snapshotMetadata = {
-            'source': 'pos_sale',
-            'product_snapshots': cartItems.map((item) => {
-               'name': item.product.name,
-               'itemNumber': item.product.itemNumber,
-               'photoUrl': item.product.photoUrl,
-               'cartons': item.quantity,
-               'seriesSize': item.product.seriesSize,
-               'colorDistribution': item.product.colorDistribution,
-               'costPrice': item.product.sellingPrice.toString(),
-            }).toList(),
-          };
-
-          await _db.into(_db.transactions).insert(
-            TransactionsCompanion.insert(
-              id: transactionId,
-              contactId: contactId,
-              type: 0, // goodsGiven (They owe me)
-              status: const Value(1), // confirmed
-              amount: amountOwed.toString(),
-              date: now,
-              description: Value('Unpaid balance from POS Sale #$saleId'),
-              saleId: Value(saleId),
-              metadata: Value(jsonEncode(snapshotMetadata)),
-            ),
-          );
-
-          // Update the contact's netBalance
-          final contactRow = await (_db.select(_db.contacts)..where((tbl) => tbl.id.equals(contactId))).getSingleOrNull();
-          if (contactRow != null) {
-            final currentBalance = Decimal.tryParse(contactRow.netBalance) ?? Decimal.zero;
-            final newBalance = currentBalance + amountOwed;
-
-            await (_db.update(_db.contacts)..where((tbl) => tbl.id.equals(contactId))).write(
-              ContactsCompanion(
-                netBalance: Value(newBalance.toString()),
+        await _db.into(_db.transactions).insert(
+              TransactionsCompanion.insert(
+                id: const Uuid().v4(),
+                contactId: contactId,
+                type: 0, // goodsGiven (they owe me)
+                status: const Value(1), // confirmed
+                amount: amountOwed.toString(),
+                date: now,
+                description: Value('Unpaid balance from POS Sale #$saleId'),
+                saleId: Value(saleId),
+                metadata: Value(jsonEncode(snapshotMetadata)),
               ),
             );
-          }
-        }
-      }
-      debugPrint('CHECKOUT TRACE [Repo]: Transaction block finished.');
-    } catch (e) {
-      debugPrint('CHECKOUT TRACE [Repo]: Error during checkout execution: $e');
-      rethrow;
-    }
 
-    debugPrint('CHECKOUT TRACE [Repo]: checkoutSale successfully finished.');
+        // Same full recalculation the ledger uses, so the two can't drift.
+        await recalculateContactBalance(_db, contactId);
+      }
+    });
+
     return saleId;
   }
 

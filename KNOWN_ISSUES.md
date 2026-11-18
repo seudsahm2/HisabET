@@ -34,20 +34,24 @@ Schema v28 folds `is_importer` into `is_supplier` (`UPDATE contacts SET is_suppl
 
 The `is_importer` column is intentionally left in the table: dropping it means rebuilding a table that `transactions` references by foreign key, which is not worth the risk for a flag nothing reads. It is marked deprecated in `lib/core/database/tables/contacts.dart`.
 
-### 3. `checkoutSale` is not wrapped in a DB transaction — `OPEN`
+### 3. `checkoutSale` is not wrapped in a DB transaction — `FIXED` (2026-11-18)
 
 `SalesRepositoryImpl.checkoutSale` (`lib/features/sales/data/repositories/sales_repository.dart:38-243`) performs stock validation, the sale insert, promotion redemption, per-item line inserts, per-item stock writes, stock-movement inserts, and the contact balance update — all with **no `_db.transaction()` wrapper**. The `try` block only rethrows; it does not roll back.
 
 A failure partway through the item loop leaves stock deducted for some items and not others, with a sale row already written.
 → Wrap the whole body in `_db.transaction(() async { ... })`, as `addTransaction` already does correctly.
 
-### 4. Two different contact-balance code paths that can drift — `OPEN`
+**Resolution:** the whole checkout runs in one `_db.transaction`. Two more defects in the same function were fixed with it: stock was written as `cartSnapshot.stockQuantity - qty` (stale if stock changed after the item entered the cart), now computed from the row read inside the transaction; and the promotion `usedCount` read-modify-write is now an SQL increment. Covered by `test/features/sales/checkout_sale_test.dart`.
+
+### 4. Two different contact-balance code paths that can drift — `FIXED` (2026-11-18)
 
 - `_updateContactBalance` (`transactions_repository.dart:452`) recomputes from scratch: sum of `balanceEffect` over all non-deleted transactions. Self-healing.
 - `checkoutSale` (`sales_repository.dart:222-232`) does an incremental `currentBalance + amountOwed`.
 
 Any bug or interruption in the incremental path permanently desynchronises the cached `netBalance` from the transaction history.
 → Have `checkoutSale` call the same full recalculation.
+
+**Resolution:** `recalculateContactBalance` in `lib/features/transactions/data/repositories/contact_balance.dart` is now the only writer of `contacts.net_balance`; both repositories call it.
 
 ### 5. Three competing role taxonomies — `FIXED` (2026-08-08)
 
@@ -87,12 +91,14 @@ allow read: if request.auth != null && resource.data.contact_phone != null;
 This appears in both the per-user ledger rule and the collection-group rule. Any signed-in user can read any transaction document in the entire database that has a non-null `contact_phone`. The inline comment admits it is "kept lenient".
 → Require the reader's own phone to match: `resource.data.contact_phone == <caller's verified phone>`. Needs the phone on the auth token or a lookup.
 
-### 8. Live Supabase credentials committed for a backend that no longer exists — `OPEN`
+### 8. Live Supabase credentials committed for a backend that no longer exists — `FIXED` (2026-11-18)
 
 `lib/core/config/env.dart` contains a real Supabase project URL and anon JWT. `lib/core/network/supabase_service.dart` is an empty compatibility stub; the app is 100% Firebase.
 → Delete both files and the credentials; rotate/delete the Supabase project.
 
-### 9. Debug test dumps all production user PII — `OPEN`
+**Resolution:** both files deleted (nothing imported them). **Still to do by hand:** the key remains in git history, so delete or rotate the Supabase project itself.
+
+### 9. Debug test dumps all production user PII — `FIXED` (2026-11-18)
 
 `test/debug_users_test.dart` connects to live Firestore and prints every user's name, email, and phone. It is also why bare `flutter test` hangs — it times out after 10 minutes.
 → Delete the file.
@@ -124,8 +130,8 @@ Spec: brokers open one carton as a display sample, so 10 cartons is really 9 ful
 ### 13. Working modules advertised as "coming soon" — `FIXED` (2026-08-08)
 The dashboard action strip was rebuilt as `AppQuickActions`; Expenses and Reports now push their real screens.
 
-### 14. `widget_test.dart` is stock template code — `OPEN`
-Tests a counter that does not exist; fails on every run. Delete or replace.
+### 14. `widget_test.dart` is stock template code — `FIXED` (2026-11-18)
+Tests a counter that does not exist; fails on every run. Deleted. Bare `flutter test` now runs the real suite.
 
 ### 15. Analyzer warnings — `FIXED` (2026-08-08)
 
